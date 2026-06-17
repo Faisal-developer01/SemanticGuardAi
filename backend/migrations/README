@@ -1,0 +1,6 @@
+Generic single-database configuration for SemanticGuard AI (Flask-Migrate).
+
+Usage:
+    flask db migrate -m "message"   # autogenerate a revision
+    flask db upgrade                # apply migrations
+    flask db downgrade -1           # revert one revision

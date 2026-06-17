@@ -1,0 +1,233 @@
+/* stylelint-disable */
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  :root {
+    --radius: 0.5rem;
+
+    /* ── Brand Palette ────────────────────────────────────────────────────
+       Deep Navy   #0F2D52  → hsl(214, 68%, 19%)  main brand / sidebar
+       Royal Blue  #1E4E8C  → hsl(214, 64%, 34%)  buttons & highlights
+       White       #FFFFFF  → card surfaces
+       Light Gray  #F5F7FA  → hsl(220, 33%, 97%)  page background / sections
+       Dark Gray   #333333  → hsl(0, 0%, 20%)     body text
+       Gold/Amber  #D4A017  → hsl(43,  87%, 46%)  CTAs & key highlights
+       Sky Blue    #4A90E2  → hsl(211, 73%, 59%)  secondary accents / links
+       Soft BG     #E8EEF5  → hsl(214, 40%, 94%)  muted UI surfaces
+    ─────────────────────────────────────────────────────────────────── */
+
+    /* Page background: light gray #F5F7FA */
+    --background: 220 33% 97%;
+    --foreground: 0 0% 20%;          /* Dark Gray #333 */
+
+    /* Cards: pure white */
+    --card: 0 0% 100%;
+    --card-foreground: 0 0% 20%;
+    --popover: 0 0% 100%;
+    --popover-foreground: 0 0% 20%;
+
+    /* Primary: Royal Blue #1E4E8C — interactive buttons */
+    --primary: 214 64% 34%;
+    --primary-foreground: 0 0% 100%;
+
+    /* Secondary: Sky Blue #4A90E2 */
+    --secondary: 211 73% 59%;
+    --secondary-foreground: 0 0% 100%;
+
+    /* Muted: Soft Blue-Gray #E8EEF5 */
+    --muted: 214 40% 94%;
+    --muted-foreground: 214 25% 46%;
+
+    /* Accent: Sky Blue tint — hover surfaces, focus rings */
+    --accent: 211 73% 94%;                   /* Sky Blue tint — hover surface */
+    --accent-foreground: 214 68% 19%;         /* Deep Navy text on sky tint */
+
+    /* Destructive */
+    --destructive: 0 84% 50%;
+    --destructive-foreground: 0 0% 100%;
+
+    /* Borders */
+    --border: 214 30% 88%;
+    --input: 214 30% 88%;
+    --ring: 214 64% 34%;
+
+    /* Charts */
+    --chart-1: 214 64% 34%;
+    --chart-2: 211 73% 59%;
+    --chart-3: 43  87% 46%;
+    --chart-4: 0   84% 50%;
+    --chart-5: 142 72% 34%;
+
+    /* Status */
+    --success: 142 72% 34%;
+    --success-foreground: 0 0% 100%;
+    --warning: 43 87% 46%;
+    --warning-foreground: 0 0% 100%;
+    --info: 211 73% 59%;
+    --info-foreground: 0 0% 100%;
+
+    /* ── Sidebar: Deep Navy #0F2D52 background, white text ────────────── */
+    --sidebar-background: 214 68% 19%;
+    --sidebar-foreground: 0 0% 100%;
+    --sidebar-primary: 211 73% 62%;            /* Sky Blue active accent */
+    --sidebar-primary-foreground: 0 0% 100%;
+    --sidebar-accent: 214 55% 26%;            /* Royal Blue hover */
+    --sidebar-accent-foreground: 0 0% 100%;
+    --sidebar-border: 214 55% 26%;
+    --sidebar-ring: 211 73% 62%;
+
+    /* Shadows */
+    --shadow-card: 0 1px 3px rgba(15,45,82,0.06), 0 2px 8px rgba(15,45,82,0.05);
+    --shadow-hover: 0 4px 16px rgba(15,45,82,0.12);
+    --shadow-raised: 0 8px 24px rgba(15,45,82,0.10);
+  }
+
+  .dark {
+    --background: 214 55% 8%;
+    --foreground: 214 30% 92%;
+    --card: 214 50% 12%;
+    --card-foreground: 214 30% 92%;
+    --popover: 214 50% 12%;
+    --popover-foreground: 214 30% 92%;
+    --primary: 214 64% 50%;
+    --primary-foreground: 0 0% 100%;
+    --secondary: 211 73% 62%;
+    --secondary-foreground: 0 0% 100%;
+    --muted: 214 40% 18%;
+    --muted-foreground: 214 22% 56%;
+    --accent: 214 55% 22%;                   /* Navy blue hover surface */
+    --accent-foreground: 211 73% 85%;         /* Light sky text */
+    --destructive: 0 72% 52%;
+    --destructive-foreground: 0 0% 100%;
+    --border: 214 35% 22%;
+    --input: 214 35% 22%;
+    --ring: 214 64% 50%;
+    --chart-1: 214 64% 50%;
+    --chart-2: 211 73% 62%;
+    --chart-3: 43  87% 52%;
+    --chart-4: 0   72% 52%;
+    --chart-5: 142 72% 40%;
+    --success: 142 72% 40%;
+    --success-foreground: 0 0% 100%;
+    --warning: 43 87% 52%;
+    --warning-foreground: 0 0% 5%;
+    --info: 211 73% 62%;
+    --info-foreground: 0 0% 100%;
+    --sidebar-background: 214 68% 10%;
+    --sidebar-foreground: 214 30% 88%;
+    --sidebar-primary: 211 73% 65%;
+    --sidebar-primary-foreground: 0 0% 100%;
+    --sidebar-accent: 214 55% 18%;
+    --sidebar-accent-foreground: 214 30% 92%;
+    --sidebar-border: 214 45% 18%;
+    --sidebar-ring: 211 73% 65%;
+    --shadow-card: 0 1px 4px rgba(0,0,0,0.30), 0 4px 12px rgba(0,0,0,0.20);
+    --shadow-hover: 0 4px 20px rgba(0,0,0,0.32);
+    --shadow-raised: 0 8px 28px rgba(0,0,0,0.32);
+  }
+}
+
+@layer base {
+  * {
+    @apply border-border;
+    scrollbar-width: thin;
+    scrollbar-color: hsl(var(--border)) transparent;
+  }
+  *::-webkit-scrollbar {
+    width: 5px;
+    background: transparent;
+  }
+  *::-webkit-scrollbar-thumb {
+    background: hsl(var(--border));
+    border-radius: 3px;
+  }
+  body {
+    @apply bg-background text-foreground;
+    font-family: 'Poppins', ui-sans-serif, system-ui, sans-serif;
+    font-feature-settings: "tnum" 1;
+  }
+}
+
+/* ── Card shadows ──────────────────────────────────────────────────────────── */
+.card-shadow {
+  box-shadow: var(--shadow-card);
+}
+.card-shadow-hover {
+  transition: box-shadow 0.18s ease, transform 0.18s ease;
+}
+.card-shadow-hover:hover {
+  box-shadow: var(--shadow-hover);
+  transform: translateY(-1px);
+}
+
+/* ── Sidebar active item: left sky-blue border accent ──────────────────────── */
+.sidebar-active {
+  border-left: 3px solid hsl(211, 73%, 62%);
+  background-color: rgba(74, 144, 226, 0.12);
+  color: hsl(211, 73%, 78%);
+  font-weight: 600;
+  padding-left: calc(0.75rem - 3px) !important;
+}
+
+/* ── Stat card top accent stripes ─────────────────────────────────────────── */
+.stat-stripe-blue   { border-top: 2px solid hsl(214, 64%, 34%); }
+.stat-stripe-green  { border-top: 2px solid hsl(142, 72%, 34%); }
+.stat-stripe-amber  { border-top: 2px solid hsl(43,  87%, 46%); }  /* gold - button accent */
+.stat-stripe-red    { border-top: 2px solid hsl(0,   84%, 50%); }
+
+/* ── Sky Blue CTA buttons ──────────────────────────────────────────────────── */
+/* All default-variant <Button> components render with bg-primary.
+   Override button/anchor elements so primary text/borders (non-button uses)
+   stay Royal Blue while all action buttons are Sky Blue. */
+button.bg-primary,
+a.bg-primary {
+  background-color: hsl(211, 73%, 59%) !important;
+  color: #fff !important;
+  box-shadow: 0 2px 10px rgba(74, 144, 226, 0.32);
+}
+button.bg-primary:hover,
+a.bg-primary:hover {
+  background-color: hsl(211, 73%, 50%) !important;
+}
+button.bg-primary:focus-visible,
+a.bg-primary:focus-visible {
+  outline-color: hsl(211, 73%, 59%);
+}
+
+/* ── Gradient text ─────────────────────────────────────────────────────────── */
+.gradient-text {
+  background: linear-gradient(135deg, hsl(214, 68%, 19%), hsl(214, 64%, 34%));
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+}
+
+/* ── Risk utilities ────────────────────────────────────────────────────────── */
+.risk-low    { color: hsl(var(--success)); }
+.risk-medium { color: hsl(var(--warning)); }
+.risk-high   { color: hsl(var(--destructive)); }
+
+/* ── AI pulse ──────────────────────────────────────────────────────────────── */
+@keyframes ai-pulse {
+  0%, 100% { opacity: 1; }
+  50%       { opacity: 0.4; }
+}
+.ai-active {
+  animation: ai-pulse 2s ease-in-out infinite;
+}
+
+/* ── Alert pulse ───────────────────────────────────────────────────────────── */
+@keyframes alert-pulse {
+  0%, 100% { background-color: transparent; }
+  50%       { background-color: hsl(0 84% 50% / 0.06); }
+}
+.flagged-card {
+  animation: alert-pulse 2.2s ease-in-out infinite;
+}
+
+/* ── Section header bar ────────────────────────────────────────────────────── */
+.section-header {
+  background: linear-gradient(90deg, hsl(214, 68%, 19%) 0%, hsl(214, 64%, 34%) 100%);
+}

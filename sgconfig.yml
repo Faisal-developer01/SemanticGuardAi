@@ -1,0 +1,9 @@
+project:
+  name: SemanticGuard AI
+  framework: react
+  bundler: vite
+
+paths:
+  source: src
+  docs: docs
+  tasks: tasks

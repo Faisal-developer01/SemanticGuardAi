@@ -1,0 +1,13 @@
+# ─── SemanticGuard AI — AI/ML worker dependencies ──────────────────────────────
+# Installed only in the AI worker / Celery image to keep the API image lean.
+numpy==1.26.4
+opencv-python-headless==4.10.0.84
+mediapipe==0.10.14
+ultralytics==8.2.58          # YOLOv8 object/phone detection
+onnxruntime==1.18.1
+face-recognition==1.3.0      # dlib-based embeddings (needs cmake + dlib at build time)
+Pillow==10.4.0
+scipy==1.13.1
+# Optional deep models — uncomment if used:
+# deepface==0.0.92
+# tensorflow-cpu==2.16.1

@@ -1,0 +1,29 @@
+# Dependencies & build output
+node_modules/
+dist/
+dist-dev/
+.vite/
+
+# Backend (built from its own context)
+backend/
+
+# Local env & secrets
+.env
+.env.*
+!.env.example
+
+# Tooling caches / logs
+.eslintcache
+*.log
+npm-debug.log*
+
+# Editor / OS
+.vscode/
+.idea/
+.DS_Store
+
+# Docs & infra not needed in the web image
+docs/
+infra/
+tasks/
+*.md

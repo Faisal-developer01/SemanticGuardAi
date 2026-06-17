@@ -1,0 +1,56 @@
+# syntax=docker/dockerfile:1.7
+# ─── SemanticGuard AI — Celery worker image (AI/ML proctoring pipeline) ─────────
+# Heavy image: includes OpenCV, MediaPipe, YOLOv8 (ultralytics) and dlib-based
+# face-recognition. Kept separate from the lean API image so the web tier stays
+# small and fast to roll out.
+FROM python:3.12-slim AS base
+
+ENV PYTHONUNBUFFERED=1 \
+    PYTHONDONTWRITEBYTECODE=1 \
+    PIP_NO_CACHE_DIR=1 \
+    PIP_DISABLE_PIP_VERSION_CHECK=1
+
+# Runtime libs: libpq (psycopg2), OpenGL/glib (OpenCV), libgomp (onnxruntime).
+RUN apt-get update \
+    && apt-get install -y --no-install-recommends \
+        libpq5 libgl1 libglib2.0-0 libgomp1 \
+    && rm -rf /var/lib/apt/lists/*
+
+# ── Builder: full toolchain to compile dlib / psycopg2 / native wheels ──────────
+FROM base AS builder
+RUN apt-get update \
+    && apt-get install -y --no-install-recommends \
+        build-essential cmake libpq-dev libopenblas-dev liblapack-dev \
+        libgl1 libglib2.0-0 \
+    && rm -rf /var/lib/apt/lists/*
+WORKDIR /app
+# Build wheels for both the core app and the AI stack.
+COPY requirements.txt ai/requirements-ai.txt ./
+RUN pip wheel --wheel-dir /wheels -r requirements.txt \
+    && pip wheel --wheel-dir /wheels -r requirements-ai.txt
+
+# ── Final ───────────────────────────────────────────────────────────────────────
+FROM base AS runtime
+WORKDIR /app
+
+COPY --from=builder /wheels /wheels
+COPY requirements.txt ai/requirements-ai.txt ./
+RUN pip install --no-index --find-links=/wheels -r requirements.txt \
+    && pip install --no-index --find-links=/wheels -r requirements-ai.txt \
+    && rm -rf /wheels
+
+COPY . .
+
+RUN useradd --create-home --uid 10001 appuser \
+    && mkdir -p /app/var/uploads \
+    && chmod +x docker-entrypoint.sh \
+    && chown -R appuser:appuser /app
+USER appuser
+
+ENV FLASK_ENV=production \
+    RUN_MIGRATIONS=0 \
+    CELERY_CONCURRENCY=2
+
+# Workers never apply migrations (the API role owns the schema).
+ENTRYPOINT ["./docker-entrypoint.sh"]
+CMD ["sh", "-c", "exec celery -A celery_app.celery worker --loglevel=info --concurrency=${CELERY_CONCURRENCY}"]
