@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 import logging
+from pathlib import Path
 
 from flask import Flask, jsonify
 
@@ -10,7 +11,12 @@ from app.extensions import cors, db, jwt, limiter, mail, migrate, socketio
 
 
 def create_app(config_name: str | None = None) -> Flask:
-    app = Flask(__name__)
+    project_root = Path(__file__).resolve().parents[2]
+    app = Flask(
+        __name__,
+        static_folder=str(project_root / "dist"),
+        template_folder=str(project_root / "dist"),
+    )
     config = get_config(config_name)
     app.config.from_object(config)
 
@@ -22,6 +28,13 @@ def create_app(config_name: str | None = None) -> Flask:
     _register_security_headers(app)
     _register_cli(app)
     _configure_logging(app)
+
+    @app.route("/", defaults={"path": ""})
+    @app.route("/<path:path>")
+    def serve_spa(path: str):
+        if path and (Path(app.static_folder) / path).exists():
+            return app.send_static_file(path)
+        return app.send_static_file("index.html")
 
     @app.get("/health")
     def health():  # pragma: no cover - trivial
