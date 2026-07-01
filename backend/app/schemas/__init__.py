@@ -16,11 +16,18 @@ from app.schemas.assessment import (
     TestCaseSchema,
 )
 from app.schemas.common import CamelCaseSchema, PaginationQuerySchema
+from app.schemas.credential import (
+    CredentialIssueSchema,
+    CredentialPublicSchema,
+    CredentialSchema,
+)
 from app.schemas.user import (
     EmailVerifySchema,
     LoginSchema,
     MFASetupSchema,
     MFAVerifySchema,
+    OtpResendSchema,
+    OtpVerifySchema,
     PasswordChangeSchema,
     PasswordResetRequestSchema,
     PasswordResetSchema,
@@ -45,6 +52,8 @@ __all__ = [
     "MFAVerifySchema",
     "MFASetupSchema",
     "EmailVerifySchema",
+    "OtpVerifySchema",
+    "OtpResendSchema",
     "PasswordChangeSchema",
     "PasswordResetRequestSchema",
     "PasswordResetSchema",
@@ -62,4 +71,7 @@ __all__ = [
     "EvidenceSchema",
     "NotificationSchema",
     "AuditLogSchema",
+    "CredentialSchema",
+    "CredentialPublicSchema",
+    "CredentialIssueSchema",
 ]

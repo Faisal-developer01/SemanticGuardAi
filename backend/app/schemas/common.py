@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 import re
+from datetime import timezone
 
 from marshmallow import EXCLUDE, Schema, fields
 
@@ -12,6 +13,27 @@ _all_cap = re.compile(r"([a-z0-9])([A-Z])")
 def to_camel(value: str) -> str:
     parts = value.split("_")
     return parts[0] + "".join(p.title() for p in parts[1:])
+
+
+class UTCDateTime(fields.DateTime):
+    """ISO datetime field that always round-trips in UTC.
+
+    Naive datetimes (e.g. read back from SQLite, which drops tz info) are
+    assumed to be UTC on both load and dump, so the serialized value always
+    carries an explicit ``+00:00`` offset. This prevents the frontend from
+    misinterpreting a tz-less timestamp as the browser's local time.
+    """
+
+    def _serialize(self, value, attr, obj, **kwargs):
+        if value is not None and value.tzinfo is None:
+            value = value.replace(tzinfo=timezone.utc)
+        return super()._serialize(value, attr, obj, **kwargs)
+
+    def _deserialize(self, value, attr, data, **kwargs):
+        dt = super()._deserialize(value, attr, data, **kwargs)
+        if dt is not None and dt.tzinfo is None:
+            dt = dt.replace(tzinfo=timezone.utc)
+        return dt
 
 
 class CamelCaseSchema(Schema):

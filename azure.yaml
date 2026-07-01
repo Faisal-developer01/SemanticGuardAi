@@ -1,0 +1,31 @@
+# yaml-language-server: $schema=https://raw.githubusercontent.com/Azure/azure-dev/refs/heads/main/schemas/v1.0/azure.yaml.json
+name: semanticguard-ai
+metadata:
+  template: semanticguard-ai@1.0.0
+
+# Three container services make up SemanticGuard AI:
+#   web    – React SPA served by nginx, reverse-proxies /api and /socket.io
+#   api    – Flask REST API + Socket.IO (gunicorn/eventlet)
+#   worker – Celery worker running the AI/ML proctoring pipeline
+services:
+  web:
+    project: .
+    language: docker
+    host: containerapp
+    docker:
+      path: ./Dockerfile
+      context: .
+  api:
+    project: ./backend
+    language: docker
+    host: containerapp
+    docker:
+      path: ./Dockerfile
+      context: .
+  worker:
+    project: ./backend
+    language: docker
+    host: containerapp
+    docker:
+      path: ./ai/Dockerfile.worker
+      context: .

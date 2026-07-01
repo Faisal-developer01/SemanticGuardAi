@@ -2,15 +2,21 @@ import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { useNavigate, useParams, Link } from 'react-router-dom';
 import { AppLayout } from '@/components/layouts/AppLayout';
 import { StatusDot, RiskBadge } from '@/components/shared/StatusBadges';
-import { CodeEditor } from '@/components/shared/CodeEditor';
+import { CodeEditor, type KeystrokeStats } from '@/components/shared/CodeEditor';
 import { assessmentsApi, sessionsApi, type ApiSession } from '@/lib/api';
 import { mapAssessment, mapQuestion } from '@/lib/mappers';
+import { assessmentAvailability, normalizeUtc } from '@/lib/utils';
+import { useCandidateWebRTC, getSocket } from '@/lib/realtime';
+import { useBrowserLockdown } from '@/lib/lockdown';
+import { getDeviceIdentity } from '@/lib/deviceFingerprint';
+import { useScreenRecorder } from '@/lib/screenRecorder';
+
 import { Button } from '@/components/ui/button';
 import { Progress } from '@/components/ui/progress';
 import { toast } from 'sonner';
 import {
   AlertTriangle, Camera, Eye, Monitor, Wifi, ChevronLeft, ChevronRight,
-  Send, Clock, Shield, Volume2, Smartphone, Maximize, Mic
+  Send, Clock, Shield, Volume2, Smartphone, Maximize, Mic, CheckCircle2, Loader2
 } from 'lucide-react';
 import type { AIMonitoringStatus, Assessment, Question } from '@/types/types';
 
@@ -56,9 +62,16 @@ const AssessmentScreen: React.FC = () => {
   const [loadError, setLoadError] = useState<string | null>(null);
   const [starting, setStarting] = useState(false);
   const [submittedSession, setSubmittedSession] = useState<ApiSession | null>(null);
+  // Drives the live webcam stream to recruiters (set once the session starts).
+  const [liveSessionId, setLiveSessionId] = useState<string | null>(null);
+  const [monitoringEnabled, setMonitoringEnabled] = useState(true);
+  const monitoringEnabledRef = useRef(monitoringEnabled);
+  monitoringEnabledRef.current = monitoringEnabled;
+
 
   const sessionIdRef = useRef<string | null>(null);
   const saveTimers = useRef<Record<string, ReturnType<typeof setTimeout>>>({});
+  const codeTelemetryRef = useRef<Record<string, KeystrokeStats>>({});
   const aiStatusRef = useRef(aiStatus);
   aiStatusRef.current = aiStatus;
 
@@ -71,13 +84,47 @@ const AssessmentScreen: React.FC = () => {
 
   // Face / gaze detection refs
   const videoRef         = useRef<HTMLVideoElement | null>(null);
-  const frameCanvasRef   = useRef<HTMLCanvasElement | null>(null);
   const faceLandmarkerRef = useRef<any>(null);
   const camStreamRef     = useRef<MediaStream | null>(null);
   const detectRafRef     = useRef<number | null>(null);
   const awayStartRef     = useRef<number | null>(null);
   const lastGazeAlertRef = useRef(0);
   const lastFaceAlertRef = useRef(0);
+
+  // ─── Secure Browser Lockdown ────────────────────────────────────────────────
+  const { extensionActive, devtoolsOpen } = useBrowserLockdown({
+    enabled: phase === 'assessment' && monitoringEnabled,
+    sessionId: sessionIdRef.current,
+    onViolation: (type, _severity) => {
+      const labels: Record<string, string> = {
+        devtools_open:     '🔍 DevTools detected',
+        keyboard_shortcut: '⌨ Blocked shortcut attempt',
+        clipboard_attempt: '📋 Clipboard attempt blocked',
+        multiple_tabs:     '⛔ Duplicate exam tab detected',
+        browser_unfocused: '👁 Focus lost',
+      };
+      pushAlert(labels[type] ?? `🔒 Lockdown: ${type}`);
+    },
+  });
+
+  // ─── Screen recording (evidence) ────────────────────────────────────────────
+  const screenRecorder = useScreenRecorder({
+    sessionId: liveSessionId,
+    onEnded: () => {
+      toast.warning('⚠ Screen sharing stopped — please keep it enabled for the whole exam.');
+      const sid = sessionIdRef.current;
+      if (sid) {
+        sessionsApi
+          .ingestEvent(sid, {
+            type: 'browser_unfocused',
+            severity: 'high',
+            occurredAt: new Date().toISOString(),
+            payload: { reason: 'screen_share_stopped' },
+          })
+          .catch(() => {});
+      }
+    },
+  });
 
   // ─── Helpers ───────────────────────────────────────────────────────────────
 
@@ -119,22 +166,59 @@ const AssessmentScreen: React.FC = () => {
     setAnswers(a => ({ ...a, [question.id]: value }));
     const sid = sessionIdRef.current;
     if (!sid) return;
-    const isChoice = question.type === 'multiple_choice' || question.type === 'true_false';
-    const response = isChoice ? (question.options?.[value as number] ?? String(value)) : String(value);
+    const response = question.type === 'multiple_choice'
+      ? (question.options?.[value as number]?.text ?? String(value))
+      : String(value);
     const language = question.type === 'coding' ? (question.languages?.[0] ?? question.language) : undefined;
+    const keystroke = question.type === 'coding'
+      ? (codeTelemetryRef.current[question.id] as unknown as Record<string, unknown> | undefined)
+      : undefined;
     if (saveTimers.current[question.id]) clearTimeout(saveTimers.current[question.id]);
     saveTimers.current[question.id] = setTimeout(() => {
-      sessionsApi.saveAnswer(sid, question.id, response, language).catch(() => {});
+      sessionsApi.saveAnswer(sid, question.id, response, language, keystroke).catch(() => {});
     }, 600);
   }, []);
 
   /** Start (or resume) the backend session, then enter the assessment phase. */
   const beginAssessment = useCallback(async () => {
     if (!assessment) return;
+    // Enforce the scheduled window client-side; the backend is authoritative.
+    const availability = assessmentAvailability(assessment);
+    if (availability === 'locked') {
+      toast.error('This assessment has not started yet.');
+      return;
+    }
+    if (availability === 'closed') {
+      toast.error('This assessment has closed.');
+      return;
+    }
     setStarting(true);
     try {
-      const session = await sessionsApi.start(assessment.id);
+      const device = await getDeviceIdentity().catch(() => undefined);
+      const session = await sessionsApi.start(
+        assessment.id,
+        device ? { fingerprint: device.fingerprint, info: device.info as unknown as Record<string, unknown> } : undefined,
+      );
       sessionIdRef.current = session.id;
+      setLiveSessionId(session.id);
+      setMonitoringEnabled(session.monitoringEnabled !== false);
+
+      // Begin screen recording for evidence (best-effort; needs the user gesture
+      // from the "Begin" click). A denial is surfaced but does not block the exam.
+      if (session.monitoringEnabled !== false) {
+        const ok = await screenRecorder.start();
+        if (!ok) {
+          toast.warning('Screen recording was not enabled. Recruiters may require it for a valid attempt.');
+        }
+      }
+
+      // The effective deadline is the sooner of the duration limit and the
+      // assessment's scheduled end time, so the timer auto-submits on closure.
+      const endMs = assessment.endTime ? new Date(normalizeUtc(assessment.endTime)).getTime() : NaN;
+      const secondsToEnd = Number.isNaN(endMs)
+        ? Infinity
+        : Math.max(0, Math.floor((endMs - Date.now()) / 1000));
+      setTimeLeft(Math.min(assessment.duration * 60, secondsToEnd));
       setAiStatus(s => ({
         ...s,
         riskScore: session.riskScore,
@@ -147,8 +231,6 @@ const AssessmentScreen: React.FC = () => {
       setStarting(false);
     }
   }, [assessment]);
-
-  // ─── Load the assessment + its questions (or list of available ones) ─────────
 
   useEffect(() => {
     let cancelled = false;
@@ -166,6 +248,16 @@ const AssessmentScreen: React.FC = () => {
           setAssessment(mapped);
           setQuestions(qs.map(mapQuestion).slice().sort((x, y) => x.order - y.order));
           setTimeLeft(mapped.duration * 60);
+
+          try {
+            const list = await sessionsApi.list({ assessmentId: routeAssessmentId });
+            const active = list.items.find(s => s.status === 'in_progress');
+            if (active) {
+              setMonitoringEnabled(active.monitoringEnabled !== false);
+            }
+          } catch {
+            // Ignore error if listing sessions fails
+          }
         } else {
           const page = await assessmentsApi.list({ status: 'active', perPage: 50 });
           if (cancelled) return;
@@ -181,6 +273,41 @@ const AssessmentScreen: React.FC = () => {
       cancelled = true;
     };
   }, [routeAssessmentId]);
+
+  // Listen for monitoring toggle from the recruiter
+  useEffect(() => {
+    const s = getSocket();
+    if (!s.connected) s.connect();
+
+    const handleToggle = (payload: { sessionId: string; enabled: boolean }) => {
+      if (payload.sessionId === sessionIdRef.current) {
+        setMonitoringEnabled(payload.enabled);
+        if (payload.enabled) {
+          toast.info('🛡 AI proctoring has been enabled for your session by the recruiter.');
+          if (phase === 'assessment') {
+            enterFullscreen();
+            startAudioMonitoring();
+            startFaceMonitoring();
+          }
+        } else {
+          toast.warning('🛡 AI proctoring has been disabled for your session by the recruiter.');
+          // Stop any active monitoring
+          stopFaceMonitoring();
+          stopAudioMonitoring();
+          if (document.fullscreenElement) document.exitFullscreen().catch(() => {});
+        }
+      }
+    };
+
+    s.on('monitoring_toggle', handleToggle);
+    return () => {
+      s.off('monitoring_toggle', handleToggle);
+    };
+    // Monitoring start/stop callbacks are stable for the component lifetime and
+    // are declared later; excluded from deps to match this file's convention.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [phase]);
+
 
   // ─── Fullscreen ────────────────────────────────────────────────────────────
 
@@ -243,12 +370,28 @@ const AssessmentScreen: React.FC = () => {
     };
 
     const onVisibility = () => {
-      if (document.hidden) terminate('Tab / application switch detected');
+      if (document.hidden) {
+        if (monitoringEnabledRef.current) {
+          terminate('Tab / application switch detected');
+        } else {
+          // Still log the event but don't terminate — monitoring is disabled
+          pushAlert('⚠ Tab switched (monitoring disabled — not terminating)');
+          const sid = sessionIdRef.current;
+          if (sid) {
+            sessionsApi.ingestEvent(sid, {
+              type: 'tab_switch', severity: 'medium',
+              occurredAt: new Date().toISOString(), payload: { monitored: false },
+            }).catch(() => {});
+          }
+        }
+      }
     };
 
     // Switching to another window/app also fires blur before visibilitychange
     // in some browsers — treat it as the same violation.
-    const onBlur = () => terminate('Window focus lost (switched away)');
+    const onBlur = () => {
+      if (monitoringEnabledRef.current) terminate('Window focus lost (switched away)');
+    };
 
     document.addEventListener('visibilitychange', onVisibility);
     window.addEventListener('blur', onBlur);
@@ -513,14 +656,12 @@ const AssessmentScreen: React.FC = () => {
       });
     }, 1000);
 
-    // Enter fullscreen
-    enterFullscreen();
-
-    // Start audio monitoring
-    startAudioMonitoring();
-
-    // Start camera + face / gaze monitoring
-    startFaceMonitoring();
+    // Enter fullscreen (only when proctoring is active)
+    if (monitoringEnabledRef.current) {
+      enterFullscreen();
+      startAudioMonitoring();
+      startFaceMonitoring();
+    }
 
     return () => {
       if (timerRef.current) clearInterval(timerRef.current);
@@ -532,40 +673,36 @@ const AssessmentScreen: React.FC = () => {
 
   // ─── Live-status heartbeat → recruiters/admins ──────────────────────────────
 
-  const captureCameraFrame = useCallback((): string | undefined => {
-    const video = videoRef.current;
-    if (!video || video.readyState < 2 || video.videoWidth === 0) return undefined;
-    let canvas = frameCanvasRef.current;
-    if (!canvas) {
-      canvas = document.createElement('canvas');
-      frameCanvasRef.current = canvas;
-    }
-    canvas.width = 320;
-    canvas.height = 240;
-    const ctx = canvas.getContext('2d');
-    if (!ctx) return undefined;
-    ctx.drawImage(video, 0, 0, 320, 240);
-    return canvas.toDataURL('image/jpeg', 0.55);
-  }, []);
-
   useEffect(() => {
     if (phase !== 'assessment') return;
     const sid = sessionIdRef.current;
     if (!sid) return;
     const beat = () => {
-      const cameraFrame = captureCameraFrame();
       sessionsApi
         .heartbeat(sid, {
           ...aiStatusRef.current,
           fullscreen: !!document.fullscreenElement,
-          ...(cameraFrame ? { cameraFrame } : {}),
         })
         .catch(() => {});
     };
     beat();
     const h = setInterval(beat, 3000);
     return () => clearInterval(h);
-  }, [phase, captureCameraFrame]);
+  }, [phase]);
+
+  // Continuous, low-latency live webcam feed to recruiters over WebRTC. The 3s
+  // heartbeat above still persists AI status + risk aggregates.
+  useCandidateWebRTC({
+    enabled: phase === 'assessment',
+    sessionId: liveSessionId,
+    streamRef: camStreamRef,
+  });
+
+  // Stop screen recording when the attempt ends by any path (terminated/submitted).
+  useEffect(() => {
+    if (phase === 'terminated' || phase === 'submitted') screenRecorder.stop();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [phase]);
 
   // ─── Submit ────────────────────────────────────────────────────────────────
 
@@ -573,6 +710,7 @@ const AssessmentScreen: React.FC = () => {
     if (timerRef.current) clearInterval(timerRef.current);
     stopAudioMonitoring();
     stopFaceMonitoring();
+    screenRecorder.stop();
     if (document.fullscreenElement) document.exitFullscreen().catch(() => {});
     const sid = sessionIdRef.current;
     if (sid) {
@@ -716,9 +854,35 @@ const AssessmentScreen: React.FC = () => {
               <strong>Important:</strong> The assessment runs in fullscreen mode. <strong>Switching tabs, applications, or windows will immediately end your assessment</strong> and flag it as an integrity violation. Leaving fullscreen or making sounds will also be flagged.
             </div>
 
-            <Button onClick={beginAssessment} disabled={!faceOk || starting} className="w-full">
-              {starting ? 'Starting…' : 'Begin Assessment (Fullscreen)'}
-            </Button>
+            {(() => {
+              const availability = assessmentAvailability(assessment);
+              if (availability === 'locked') {
+                return (
+                  <>
+                    <div className="p-3 bg-muted border border-border rounded text-xs text-muted-foreground">
+                      This assessment is not yet available. It opens at{' '}
+                      <strong>{new Date(normalizeUtc(assessment.startTime)).toLocaleString()}</strong>.
+                    </div>
+                    <Button disabled className="w-full">Not Yet Available</Button>
+                  </>
+                );
+              }
+              if (availability === 'closed') {
+                return (
+                  <>
+                    <div className="p-3 bg-destructive/10 border border-destructive/30 rounded text-xs text-destructive">
+                      This assessment has closed and is no longer accepting submissions.
+                    </div>
+                    <Button disabled className="w-full">Assessment Closed</Button>
+                  </>
+                );
+              }
+              return (
+                <Button onClick={beginAssessment} disabled={!faceOk || starting} className="w-full">
+                  {starting ? 'Starting…' : 'Begin Assessment (Fullscreen)'}
+                </Button>
+              );
+            })()}
           </div>
         </div>
       </AppLayout>
@@ -728,21 +892,80 @@ const AssessmentScreen: React.FC = () => {
   // ─── Submitted ─────────────────────────────────────────────────────────────
 
   if (phase === 'submitted') {
+    const gs = submittedSession?.gradingStatus ?? 'graded';
+    const scored = submittedSession && submittedSession.percentage != null;
+    const pct = scored ? Math.round(submittedSession!.percentage as number) : null;
+    const passed = submittedSession?.passed === true;
+    const integrity = submittedSession ? Math.round(submittedSession.integrityScore) : null;
+    const risk = submittedSession ? Math.round(submittedSession.riskScore) : aiStatus.riskScore;
+    const behavior =
+      integrity == null ? 'Pending'
+      : integrity >= 85 ? 'Clean — no significant integrity concerns'
+      : integrity >= 60 ? 'Minor integrity signals detected'
+      : 'Multiple integrity concerns detected';
+
+    const statusMeta = {
+      graded: {
+        label: 'Graded', Icon: CheckCircle2,
+        ring: 'border-green-500 bg-green-500/10 text-green-500',
+        badge: 'bg-green-500/10 text-green-600 dark:text-green-400 border-green-500/20',
+        desc: 'Your assessment has been automatically graded. Your official score is shown below.',
+      },
+      processing: {
+        label: 'Processing', Icon: Loader2,
+        ring: 'border-amber-500 bg-amber-500/10 text-amber-500',
+        badge: 'bg-amber-500/10 text-amber-600 dark:text-amber-400 border-amber-500/20',
+        desc: 'Objective questions are graded (score below is provisional). Short-answer responses are pending recruiter review.',
+      },
+      under_review: {
+        label: 'Under Review', Icon: Shield,
+        ring: 'border-destructive bg-destructive/10 text-destructive',
+        badge: 'bg-destructive/10 text-destructive border-destructive/20',
+        desc: 'Your session was flagged during monitoring. Your final result is pending recruiter review.',
+      },
+    }[gs];
+
     return (
       <AppLayout>
-        <div className="max-w-2xl mx-auto text-center space-y-6 py-12">
-          <div className="w-20 h-20 rounded-full bg-green-500/10 border-2 border-green-500 flex items-center justify-center mx-auto">
-            <Shield className="w-10 h-10 text-green-500" />
+        <div className="max-w-2xl mx-auto text-center space-y-6 py-12 px-4">
+          <div className={`w-20 h-20 rounded-full border-2 flex items-center justify-center mx-auto ${statusMeta.ring}`}>
+            <statusMeta.Icon className={`w-10 h-10 ${gs === 'processing' ? 'animate-spin' : ''}`} />
           </div>
           <div>
-            <h1 className="text-2xl font-bold text-balance">Assessment Submitted!</h1>
-            <p className="text-muted-foreground mt-2">Your answers have been securely submitted.</p>
+            <h1 className="text-2xl font-bold text-balance">Assessment Submitted</h1>
+            <div className="mt-2 flex items-center justify-center gap-2">
+              <span className={`inline-flex items-center gap-1.5 text-xs font-semibold uppercase tracking-wide px-2.5 py-1 rounded border ${statusMeta.badge}`}>
+                {statusMeta.label}
+              </span>
+            </div>
+            <p className="text-muted-foreground mt-3 text-sm max-w-md mx-auto">{statusMeta.desc}</p>
           </div>
+
+          {/* Score headline */}
+          {scored && (
+            <div className="bg-card border border-border rounded-md p-6">
+              <p className="text-xs text-muted-foreground uppercase tracking-wide">
+                {gs === 'graded' ? 'Your Score' : 'Provisional Score'}
+              </p>
+              <p className={`text-5xl font-bold font-mono mt-1 ${passed ? 'text-green-500' : 'text-foreground'}`}>{pct}%</p>
+              <p className="text-sm text-muted-foreground mt-1">
+                {submittedSession!.score ?? 0} / {submittedSession!.maxScore} marks
+              </p>
+              {gs === 'graded' && (
+                <span className={`inline-flex items-center gap-1.5 mt-3 text-sm font-semibold px-3 py-1 rounded-full border ${passed ? 'bg-green-500/10 text-green-600 dark:text-green-400 border-green-500/20' : 'bg-destructive/10 text-destructive border-destructive/20'}`}>
+                  {passed ? <CheckCircle2 className="w-4 h-4" /> : <AlertTriangle className="w-4 h-4" />}
+                  {passed ? 'Passed' : 'Not Passed'}
+                </span>
+              )}
+            </div>
+          )}
+
+          {/* Metrics */}
           <div className="grid grid-cols-3 gap-4">
             {[
-              { label: 'Answered',       value: `${answered}/${questions.length}` },
-              { label: 'Integrity Score', value: submittedSession ? Math.round(submittedSession.integrityScore).toString() : '—' },
-              { label: 'Risk Score',      value: submittedSession ? Math.round(submittedSession.riskScore).toString() : aiStatus.riskScore.toString() },
+              { label: 'Answered', value: `${answered}/${questions.length}` },
+              { label: 'Integrity Score', value: integrity != null ? integrity.toString() : '—' },
+              { label: 'Risk Score', value: risk.toString() },
             ].map(({ label, value }) => (
               <div key={label} className="bg-card border border-border rounded-md p-4">
                 <p className="text-2xl font-bold font-mono text-foreground">{value}</p>
@@ -750,8 +973,23 @@ const AssessmentScreen: React.FC = () => {
               </div>
             ))}
           </div>
-          <p className="text-sm text-muted-foreground">Results will be available within 24 hours.</p>
-          <Button onClick={() => navigate('/candidate/dashboard')}>Back to Dashboard</Button>
+
+          {/* Behaviour analysis */}
+          <div className="flex items-start gap-2 text-left bg-muted/40 border border-border rounded-md p-3">
+            <Eye className="w-4 h-4 text-primary shrink-0 mt-0.5" />
+            <p className="text-xs text-muted-foreground">
+              <span className="font-medium text-foreground">Behaviour analysis:</span> {behavior}.
+            </p>
+          </div>
+
+          <div className="flex flex-col sm:flex-row items-center justify-center gap-2">
+            {submittedSession && (
+              <Button variant="outline" onClick={() => navigate(`/candidate/results/${submittedSession.id}`)}>
+                View Detailed Results
+              </Button>
+            )}
+            <Button onClick={() => navigate('/candidate/dashboard')}>Back to Dashboard</Button>
+          </div>
         </div>
       </AppLayout>
     );
@@ -804,28 +1042,44 @@ const AssessmentScreen: React.FC = () => {
 
   return (
     <AppLayout>
-      <div className="max-w-6xl mx-auto space-y-4">
+      <div className="max-w-6xl mx-auto space-y-4 pb-24 lg:pb-4">
         {/* Header */}
-        <div className="bg-card border border-border rounded-md px-4 py-3 flex flex-wrap items-center gap-3 justify-between">
+        <div className="sticky top-0 z-30 bg-card/95 backdrop-blur supports-[backdrop-filter]:bg-card/80 border border-border rounded-md px-3 py-2.5 sm:px-4 sm:py-3 flex flex-wrap items-center gap-2 sm:gap-3 justify-between shadow-sm">
           <div className="min-w-0">
             <h1 className="text-sm font-semibold text-foreground truncate text-balance">{assessment.title}</h1>
             <p className="text-xs text-muted-foreground">Q{currentQ + 1}/{questions.length}</p>
           </div>
-          <div className="flex items-center gap-3 flex-wrap shrink-0">
-            {/* Fullscreen indicator */}
-            <button
-              onClick={enterFullscreen}
-              title={isFullscreen ? 'Fullscreen active' : 'Click to restore fullscreen'}
-              className={`flex items-center gap-1 text-xs px-2 py-1 rounded border transition-colors ${isFullscreen ? 'border-green-500/30 bg-green-500/10 text-green-500' : 'border-destructive/40 bg-destructive/10 text-destructive animate-pulse'}`}
+          <div className="flex items-center gap-2 sm:gap-3 flex-wrap shrink-0">
+            {/* Monitoring enabled/disabled pill */}
+            <span
+              title={monitoringEnabled ? 'AI proctoring is active' : 'AI proctoring is disabled by recruiter'}
+              className={`flex items-center gap-1 text-xs px-2 py-1 rounded border font-medium transition-colors ${
+                monitoringEnabled
+                  ? 'border-primary/30 bg-primary/10 text-primary'
+                  : 'border-muted-foreground/30 bg-muted text-muted-foreground'
+              }`}
             >
-              <Maximize className="w-3.5 h-3.5" />
-              {isFullscreen ? 'Fullscreen' : 'Restore FS'}
-            </button>
-            {/* Audio indicator */}
-            <span className={`flex items-center gap-1 text-xs px-2 py-1 rounded border ${aiStatus.audioDetected ? 'border-destructive/40 bg-destructive/10 text-destructive' : 'border-green-500/30 bg-green-500/10 text-green-500'}`}>
-              <Mic className="w-3.5 h-3.5" />
-              {aiStatus.audioDetected ? 'Audio!' : audioActive ? 'Mic On' : 'No Mic'}
+              <Shield className="w-3.5 h-3.5" />
+              {monitoringEnabled ? 'Monitored' : 'Unmonitored'}
             </span>
+            {/* Fullscreen indicator (only meaningful when monitored) */}
+            {monitoringEnabled && (
+              <button
+                onClick={enterFullscreen}
+                title={isFullscreen ? 'Fullscreen active' : 'Click to restore fullscreen'}
+                className={`flex items-center gap-1 text-xs px-2 py-1 rounded border transition-colors ${isFullscreen ? 'border-green-500/30 bg-green-500/10 text-green-500' : 'border-destructive/40 bg-destructive/10 text-destructive animate-pulse'}`}
+              >
+                <Maximize className="w-3.5 h-3.5" />
+                {isFullscreen ? 'Fullscreen' : 'Restore FS'}
+              </button>
+            )}
+            {/* Audio indicator (only meaningful when monitored) */}
+            {monitoringEnabled && (
+              <span className={`flex items-center gap-1 text-xs px-2 py-1 rounded border ${aiStatus.audioDetected ? 'border-destructive/40 bg-destructive/10 text-destructive' : 'border-green-500/30 bg-green-500/10 text-green-500'}`}>
+                <Mic className="w-3.5 h-3.5" />
+                {aiStatus.audioDetected ? 'Audio!' : audioActive ? 'Mic On' : 'No Mic'}
+              </span>
+            )}
             {/* Tab switch count */}
             {aiStatus.tabSwitches > 0 && (
               <span className="flex items-center gap-1 text-xs px-2 py-1 rounded border border-destructive/40 bg-destructive/10 text-destructive">
@@ -862,6 +1116,7 @@ const AssessmentScreen: React.FC = () => {
                   testCases={q.testCases}
                   value={(answers[q.id] as string) ?? ''}
                   onChange={code => recordAnswer(q, code)}
+                  onTelemetry={stats => { codeTelemetryRef.current[q.id] = stats; }}
                 />
               ) : q?.type === 'short_answer' ? (
                 <textarea
@@ -870,13 +1125,23 @@ const AssessmentScreen: React.FC = () => {
                   value={answers[q.id] as string || ''}
                   onChange={e => recordAnswer(q, e.target.value)}
                 />
+              ) : q?.type === 'true_false' ? (
+                <div className="space-y-2">
+                  {['True', 'False'].map(val => (
+                    <label key={val} className={`flex items-center gap-3 p-3 rounded-md border cursor-pointer transition-colors min-h-12 ${answers[q.id] === val ? 'border-primary bg-primary/5' : 'border-border hover:bg-muted/50'}`}>
+                      <input type="radio" name={`q-${q.id}`} checked={answers[q.id] === val}
+                        onChange={() => recordAnswer(q, val)} className="shrink-0" />
+                      <span className="text-sm text-foreground">{val}</span>
+                    </label>
+                  ))}
+                </div>
               ) : (
                 <div className="space-y-2">
                   {q?.options?.map((opt, i) => (
-                    <label key={i} className={`flex items-center gap-3 p-3 rounded-md border cursor-pointer transition-colors min-h-12 ${answers[q.id] === i ? 'border-primary bg-primary/5' : 'border-border hover:bg-muted/50'}`}>
+                    <label key={opt.id ?? i} className={`flex items-center gap-3 p-3 rounded-md border cursor-pointer transition-colors min-h-12 ${answers[q.id] === i ? 'border-primary bg-primary/5' : 'border-border hover:bg-muted/50'}`}>
                       <input type="radio" name={`q-${q.id}`} checked={answers[q.id] === i}
                         onChange={() => recordAnswer(q, i)} className="shrink-0" />
-                      <span className="text-sm text-foreground">{opt}</span>
+                      <span className="text-sm text-foreground">{opt.text}</span>
                     </label>
                   ))}
                 </div>
@@ -907,9 +1172,15 @@ const AssessmentScreen: React.FC = () => {
             <div className="flex items-center gap-2">
               <Shield className="w-4 h-4 text-primary shrink-0" />
               <h3 className="text-sm font-semibold">AI Monitoring</h3>
-              <span className="ml-auto flex items-center gap-1 text-[10px] bg-green-500/10 text-green-500 px-1.5 py-0.5 rounded border border-green-500/20">
-                <span className="w-1.5 h-1.5 rounded-full bg-green-500 ai-active" /> LIVE
-              </span>
+              {monitoringEnabled ? (
+                <span className="ml-auto flex items-center gap-1 text-[10px] bg-green-500/10 text-green-500 px-1.5 py-0.5 rounded border border-green-500/20">
+                  <span className="w-1.5 h-1.5 rounded-full bg-green-500 ai-active" /> LIVE
+                </span>
+              ) : (
+                <span className="ml-auto flex items-center gap-1 text-[10px] bg-muted text-muted-foreground px-1.5 py-0.5 rounded border border-border">
+                  <span className="w-1.5 h-1.5 rounded-full bg-muted-foreground" /> OFF
+                </span>
+              )}
             </div>
 
             {/* Live camera + gaze detection */}
@@ -984,6 +1255,25 @@ const AssessmentScreen: React.FC = () => {
               </div>
             )}
           </div>
+        </div>
+
+        {/* Mobile-only sticky action bar: keeps navigation and Submit reachable on phones */}
+        <div className="lg:hidden fixed inset-x-0 bottom-0 z-40 flex items-center gap-2 border-t border-border bg-card/95 backdrop-blur supports-[backdrop-filter]:bg-card/80 px-3 py-2.5 pb-[calc(0.625rem+env(safe-area-inset-bottom))] shadow-[0_-2px_10px_rgba(0,0,0,0.08)]">
+          <Button variant="outline" size="sm" className="flex-1" disabled={currentQ === 0} onClick={() => setCurrentQ(c => c - 1)}>
+            <ChevronLeft className="w-4 h-4 mr-1" /> Prev
+          </Button>
+          <Button
+            variant="outline"
+            size="sm"
+            className="flex-1"
+            disabled={currentQ === questions.length - 1}
+            onClick={() => setCurrentQ(c => c + 1)}
+          >
+            Next <ChevronRight className="w-4 h-4 ml-1" />
+          </Button>
+          <Button size="sm" variant="destructive" className="flex-1" onClick={handleSubmit}>
+            <Send className="w-3.5 h-3.5 mr-1.5" /> Submit
+          </Button>
         </div>
       </div>
     </AppLayout>

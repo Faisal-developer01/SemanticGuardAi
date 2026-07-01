@@ -87,10 +87,9 @@ with app.app_context():
         marks=10,
         order=7,
         entry_point="sumEven",
-        languages=["javascript", "python", "java"],
+        languages=["javascript", "java"],
         starter_codes={
             "javascript": "function sumEven(nums) {\n  // your code\n}",
-            "python": "def sumEven(nums):\n    # your code\n    pass",
             "java": "class Solution {\n    public int sumEven(int[] nums) {\n        // your code\n        return 0;\n    }\n}",
         },
     )

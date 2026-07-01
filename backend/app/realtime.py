@@ -139,6 +139,12 @@ def handle_connect(auth=None):
     # Every authenticated user joins their personal room to receive notifications.
     if user_id:
         join_room(_user_room(str(user_id)))
+        if role == UserRole.candidate.value:
+            socketio.emit(
+                "presence_change",
+                {"userId": str(user_id), "status": "online"},
+                room=MONITOR_ROOM,
+            )
     return True
 
 
@@ -164,9 +170,153 @@ def handle_leave_monitoring(data=None):
         leave_room(_assessment_room(str(assessment_id)))
 
 
+# ─── candidate -> monitors live video (WebRTC signaling) ─────────────────────
+#
+# Live video uses WebRTC for continuous, low-latency peer-to-peer streaming.
+# The candidate is the publisher; each recruiter/admin is a viewer. Socket.IO
+# only carries the signaling handshake (offer / answer / ICE) — the media itself
+# flows directly between browsers over the peer connection.
+#
+# Routing is done through each participant's personal ``user:{id}`` room so a
+# message is delivered to exactly one participant. The sender identity
+# (``fromId`` / ``viewerId`` / ``candidateId``) is always derived from the
+# authenticated socket session, never trusted from the client payload, so a
+# candidate cannot impersonate another participant's feed.
+
+
+def _is_monitor(role: str | None) -> bool:
+    return role in (UserRole.recruiter.value, UserRole.admin.value)
+
+
+@socketio.on("webrtc_request")
+def handle_webrtc_request(data=None):
+    """Viewer asks a candidate to open a live video peer connection."""
+    if not isinstance(data, dict):
+        return
+    role = flask_session.get("role")
+    viewer_id = flask_session.get("user_id")
+    if not _is_monitor(role) or not viewer_id:
+        return  # only recruiters/admins may request a candidate's feed
+    candidate_id = data.get("candidateId")
+    if not candidate_id:
+        return
+    socketio.emit(
+        "webrtc_request",
+        {
+            "viewerId": str(viewer_id),
+            "sessionId": str(data.get("sessionId")) if data.get("sessionId") else None,
+            "candidateId": str(candidate_id),
+        },
+        room=_user_room(str(candidate_id)),
+    )
+
+
+@socketio.on("webrtc_offer")
+def handle_webrtc_offer(data=None):
+    """Candidate sends an SDP offer to a specific viewer."""
+    if not isinstance(data, dict):
+        return
+    role = flask_session.get("role")
+    user_id = flask_session.get("user_id")
+    if role != UserRole.candidate.value or not user_id:
+        return
+    viewer_id = data.get("viewerId")
+    sdp = data.get("sdp")
+    if not viewer_id or not sdp:
+        return
+    socketio.emit(
+        "webrtc_offer",
+        {
+            "candidateId": str(user_id),
+            "sessionId": str(data.get("sessionId")) if data.get("sessionId") else None,
+            "sdp": sdp,
+        },
+        room=_user_room(str(viewer_id)),
+    )
+
+
+@socketio.on("webrtc_answer")
+def handle_webrtc_answer(data=None):
+    """Viewer sends an SDP answer back to the candidate."""
+    if not isinstance(data, dict):
+        return
+    role = flask_session.get("role")
+    viewer_id = flask_session.get("user_id")
+    if not _is_monitor(role) or not viewer_id:
+        return
+    candidate_id = data.get("candidateId")
+    sdp = data.get("sdp")
+    if not candidate_id or not sdp:
+        return
+    socketio.emit(
+        "webrtc_answer",
+        {"viewerId": str(viewer_id), "candidateId": str(candidate_id), "sdp": sdp},
+        room=_user_room(str(candidate_id)),
+    )
+
+
+@socketio.on("webrtc_ice")
+def handle_webrtc_ice(data=None):
+    """Relay a trickled ICE candidate to the other peer (bidirectional)."""
+    if not isinstance(data, dict):
+        return
+    from_id = flask_session.get("user_id")
+    if not from_id:
+        return
+    target_id = data.get("targetId")
+    candidate = data.get("candidate")
+    if not target_id or candidate is None:
+        return
+    socketio.emit(
+        "webrtc_ice",
+        {"fromId": str(from_id), "candidate": candidate},
+        room=_user_room(str(target_id)),
+    )
+
+
+@socketio.on("webrtc_stop")
+def handle_webrtc_stop(data=None):
+    """Tear down a peer connection (viewer closed a card, or candidate submitted)."""
+    if not isinstance(data, dict):
+        return
+    from_id = flask_session.get("user_id")
+    if not from_id:
+        return
+    target_id = data.get("targetId")
+    if not target_id:
+        return
+    socketio.emit(
+        "webrtc_stop",
+        {"fromId": str(from_id)},
+        room=_user_room(str(target_id)),
+    )
+
+
 @socketio.on("disconnect")
 def handle_disconnect():  # pragma: no cover - cleanup is automatic
     leave_room(MONITOR_ROOM)
     user_id = flask_session.get("user_id")
+    role = flask_session.get("role")
     if user_id:
         leave_room(_user_room(str(user_id)))
+        if role == UserRole.candidate.value:
+            socketio.emit(
+                "presence_change",
+                {"userId": str(user_id), "status": "offline"},
+                room=MONITOR_ROOM,
+            )
+            # Send SMS warning recruiter that candidate closed browser / went offline
+            from app.repositories import sessions as session_repo
+            active_session = session_repo.base_query().filter_by(
+                candidate_id=user_id, status=SessionStatus.in_progress
+            ).first()
+            if active_session:
+                from app.services.sms_service import deliver_offline_alert
+                deliver_offline_alert(active_session)
+                # Also push an in-app notification to the recruiter (online now).
+                try:
+                    from app.services import notification_service
+
+                    notification_service.notify_disconnect(active_session)
+                except Exception:  # noqa: BLE001 - best-effort
+                    pass

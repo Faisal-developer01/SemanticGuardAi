@@ -57,8 +57,17 @@ def _frontend(path: str) -> str:
 
 # ─── Low-level send ─────────────────────────────────────────────────────────────
 
-def send_email(to: str, subject: str, html_body: str, text_body: str | None = None) -> bool:
-    """Send a single email. Returns ``True`` when handed to the mail server."""
+def send_email(
+    to: str,
+    subject: str,
+    html_body: str,
+    text_body: str | None = None,
+    attachments: list[tuple[str, str, bytes]] | None = None,
+) -> bool:
+    """Send a single email. Returns ``True`` when handed to the mail server.
+
+    ``attachments`` is a list of ``(filename, mimetype, data)`` tuples.
+    """
     if current_app.config.get("MAIL_SUPPRESS_SEND"):
         current_app.logger.info("MAIL_SUPPRESS_SEND active; skipped email to %s (%s)", to, subject)
         return False
@@ -69,6 +78,8 @@ def send_email(to: str, subject: str, html_body: str, text_body: str | None = No
         return False
 
     msg = Message(subject=subject, recipients=[to], html=html_body, body=text_body or "")
+    for filename, mimetype, data in attachments or []:
+        msg.attach(filename=filename, content_type=mimetype, data=data)
     try:
         mail.send(msg)
         current_app.logger.info("Email sent to %s: %s", to, subject)
@@ -152,6 +163,50 @@ def send_notification_email(user_id: str, subject: str, message: str) -> bool:
     return send_email(user.email, subject, html, message)
 
 
+def send_credential_email(user_id: str, credential_ids: list[str]) -> bool:
+    """Email the candidate their certificate and/or offer letter as PDF attachments."""
+    from app.repositories import credentials as credentials_repo
+    from app.repositories import users
+    from app.services import certificate_service
+
+    user = users.get(user_id)
+    if not user:
+        return False
+
+    attachments: list[tuple[str, str, bytes]] = []
+    labels: list[str] = []
+    for cid in credential_ids or []:
+        cred = credentials_repo.get(cid)
+        if not cred:
+            continue
+        try:
+            data = certificate_service.get_pdf_bytes(cred)
+        except Exception:  # noqa: BLE001 - skip an attachment that fails to render
+            current_app.logger.exception("Failed to render credential PDF %s", cid)
+            continue
+        attachments.append((certificate_service.download_filename(cred), "application/pdf", data))
+        labels.append("Completion Certificate" if cred.type.value == "certificate" else "Offer Letter")
+
+    if not attachments:
+        return False
+
+    items = "".join(f"<li>{label}</li>" for label in labels)
+    body = (
+        '<p style="margin:0 0 16px;line-height:1.6;">Congratulations on passing your assessment! '
+        "Please find the following document(s) attached to this email:</p>"
+        f'<ul style="margin:0 0 16px;line-height:1.8;">{items}</ul>'
+        '<p style="margin:0;line-height:1.6;">Each document includes a QR code you can scan to verify its authenticity.</p>'
+    )
+    html = _render("Your certificate & offer letter", user.full_name, body)
+    return send_email(
+        user.email,
+        "Congratulations — your certificate & offer letter",
+        html,
+        "Congratulations on passing your assessment. Your documents are attached.",
+        attachments=attachments,
+    )
+
+
 # ─── Delivery dispatcher (Celery preferred, inline thread fallback) ─────────────
 
 # Maps a logical name to (celery task attribute, local sender function).
@@ -160,6 +215,7 @@ _SENDERS = {
     "password_reset": send_password_reset_email,
     "mfa_code": send_mfa_code_email,
     "notification": send_notification_email,
+    "credential": send_credential_email,
 }
 
 

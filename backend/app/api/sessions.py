@@ -1,32 +1,38 @@
 """Assessment session API: start, answer, submit, monitoring events."""
 from __future__ import annotations
 
-from flask import Blueprint
+from flask import Blueprint, request
 from flask_jwt_extended import jwt_required
 
-from app.api.helpers import created, ok, paginated, pagination_args, parse, query_param
+from app.api.helpers import body, created, ok, paginated, pagination_args, parse, query_param
 from app.models.enums import UserRole
 from app.schemas import (
     AlertSchema,
     AnswerSubmitSchema,
+    EvidenceSchema,
     IntegrityEventSchema,
     SessionSchema,
     SessionStartSchema,
 )
-from app.services import session_service
+from app.services import evidence_service, session_service
 from app.services.rbac import current_user, recruiter_required
 
 bp = Blueprint("sessions", __name__)
 
 _session_schema = SessionSchema()
 _alert_schema = AlertSchema()
+_evidence_schema = EvidenceSchema()
 
 
 @bp.post("")
 @jwt_required()
 def start_session():
     data = parse(SessionStartSchema())
-    session = session_service.start_session(current_user(), data["assessment_id"])
+    session = session_service.start_session(
+        current_user(), data["assessment_id"],
+        device_fingerprint=data.get("device_fingerprint"),
+        device_info=data.get("device_info"),
+    )
     return created(_session_schema.dump(session))
 
 
@@ -38,6 +44,9 @@ def list_sessions():
     user = current_user()
     args = pagination_args()
     if user.role_name == UserRole.candidate:
+        # Finalize any sessions whose assessment window has expired so the
+        # portal reflects auto-submitted attempts.
+        session_service.auto_close_expired_for_candidate(user)
         query = session_repo.for_candidate(user.id)
     elif query_param("assessmentId"):
         query = session_repo.for_assessment(query_param("assessmentId"))
@@ -61,6 +70,7 @@ def save_answer(session_id):
     session_service.save_answer(
         current_user(), str(session_id), data["question_id"],
         data.get("response"), data.get("selected_language"),
+        keystroke_stats=data.get("keystroke_stats"),
     )
     return ok({"message": "Answer saved"})
 
@@ -104,6 +114,50 @@ def session_alerts(session_id):
     return ok([_alert_schema.dump(a) for a in rows])
 
 
+@bp.get("/<uuid:session_id>/risk-breakdown")
+@jwt_required()
+@recruiter_required
+def session_risk_breakdown(session_id):
+    """AI Explainability: weighted per-signal contribution to the risk score."""
+    return ok(session_service.get_risk_breakdown(current_user(), str(session_id)))
+
+
+@bp.get("/<uuid:session_id>/code-integrity")
+@jwt_required()
+@recruiter_required
+def session_code_integrity(session_id):
+    """Coding plagiarism / AI-generated-code report for a session."""
+    return ok(session_service.get_code_integrity(current_user(), str(session_id)))
+
+
+@bp.post("/<uuid:session_id>/evidence")
+@jwt_required()
+def upload_evidence(session_id):
+    """Store a proctoring evidence file (e.g. a screen-recording segment)."""
+    from datetime import datetime, timezone
+
+    captured_raw = request.form.get("capturedAt")
+    captured_at = None
+    if captured_raw:
+        try:
+            captured_at = datetime.fromisoformat(captured_raw.replace("Z", "+00:00"))
+        except ValueError:
+            captured_at = None
+    record = evidence_service.upload(
+        current_user(), str(session_id), request.files.get("file"),
+        evidence_type=request.form.get("type"),
+        captured_at=captured_at or datetime.now(timezone.utc),
+    )
+    return created(_evidence_schema.dump(record))
+
+
+@bp.get("/<uuid:session_id>/evidence")
+@jwt_required()
+def list_evidence(session_id):
+    rows = evidence_service.list_for_session(current_user(), str(session_id))
+    return ok([_evidence_schema.dump(e) for e in rows])
+
+
 @bp.get("/live")
 @jwt_required()
 @recruiter_required
@@ -131,4 +185,28 @@ def update_status(session_id):
     except Exception:
         pass
     return ok({"message": "Status updated"})
+
+
+@bp.post("/<uuid:session_id>/monitoring")
+@jwt_required()
+@recruiter_required
+def toggle_monitoring(session_id):
+    enabled = body().get("enabled")
+    if enabled is None:
+        return ok({"message": "Parameter 'enabled' is required"}, 400)
+    session = session_service.toggle_monitoring(current_user(), str(session_id), bool(enabled))
+    try:
+        from app.realtime import broadcast_status
+        from app.extensions import socketio
+        broadcast_status(session)
+        socketio.emit(
+            "monitoring_toggle",
+            {"sessionId": str(session_id), "enabled": bool(enabled)},
+            room=f"user:{session.candidate_id}"
+        )
+    except Exception:
+        pass
+    return ok(_session_schema.dump(session))
+
+
 

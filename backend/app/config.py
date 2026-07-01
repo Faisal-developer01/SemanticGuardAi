@@ -66,16 +66,42 @@ class BaseConfig:
     MAIL_DEFAULT_SENDER = os.getenv("MAIL_DEFAULT_SENDER", "no-reply@semanticservices.rw")
     MAIL_SUPPRESS_SEND = _bool("MAIL_SUPPRESS_SEND", False)
     EMAIL_OTP_TTL_MINUTES = _int("EMAIL_OTP_TTL_MINUTES", 10)
+    # When no SMTP provider is configured, accounts can be activated without an
+    # email round-trip. Enable this in environments that cannot deliver email.
+    AUTH_AUTO_VERIFY_EMAIL = _bool("AUTH_AUTO_VERIFY_EMAIL", False)
+
+    # SendGrid (Dynamic Template email — registration OTP verification)
+    SENDGRID_API_KEY = os.getenv("SENDGRID_API_KEY")
+    SENDGRID_OTP_TEMPLATE_ID = os.getenv(
+        "SENDGRID_OTP_TEMPLATE_ID", "d-dc510639f0b542638e8ba33ea84d7059"
+    )
+    # Must be a verified single sender / authenticated domain in SendGrid.
+    SENDGRID_FROM_EMAIL = os.getenv("SENDGRID_FROM_EMAIL", "no-reply@semanticservices.rw")
+    SENDGRID_FROM_NAME = os.getenv("SENDGRID_FROM_NAME", APP_NAME)
+    # Minimum seconds a user must wait between OTP resend requests.
+    OTP_RESEND_COOLDOWN_SECONDS = _int("OTP_RESEND_COOLDOWN_SECONDS", 60)
 
     # SMS (Africa's Talking)
     AT_USERNAME = os.getenv("AT_USERNAME", "sandbox")
     AT_API_KEY = os.getenv("AT_API_KEY")
-    AT_SENDER_ID = os.getenv("AT_SENDER_ID", "SEMANTIC")
+    # Leave blank for sandbox; set to your approved alphanumeric/short code in prod.
+    AT_SENDER_ID = os.getenv("AT_SENDER_ID") or None
+    # Also deliver MFA one-time codes by SMS (in addition to email).
+    MFA_SMS_ENABLED = _bool("MFA_SMS_ENABLED", True)
+    # When a user has no phone on file, MFA codes fall back to this number.
+    MFA_SMS_FALLBACK_NUMBER = os.getenv("MFA_SMS_FALLBACK_NUMBER")
+    PROCTORING_SMS_ALERT_ENABLED = _bool("PROCTORING_SMS_ALERT_ENABLED", True)
+    PROCTORING_SMS_RECIPIENT = os.getenv("PROCTORING_SMS_RECIPIENT")
+    # Minimum seconds between proctoring SMS of the same kind for one session,
+    # so a single candidate cannot trigger an SMS storm to the recruiter.
+    PROCTORING_SMS_COOLDOWN_SECONDS = _int("PROCTORING_SMS_COOLDOWN_SECONDS", 120)
 
     # Storage
     STORAGE_PROVIDER = os.getenv("STORAGE_PROVIDER", "local")
     STORAGE_LOCAL_PATH = os.getenv("STORAGE_LOCAL_PATH", "./var/uploads")
     AZURE_STORAGE_CONNECTION_STRING = os.getenv("AZURE_STORAGE_CONNECTION_STRING")
+    # Blob endpoint for managed-identity access (preferred; no account key needed).
+    AZURE_STORAGE_ACCOUNT_URL = os.getenv("AZURE_STORAGE_ACCOUNT_URL")
     AZURE_STORAGE_CONTAINER = os.getenv("AZURE_STORAGE_CONTAINER", "evidence")
     MINIO_ENDPOINT = os.getenv("MINIO_ENDPOINT", "http://localhost:9000")
     MINIO_ACCESS_KEY = os.getenv("MINIO_ACCESS_KEY")
@@ -121,6 +147,9 @@ class TestingConfig(BaseConfig):
     RATELIMIT_ENABLED = False
     RATELIMIT_STORAGE_URI = "memory://"
     MAIL_SUPPRESS_SEND = True
+    MFA_SMS_ENABLED = False
+    # Keep tests hermetic: never reach the real SendGrid API.
+    SENDGRID_API_KEY = None
     SOCKETIO_MESSAGE_QUEUE = None
     SOCKETIO_ASYNC_MODE = "threading"
 

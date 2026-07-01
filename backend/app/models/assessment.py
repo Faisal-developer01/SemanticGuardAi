@@ -1,7 +1,7 @@
 """Assessment + AI monitoring configuration models."""
 from __future__ import annotations
 
-from datetime import datetime
+from datetime import datetime, timedelta, timezone
 
 from sqlalchemy import Boolean, DateTime, Enum, Float, ForeignKey, Integer, String, Text
 from sqlalchemy.orm import Mapped, mapped_column, relationship
@@ -53,3 +53,24 @@ class Assessment(BaseModel):
     @property
     def total_questions(self) -> int:
         return len(self.questions)
+
+    @property
+    def effective_end_time(self) -> datetime | None:
+        """The moment the assessment closes for candidates. Uses the explicit
+        ``end_time`` when set, otherwise falls back to ``start_time`` plus the
+        configured ``duration_minutes`` so scheduled single-sitting assessments
+        still expire."""
+        end = self.end_time
+        if end is not None:
+            return end if end.tzinfo is not None else end.replace(tzinfo=timezone.utc)
+        start = self.start_time
+        if start is not None:
+            start = start if start.tzinfo is not None else start.replace(tzinfo=timezone.utc)
+            return start + timedelta(minutes=self.duration_minutes or 0)
+        return None
+
+    @property
+    def is_expired(self) -> bool:
+        """True once the assessment's availability window has fully elapsed."""
+        end = self.effective_end_time
+        return end is not None and datetime.now(timezone.utc) >= end

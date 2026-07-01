@@ -123,3 +123,108 @@ def recompute(session) -> None:
     session.integrity_score = max(0.0, round(100.0 - session.risk_score, 2))
     session.risk_level = _level_for(session.risk_score)
     sessions.session.commit()
+
+
+# ─── AI explainability: per-type risk contribution breakdown ─────────────────
+
+# Short, recruiter-facing labels for each detectable signal.
+FACTOR_LABELS: dict[AlertType, str] = {
+    AlertType.identity_mismatch: "Identity Mismatch",
+    AlertType.multiple_faces: "Multiple Faces",
+    AlertType.phone_detected: "Phone Detection",
+    AlertType.object_detected: "Prohibited Object",
+    AlertType.face_not_detected: "No Face Detected",
+    AlertType.looking_away: "Looking Away",
+    AlertType.suspicious_movement: "Suspicious Movement",
+    AlertType.audio_detected: "Background Voice",
+    AlertType.tab_switch: "Tab Switching",
+    AlertType.browser_unfocused: "Browser Unfocused",
+    AlertType.devtools_open: "Developer Tools",
+    AlertType.keyboard_shortcut: "Blocked Shortcut",
+    AlertType.clipboard_attempt: "Clipboard Attempt",
+    AlertType.multiple_tabs: "Duplicate Tab",
+}
+
+_SEVERITY_RANK = {
+    AlertSeverity.low: 0,
+    AlertSeverity.medium: 1,
+    AlertSeverity.high: 2,
+    AlertSeverity.critical: 3,
+}
+
+
+def _factor_label(event_type: AlertType) -> str:
+    return FACTOR_LABELS.get(event_type, event_type.value.replace("_", " ").title())
+
+
+def breakdown(session, *, timeline_limit: int = 200) -> dict:
+    """Explain a session's risk score as weighted per-signal contributions.
+
+    Returns the aggregated ``factors`` (each signal's total contribution to the
+    risk score, sorted highest first) plus a chronological ``timeline`` of raw
+    events for session replay. This backs the AI Explainability Dashboard.
+    """
+    events = list(integrity_events.for_session(session.id).all())
+
+    agg: dict[str, dict] = {}
+    for e in events:
+        etype = e.type
+        key = etype.value if etype else "unknown"
+        entry = agg.get(key)
+        if entry is None:
+            entry = {
+                "type": key,
+                "label": _factor_label(etype) if etype else key,
+                "count": 0,
+                "contribution": 0.0,
+                "_confidence_sum": 0.0,
+                "severity": AlertSeverity.low,
+                "lastOccurredAt": None,
+            }
+            agg[key] = entry
+        entry["count"] += 1
+        entry["contribution"] += e.risk_delta or 0.0
+        entry["_confidence_sum"] += e.confidence or 0.0
+        if e.severity and _SEVERITY_RANK[e.severity] > _SEVERITY_RANK[entry["severity"]]:
+            entry["severity"] = e.severity
+        if e.occurred_at and (entry["lastOccurredAt"] is None or e.occurred_at > entry["lastOccurredAt"]):
+            entry["lastOccurredAt"] = e.occurred_at
+
+    factors = []
+    for entry in agg.values():
+        count = entry["count"] or 1
+        factors.append({
+            "type": entry["type"],
+            "label": entry["label"],
+            "count": entry["count"],
+            "contribution": round(entry["contribution"], 1),
+            "avgConfidence": round(entry["_confidence_sum"] / count, 2),
+            "severity": entry["severity"].value,
+            "lastOccurredAt": entry["lastOccurredAt"].isoformat() if entry["lastOccurredAt"] else None,
+        })
+    factors.sort(key=lambda f: f["contribution"], reverse=True)
+
+    ordered = sorted(events, key=lambda e: e.occurred_at or _now(), reverse=True)[:timeline_limit]
+    timeline = [
+        {
+            "id": str(e.id),
+            "type": e.type.value if e.type else None,
+            "label": _factor_label(e.type) if e.type else None,
+            "severity": e.severity.value if e.severity else None,
+            "riskDelta": round(e.risk_delta or 0.0, 1),
+            "confidence": round(e.confidence or 0.0, 2),
+            "occurredAt": e.occurred_at.isoformat() if e.occurred_at else None,
+            "payload": e.payload,
+        }
+        for e in ordered
+    ]
+
+    return {
+        "sessionId": str(session.id),
+        "riskScore": round(session.risk_score or 0.0, 1),
+        "riskLevel": session.risk_level.value if session.risk_level else "low",
+        "integrityScore": round(session.integrity_score if session.integrity_score is not None else 100.0, 1),
+        "totalEvents": len(events),
+        "factors": factors,
+        "timeline": timeline,
+    }

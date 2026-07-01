@@ -3,7 +3,7 @@ import { Link, useNavigate } from 'react-router-dom';
 import { useAuth } from '@/contexts/AuthContext';
 import {
   Shield, Eye, EyeOff, Lock, Mail, ChevronDown,
-  AlertCircle, CheckCircle2, ArrowRight, GraduationCap, User, Zap
+  AlertCircle, CheckCircle2, ArrowRight, Zap
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { BrandMark } from '@/components/common/Logo';
@@ -11,12 +11,6 @@ import type { UserRole } from '@/types/types';
 import { toast } from 'sonner';
 
 /* ─── Constants ─────────────────────────────────────────────────────────────── */
-
-const DEMO_ACCOUNTS = [
-  { role: 'candidate' as UserRole, email: 'alice.johnson@gmail.com',              password: 'candidate123', label: 'Candidate', icon: GraduationCap },
-  { role: 'recruiter' as UserRole, email: 'sarah.williams@semanticservices.rw',  password: 'recruiter123', label: 'Recruiter', icon: User          },
-  { role: 'admin'     as UserRole, email: 'admin@semanticservices.rw',           password: 'admin123',     label: 'Administrator', icon: Shield    },
-];
 
 const ROLE_REDIRECTS: Record<UserRole, string> = {
   candidate: '/candidate/dashboard',
@@ -175,7 +169,7 @@ const LoginPage: React.FC = () => {
     if (res.status === 'success') { goToPortal(res.user.role); return; }
     if (res.status === 'mfa_required') {
       setMfaMethod(res.method); setMfaCode(''); setError(''); setMfaStep(true);
-      if (res.method === 'email') toast.info('We emailed you a 6-digit verification code.');
+      if (res.method === 'email') toast.info('We sent a 6-digit verification code to your email and phone.');
       return;
     }
     setError(res.message || 'Invalid email or password.');
@@ -204,10 +198,6 @@ const LoginPage: React.FC = () => {
     } else {
       setError(res.message || 'Could not resend the code.');
     }
-  };
-
-  const fillDemo = (d: typeof DEMO_ACCOUNTS[0]) => {
-    setEmail(d.email); setPassword(d.password); setRole(d.role); setError('');
   };
 
   const fv = {
@@ -266,7 +256,7 @@ const LoginPage: React.FC = () => {
                   <h2 className="text-2xl font-bold text-balance" style={{ color: 'hsl(214,68%,19%)' }}>Two-Factor Auth</h2>
                   <p className="text-sm mt-1 text-muted-foreground text-center text-balance">
                     {mfaMethod === 'email'
-                      ? <>Enter the code we emailed to <span className="font-medium text-foreground">{email}</span></>
+                      ? <>Enter the code we sent to <span className="font-medium text-foreground">{email}</span> and your phone by SMS</>
                       : 'Enter the 6-digit code from your authenticator app'}
                   </p>
                 </div>
@@ -327,43 +317,6 @@ const LoginPage: React.FC = () => {
                   <h2 className="text-2xl font-bold text-balance" style={{ color: 'hsl(214,68%,19%)' }}>Welcome Back</h2>
                   <p className="text-sm mt-1 text-muted-foreground">Sign in to your recruitment portal</p>
                 </motion.div>
-
-                {/* Demo cards */}
-                <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.2 }}
-                  className="mb-5">
-                  <p className="text-xs mb-2 text-muted-foreground">Quick demo access:</p>
-                  <div className="grid grid-cols-3 gap-2">
-                    {DEMO_ACCOUNTS.map((d, i) => {
-                      const Icon = d.icon;
-                      const active = role === d.role;
-                      return (
-                        <motion.button key={d.role}
-                          initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }}
-                          transition={{ delay: 0.25 + i * 0.07 }}
-                          whileHover={{ scale: 1.04, y: -2 }} whileTap={{ scale: 0.96 }}
-                          onClick={() => fillDemo(d)}
-                          className="flex flex-col items-center gap-1.5 p-3 rounded-lg border transition-all"
-                          style={{
-                            borderColor: active ? 'hsl(214,64%,34%)' : 'hsl(var(--border))',
-                            background: active ? 'rgba(30,78,140,0.06)' : 'hsl(var(--muted))',
-                          }}>
-                          <div className="w-7 h-7 rounded-md flex items-center justify-center"
-                            style={{ background: active ? 'rgba(30,78,140,0.12)' : 'rgba(15,45,82,0.06)' }}>
-                            <Icon className="w-3.5 h-3.5" style={{ color: 'hsl(214,64%,34%)' }} />
-                          </div>
-                          <span className="text-xs font-medium" style={{ color: active ? 'hsl(214,64%,24%)' : 'hsl(var(--foreground))' }}>{d.label}</span>
-                        </motion.button>
-                      );
-                    })}
-                  </div>
-                </motion.div>
-
-                {/* Divider */}
-                <div className="flex items-center gap-3 mb-5">
-                  <div className="flex-1 h-px bg-border" />
-                  <span className="text-xs text-muted-foreground">or sign in manually</span>
-                  <div className="flex-1 h-px bg-border" />
-                </div>
 
                 {/* Form */}
                 <form onSubmit={handleSubmit} className="space-y-4">

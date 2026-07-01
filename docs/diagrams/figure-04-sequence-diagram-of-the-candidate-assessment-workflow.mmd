@@ -1,0 +1,31 @@
+sequenceDiagram
+    actor Candidate
+    participant UI as Web Client (React)
+    participant API as Flask REST API
+    participant AI as AI Monitoring Engine
+    participant RSE as Risk-Scoring Engine
+    participant DB as PostgreSQL
+    participant NS as Notification Service
+    actor Recruiter
+
+    Candidate->>UI: Log in and start assessment
+    UI->>API: Authenticate (JWT + MFA)
+    API->>DB: Validate credentials
+    API-->>UI: Token + session created
+    UI->>AI: Stream webcam frames + browser events
+    loop During assessment
+        AI->>AI: Verify identity, detect phone, track gaze/head pose, monitor tab
+        AI->>API: Post integrity event
+        API->>DB: Persist integrity event (+ evidence)
+        API->>RSE: Update risk score
+        RSE-->>API: Updated risk score + breakdown
+        alt Risk >= threshold
+            API->>NS: Raise alert
+            NS->>Recruiter: In-app + Email + SMS alert
+        end
+    end
+    Candidate->>UI: Submit assessment
+    UI->>API: Finalize session
+    API->>RSE: Compute final risk score
+    API->>DB: Store score + report
+    API-->>Recruiter: Integrity report available

@@ -1,15 +1,17 @@
-import React, { useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
+import { Link } from 'react-router-dom';
 import { AppLayout } from '@/components/layouts/AppLayout';
 import { RiskBadge, StatusDot } from '@/components/shared/StatusBadges';
 import { sessionsApi, type ApiAlert, type ApiLiveSession } from '@/lib/api';
 import { useAsync } from '@/lib/useApi';
 import { mapLiveSession } from '@/lib/mappers';
-import { useMonitoringFeed } from '@/lib/realtime';
+import { useMonitoringFeed, useWebRTCViewer } from '@/lib/realtime';
 import { Button } from '@/components/ui/button';
-import { Shield, AlertTriangle, Eye, VideoOff } from 'lucide-react';
+import { Shield, AlertTriangle, Eye, VideoOff, ShieldOff, Brain } from 'lucide-react';
 import { toast } from 'sonner';
 import type { LiveCandidate } from '@/types/types';
 import { cn } from '@/lib/utils';
+
 
 const ALERT_LABELS: Record<string, string> = {
   multiple_faces: 'Multiple faces detected',
@@ -25,6 +27,43 @@ const ALERT_LABELS: Record<string, string> = {
 };
 
 const EMPTY: ApiLiveSession[] = [];
+
+/**
+ * Live WebRTC video for one candidate. Opens a viewer peer connection to the
+ * candidate's browser and renders their continuous webcam feed. Fills its
+ * positioned parent; shows a placeholder until the stream connects.
+ */
+const CandidateVideo: React.FC<{ candidateId: string; sessionId: string; enabled?: boolean }> = ({
+  candidateId,
+  sessionId,
+  enabled = true,
+}) => {
+  const { stream, state } = useWebRTCViewer({ candidateId, sessionId, enabled });
+  const videoRef = useRef<HTMLVideoElement | null>(null);
+  useEffect(() => {
+    const v = videoRef.current;
+    if (v && v.srcObject !== stream) v.srcObject = stream;
+  }, [stream]);
+  return (
+    <>
+      <video
+        ref={videoRef}
+        autoPlay
+        playsInline
+        muted
+        className={cn('absolute inset-0 w-full h-full object-cover', !stream && 'opacity-0')}
+      />
+      {!stream && (
+        <div className="flex flex-col items-center gap-1 text-muted-foreground">
+          <VideoOff className="w-6 h-6" />
+          <span className="text-[10px]">
+            {state === 'new' || state === 'connecting' ? 'Connecting…' : 'Waiting for camera…'}
+          </span>
+        </div>
+      )}
+    </>
+  );
+};
 
 const CandidateCard: React.FC<{ candidate: LiveCandidate; onClick: () => void; selected: boolean }> = ({ candidate, onClick, selected }) => {
   const s = candidate.status;
@@ -46,18 +85,7 @@ const CandidateCard: React.FC<{ candidate: LiveCandidate; onClick: () => void; s
       </div>
       {/* Live webcam feed from candidate */}
       <div className="relative aspect-video bg-muted rounded border border-border/50 flex items-center justify-center mb-2 overflow-hidden">
-        {candidate.status.cameraFrame ? (
-          <img
-            src={candidate.status.cameraFrame}
-            alt={`${candidate.name} live feed`}
-            className="absolute inset-0 w-full h-full object-cover"
-          />
-        ) : (
-          <div className="flex flex-col items-center gap-1 text-muted-foreground">
-            <VideoOff className="w-6 h-6" />
-            <span className="text-[10px]">Waiting for camera…</span>
-          </div>
-        )}
+        <CandidateVideo candidateId={candidate.candidateId} sessionId={candidate.sessionId} />
         {/* Bounding box overlay */}
         {s.faceDetected && (
           <div className="absolute inset-0 pointer-events-none">
@@ -95,6 +123,22 @@ const CandidateCard: React.FC<{ candidate: LiveCandidate; onClick: () => void; s
 const LiveMonitoring: React.FC = () => {
   const [filter, setFilter] = useState<'all' | 'flagged'>('all');
   const [selected, setSelected] = useState<string | null>(null);
+  // Tracks per-session monitoring overrides: sessionId → enabled
+  const [monitoringStates, setMonitoringStates] = useState<Record<string, boolean>>({});
+  const [toggling, setToggling] = useState<string | null>(null);
+
+  const toggleMonitoring = async (sessionId: string, currentlyEnabled: boolean) => {
+    setToggling(sessionId);
+    try {
+      const updated = await sessionsApi.toggleMonitoring(sessionId, !currentlyEnabled);
+      setMonitoringStates(prev => ({ ...prev, [sessionId]: updated.monitoringEnabled !== false }));
+      toast.success(!currentlyEnabled ? '🛡 Monitoring enabled for session' : '🔕 Monitoring disabled for session');
+    } catch {
+      toast.error('Failed to toggle monitoring — please try again.');
+    } finally {
+      setToggling(null);
+    }
+  };
 
   const handleRealtimeAlert = (alert: ApiAlert) => {
     const label = ALERT_LABELS[alert.type ?? ''] ?? alert.type ?? 'Suspicious activity';
@@ -193,18 +237,12 @@ const LiveMonitoring: React.FC = () => {
                 <p className="font-medium text-foreground">{selectedCandidate.name}</p>
                 <p className="text-xs text-muted-foreground">{selectedCandidate.candidateId}</p>
               </div>
-              {selectedCandidate.status.cameraFrame && (
-                <div className="relative aspect-video bg-muted rounded border border-border overflow-hidden">
-                  <img
-                    src={selectedCandidate.status.cameraFrame}
-                    alt={`${selectedCandidate.name} live feed`}
-                    className="w-full h-full object-cover"
-                  />
-                  <div className="absolute bottom-1 right-1 flex items-center gap-1 bg-black/60 px-1.5 py-0.5 rounded text-xs text-green-400">
-                    <span className="w-1.5 h-1.5 rounded-full bg-green-400 ai-active" /> LIVE
-                  </div>
+              <div className="relative aspect-video bg-muted rounded border border-border overflow-hidden flex items-center justify-center">
+                <CandidateVideo candidateId={selectedCandidate.candidateId} sessionId={selectedCandidate.sessionId} />
+                <div className="absolute bottom-1 right-1 flex items-center gap-1 bg-black/60 px-1.5 py-0.5 rounded text-xs text-green-400">
+                  <span className="w-1.5 h-1.5 rounded-full bg-green-400 ai-active" /> LIVE
                 </div>
-              )}
+              </div>
               <div className="space-y-2">
                 <p className="text-xs font-medium text-muted-foreground uppercase tracking-wide">AI Status</p>
                 <div className="space-y-1.5">
@@ -235,6 +273,27 @@ const LiveMonitoring: React.FC = () => {
                 </div>
               </div>
               <RiskBadge level={selectedCandidate.status.riskLevel} score={selectedCandidate.status.riskScore} className="w-full justify-center" />
+              <Button size="sm" variant="secondary" className="w-full gap-1.5" asChild>
+                <Link to={`/recruiter/review/${selectedCandidate.sessionId}`}>
+                  <Brain className="w-3.5 h-3.5" /> AI Explainability & Review
+                </Link>
+              </Button>
+              {/* Monitoring toggle */}
+              {(() => {
+                const isEnabled = monitoringStates[selectedCandidate.sessionId] ?? true;
+                return (
+                  <Button
+                    size="sm"
+                    variant={isEnabled ? 'outline' : 'default'}
+                    className={cn('w-full gap-1.5', isEnabled ? 'text-destructive border-destructive/40 hover:bg-destructive/10' : 'bg-primary text-primary-foreground')}
+                    disabled={toggling === selectedCandidate.sessionId}
+                    onClick={() => toggleMonitoring(selectedCandidate.sessionId, isEnabled)}
+                  >
+                    {isEnabled ? <ShieldOff className="w-3.5 h-3.5" /> : <Shield className="w-3.5 h-3.5" />}
+                    {toggling === selectedCandidate.sessionId ? 'Updating…' : isEnabled ? 'Disable Monitoring' : 'Enable Monitoring'}
+                  </Button>
+                );
+              })()}
               {selectedCandidate.isFlagged && (
                 <div className="flex items-center gap-1.5 text-xs text-destructive bg-destructive/10 border border-destructive/20 p-2 rounded">
                   <Shield className="w-3.5 h-3.5 shrink-0" /> High-risk candidate flagged

@@ -7,15 +7,16 @@ import { assessmentsApi, alertsApi, sessionsApi } from '@/lib/api';
 import { mapAssessment, mapAlert } from '@/lib/mappers';
 import { useAsync } from '@/lib/useApi';
 import { Button } from '@/components/ui/button';
-import { BookOpen, AlertTriangle, PlusCircle, Monitor, FileText, ArrowRight, Clock } from 'lucide-react';
+import { BookOpen, AlertTriangle, PlusCircle, Monitor, FileText, ArrowRight, Clock, Pencil } from 'lucide-react';
 import { format } from 'date-fns';
+import { normalizeUtc } from '@/lib/utils';
 import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, CartesianGrid, Cell } from 'recharts';
 
 const ALERT_TYPES = ['phone_detected', 'multiple_faces', 'tab_switch', 'looking_away', 'audio_detected'];
 
 function safeDate(value: string, fmt: string): string {
   if (!value) return '—';
-  const d = new Date(value);
+  const d = new Date(normalizeUtc(value));
   return Number.isNaN(d.getTime()) ? '—' : format(d, fmt);
 }
 
@@ -108,6 +109,13 @@ const RecruiterDashboard: React.FC = () => {
                   }`}>
                     {assessment.status}
                   </span>
+                  <Link
+                    to={`/recruiter/edit-assessment/${assessment.id}`}
+                    title="Edit assessment"
+                    className="shrink-0 p-1.5 rounded-md text-muted-foreground hover:text-primary hover:bg-accent transition-colors"
+                  >
+                    <Pencil className="w-3 h-3" />
+                  </Link>
                 </div>
               ))}
             </div>

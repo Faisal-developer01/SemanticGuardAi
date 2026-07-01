@@ -111,9 +111,13 @@ export function mapQuestion(q: ApiQuestion): Question {
     assessmentId: q.assessmentId,
     text: q.text,
     type: q.type as QuestionType,
-    options: q.options ?? undefined,
+    options: q.options
+      ? q.options.map(o => ({ id: o.id, text: o.text, isCorrect: o.isCorrect, explanation: o.explanation ?? undefined }))
+      : undefined,
     marks: q.marks,
     order: q.order,
+    difficulty: (q.difficulty as Question['difficulty']) ?? undefined,
+    required: q.required ?? undefined,
     language: (q.language as CodingLanguage) ?? undefined,
     languages: (q.languages as CodingLanguage[]) ?? undefined,
     entryPoint: q.entryPoint ?? undefined,
@@ -128,6 +132,7 @@ export function mapQuestion(q: ApiQuestion): Question {
 export function mapAlert(a: ApiAlert): AIAlert {
   return {
     id: a.id,
+    sessionId: a.sessionId,
     assessmentId: a.assessmentId,
     assessmentTitle: '',
     candidateId: a.candidateId,
@@ -152,9 +157,10 @@ export function mapSession(s: ApiSession): AssessmentSession {
   return {
     id: s.id,
     assessmentId: s.assessmentId,
-    assessmentTitle: '',
+    assessmentTitle: s.assessmentTitle ?? '',
     candidateId: s.candidateId,
-    candidateName: '',
+    candidateName: s.candidateName ?? '',
+    candidateEmail: s.candidateEmail ?? '',
     startTime: s.startedAt ?? '',
     endTime: s.submittedAt ?? undefined,
     status: mapSessionStatus(s.status),
@@ -168,8 +174,10 @@ export function mapSession(s: ApiSession): AssessmentSession {
     tabSwitches: s.tabSwitchCount,
     lookingAwayCount: s.lookingAwayCount,
     faceNotDetectedCount: s.faceNotDetectedCount,
+    monitoringEnabled: s.monitoringEnabled,
   };
 }
+
 
 /* ─── Live monitoring ───────────────────────────────────────────────────────── */
 

@@ -7,16 +7,19 @@ from app.models.enums import (
     AssessmentStatus,
     AuditStatus,
     CodingLanguage,
+    CredentialType,
     EvidenceType,
     NotificationType,
+    QuestionDifficulty,
     QuestionType,
     RiskLevel,
     SessionStatus,
     UserRole,
     UserStatus,
 )
+from app.models.credential import Credential
 from app.models.integrity import Alert, Evidence, IntegrityEvent
-from app.models.question import Question, TestCase
+from app.models.question import Question, QuestionOption, TestCase
 from app.models.role import Permission, Role, role_permissions
 from app.models.session import Answer, AssessmentSession
 from app.models.system import AuditLog, Notification, SystemSetting, TokenBlocklist
@@ -32,12 +35,14 @@ __all__ = [
     "role_permissions",
     "Assessment",
     "Question",
+    "QuestionOption",
     "TestCase",
     "AssessmentSession",
     "Answer",
     "IntegrityEvent",
     "Alert",
     "Evidence",
+    "Credential",
     "Notification",
     "AuditLog",
     "TokenBlocklist",
@@ -47,6 +52,7 @@ __all__ = [
     "UserStatus",
     "AssessmentStatus",
     "QuestionType",
+    "QuestionDifficulty",
     "CodingLanguage",
     "SessionStatus",
     "RiskLevel",
@@ -54,5 +60,6 @@ __all__ = [
     "AlertSeverity",
     "EvidenceType",
     "NotificationType",
+    "CredentialType",
     "AuditStatus",
 ]

@@ -5,10 +5,17 @@ import { RiskBadge, SeverityBadge, StatusDot } from '@/components/shared/StatusB
 import { assessmentsApi, sessionsApi } from '@/lib/api';
 import { mapAssessment, mapAlert, mapSession } from '@/lib/mappers';
 import { useAsync } from '@/lib/useApi';
+import { useAuth } from '@/contexts/AuthContext';
 import { Button } from '@/components/ui/button';
 import { Progress } from '@/components/ui/progress';
+import { toast } from 'sonner';
 import { format } from 'date-fns';
-import { Shield, CheckCircle2, XCircle, Calendar, Clock, Eye, ArrowLeft, Loader2 } from 'lucide-react';
+import { Shield, CheckCircle2, XCircle, Calendar, Clock, Eye, ArrowLeft, Loader2, Download } from 'lucide-react';
+import {
+  generateCandidateResultReport,
+  type CandidateResultReportData,
+  type Classification,
+} from '@/lib/reportPdf';
 
 const ALERT_LABELS: Record<string, string> = {
   looking_away: 'Looking Away', tab_switch: 'Tab Switch', phone_detected: 'Phone Detected',
@@ -22,8 +29,16 @@ function safeDate(value: string, fmt: string): string {
   return Number.isNaN(d.getTime()) ? '—' : format(d, fmt);
 }
 
+function classify(integrity: number, riskLevel: string): Classification {
+  if (riskLevel === 'high' || integrity < 60) return 'High Risk';
+  if (riskLevel === 'medium' || integrity < 80) return 'Suspicious';
+  return 'Clean';
+}
+
 const AssessmentResults: React.FC = () => {
   const { sessionId: id } = useParams<{ sessionId: string }>();
+  const { user } = useAuth();
+  const [downloading, setDownloading] = React.useState(false);
   const { data: apiSession, loading, error } = useAsync(() => (id ? sessionsApi.get(id) : Promise.resolve(null)), [id]);
   const { data: apiAlerts } = useAsync(() => (id ? sessionsApi.alerts(id) : Promise.resolve([])), [id]);
   const { data: apiAssessment } = useAsync(
@@ -37,6 +52,50 @@ const AssessmentResults: React.FC = () => {
   const assessment = apiAssessment ? mapAssessment(apiAssessment) : null;
   const title = assessment?.title || (session ? `Assessment ${session.assessmentId.slice(0, 8)}` : 'Result');
   const durationLabel = assessment ? `${assessment.duration} minutes` : '—';
+
+  const handleDownload = async () => {
+    if (!session) return;
+    setDownloading(true);
+    try {
+      const classification = classify(session.integrityScore, session.riskLevel);
+      const aiSummary = session.alerts.length === 0
+        ? 'No integrity violations were detected during your assessment session. All behavioral monitoring signals (face detection, eye tracking, device detection and tab focus) remained within expected parameters.'
+        : `SemanticGuard AI recorded ${session.alerts.length} integrity ${session.alerts.length === 1 ? 'event' : 'events'} during this assessment. Your final integrity score is ${Math.round(session.integrityScore)} with an aggregate risk score of ${Math.round(session.riskScore)} (${session.riskLevel.toUpperCase()} risk).`;
+      const data: CandidateResultReportData = {
+        candidateName: session.candidateName || user?.name || 'Candidate',
+        candidateId: session.candidateId,
+        assessmentTitle: title,
+        assessmentDate: safeDate(session.startTime, 'MMMM d, yyyy, HH:mm'),
+        durationLabel,
+        score: session.score ?? 0,
+        maxScore: session.maxScore,
+        percentage: session.percentage ?? 0,
+        passed: apiSession?.passed ?? null,
+        integrityScore: session.integrityScore,
+        riskScore: session.riskScore,
+        riskLevel: session.riskLevel,
+        tabSwitches: session.tabSwitches,
+        lookingAwayCount: session.lookingAwayCount,
+        faceNotDetectedCount: session.faceNotDetectedCount,
+        classification,
+        violations: session.alerts.map((a) => ({
+          timestamp: safeDate(a.timestamp, 'dd MMM HH:mm:ss'),
+          type: a.type,
+          description: a.description,
+          severity: a.severity,
+        })),
+        aiSummary,
+      };
+      const stamp = format(new Date(), 'yyyyMMdd-HHmm');
+      await generateCandidateResultReport(data, `My-Assessment-Result-${stamp}.pdf`);
+      toast.success('Your result report has been downloaded.');
+    } catch (err) {
+      console.error(err);
+      toast.error('Failed to generate your report.');
+    } finally {
+      setDownloading(false);
+    }
+  };
 
   if (loading || (!session && !error)) {
     return (
@@ -67,6 +126,11 @@ const AssessmentResults: React.FC = () => {
             <Link to="/candidate/history"><ArrowLeft className="w-4 h-4 mr-1" /> Back</Link>
           </Button>
           <h1 className="text-xl font-bold text-balance flex-1 min-w-0 truncate">{title}</h1>
+          <Button size="sm" onClick={handleDownload} disabled={downloading} className="shrink-0">
+            {downloading
+              ? <><Loader2 className="w-4 h-4 mr-2 animate-spin" /> Preparing…</>
+              : <><Download className="w-4 h-4 mr-2" /> Download Report</>}
+          </Button>
         </div>
 
         {/* Score card */}

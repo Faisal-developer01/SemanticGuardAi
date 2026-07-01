@@ -6,10 +6,11 @@ import { useAsync } from '@/lib/useApi';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { toast } from 'sonner';
-import { Search, Download, Filter, Loader2, AlertCircle } from 'lucide-react';
+import { Search, Download, FileText, Filter, Loader2, AlertCircle } from 'lucide-react';
 import type { AuditLog } from '@/types/types';
 import { format } from 'date-fns';
 import { cn } from '@/lib/utils';
+import { generateAuditReport, type AuditReportRow } from '@/lib/reportPdf';
 
 const ACTION_COLORS: Record<string, string> = {
   login: 'text-blue-500',
@@ -61,6 +62,41 @@ const AuditLogs: React.FC = () => {
     toast.success('Exported audit logs');
   };
 
+  const [downloadingPdf, setDownloadingPdf] = useState(false);
+  const downloadPdf = async () => {
+    if (filtered.length === 0) {
+      toast.error('No audit records to export.');
+      return;
+    }
+    setDownloadingPdf(true);
+    try {
+      const rows: AuditReportRow[] = filtered.map(l => ({
+        timestamp: safeDate(l.timestamp, 'dd MMM yyyy, HH:mm:ss'),
+        user: l.userName || 'System',
+        role: l.userRole,
+        action: l.action,
+        resource: l.resource,
+        ipAddress: l.ipAddress,
+        status: l.status,
+        details: typeof l.details === 'string' ? l.details : JSON.stringify(l.details),
+      }));
+      const meta = {
+        total: filtered.length,
+        success: filtered.filter(l => l.status === 'success').length,
+        failure: filtered.filter(l => l.status === 'failure').length,
+        warning: filtered.filter(l => l.status === 'warning').length,
+      };
+      const stamp = format(new Date(), 'yyyyMMdd-HHmm');
+      await generateAuditReport(rows, meta, `SemanticGuard-Audit-Report-${stamp}.pdf`);
+      toast.success('Audit report downloaded.');
+    } catch (err) {
+      console.error(err);
+      toast.error('Failed to generate the audit report.');
+    } finally {
+      setDownloadingPdf(false);
+    }
+  };
+
   return (
     <AppLayout>
       <div className="max-w-6xl space-y-5">
@@ -69,9 +105,16 @@ const AuditLogs: React.FC = () => {
             <h1 className="text-xl font-bold text-balance">Audit Logs</h1>
             <p className="text-muted-foreground text-sm mt-0.5">{filtered.length} records · Immutable audit trail</p>
           </div>
-          <Button size="sm" variant="outline" onClick={exportLogs}>
-            <Download className="w-4 h-4 mr-2" /> Export Logs
-          </Button>
+          <div className="flex gap-2">
+            <Button size="sm" variant="outline" onClick={exportLogs}>
+              <Download className="w-4 h-4 mr-2" /> Export CSV
+            </Button>
+            <Button size="sm" onClick={downloadPdf} disabled={downloadingPdf}>
+              {downloadingPdf
+                ? <><Loader2 className="w-4 h-4 mr-2 animate-spin" /> Preparing…</>
+                : <><FileText className="w-4 h-4 mr-2" /> Download Report</>}
+            </Button>
+          </div>
         </div>
 
         {/* Filters */}
@@ -85,6 +128,7 @@ const AuditLogs: React.FC = () => {
             <select
               value={actionFilter}
               onChange={e => setActionFilter(e.target.value)}
+              aria-label="Filter by action"
               className="h-10 px-3 rounded-md border border-input bg-background text-foreground text-sm focus:outline-none focus:ring-2 focus:ring-ring"
             >
               {actions.map(a => <option key={a} value={a}>{a === 'all' ? 'All Actions' : a.replace(/_/g, ' ')}</option>)}

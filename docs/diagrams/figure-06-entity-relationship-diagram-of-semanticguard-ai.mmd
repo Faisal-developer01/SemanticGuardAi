@@ -1,0 +1,64 @@
+erDiagram
+    USER ||--o| CANDIDATE_PROFILE : has
+    USER ||--o| RECRUITER_PROFILE : has
+    USER ||--o{ ROLE : assigned
+    USER ||--o{ ASSESSMENT : creates
+    ASSESSMENT ||--o{ QUESTION : contains
+    QUESTION ||--o{ TEST_CASE : has
+    ASSESSMENT ||--o{ ASSESSMENT_SESSION : generates
+    CANDIDATE_PROFILE ||--o{ ASSESSMENT_SESSION : undertakes
+    ASSESSMENT_SESSION ||--o{ ANSWER : records
+    ASSESSMENT_SESSION ||--o{ INTEGRITY_EVENT : produces
+    ASSESSMENT_SESSION ||--o{ ALERT : raises
+    INTEGRITY_EVENT ||--o| EVIDENCE : supports
+    ALERT ||--o{ NOTIFICATION : triggers
+    USER ||--o{ AUDIT_LOG : performs
+
+    USER {
+        uuid id PK
+        string full_name
+        string email UK
+        string password_hash
+        string role_name
+        boolean mfa_enabled
+        string status
+    }
+    CANDIDATE_PROFILE {
+        uuid id PK
+        uuid user_id FK
+        string candidate_code UK
+        string face_embedding
+        float integrity_score
+    }
+    ASSESSMENT {
+        uuid id PK
+        uuid recruiter_id FK
+        string title
+        int duration_minutes
+        float pass_mark
+        float risk_threshold
+        string status
+    }
+    ASSESSMENT_SESSION {
+        uuid id PK
+        uuid assessment_id FK
+        uuid candidate_id FK
+        datetime started_at
+        datetime submitted_at
+        float risk_score
+        string status
+    }
+    INTEGRITY_EVENT {
+        uuid id PK
+        uuid session_id FK
+        string event_type
+        float severity
+        datetime occurred_at
+    }
+    ALERT {
+        uuid id PK
+        uuid session_id FK
+        string level
+        string message
+        datetime created_at
+    }

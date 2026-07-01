@@ -1,4 +1,5 @@
 import React, { useState } from 'react';
+import { Link } from 'react-router-dom';
 import { AppLayout } from '@/components/layouts/AppLayout';
 import { SeverityBadge } from '@/components/shared/StatusBadges';
 import { alertsApi } from '@/lib/api';
@@ -7,7 +8,7 @@ import { useAsync } from '@/lib/useApi';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { toast } from 'sonner';
-import { AlertTriangle, Search, CheckCircle2, Filter, Loader2 } from 'lucide-react';
+import { AlertTriangle, Search, CheckCircle2, Filter, Loader2, Brain } from 'lucide-react';
 import type { AIAlert, AlertSeverity } from '@/types/types';
 import { format } from 'date-fns';
 import { cn } from '@/lib/utils';
@@ -194,11 +195,18 @@ const AIAlertPanel: React.FC = () => {
                     </span>
                   </div>
                 </div>
-                {!alert.reviewed && (
-                  <Button size="sm" variant="outline" onClick={() => markReviewed(alert.id)} className="shrink-0">
-                    <CheckCircle2 className="w-3.5 h-3.5 mr-1.5" /> Review
+                <div className="flex flex-col gap-2 shrink-0">
+                  <Button size="sm" variant="secondary" asChild className="shrink-0">
+                    <Link to={`/recruiter/review/${alert.sessionId}`}>
+                      <Brain className="w-3.5 h-3.5 mr-1.5" /> Review Session
+                    </Link>
                   </Button>
-                )}
+                  {!alert.reviewed && (
+                    <Button size="sm" variant="outline" onClick={() => markReviewed(alert.id)} className="shrink-0">
+                      <CheckCircle2 className="w-3.5 h-3.5 mr-1.5" /> Mark Reviewed
+                    </Button>
+                  )}
+                </div>
               </div>
             ))
           )}

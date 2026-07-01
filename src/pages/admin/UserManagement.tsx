@@ -1,15 +1,21 @@
 import React, { useState } from 'react';
 import { AppLayout } from '@/components/layouts/AppLayout';
-import { usersApi } from '@/lib/api';
-import { mapUser, type UiUser } from '@/lib/mappers';
+import { usersApi, assessmentsApi, sessionsApi, alertsApi, auditApi } from '@/lib/api';
+import { mapUser, mapSession, type UiUser } from '@/lib/mappers';
 import { useAsync } from '@/lib/useApi';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { toast } from 'sonner';
-import { Search, Edit2, Trash2, Shield, Filter, Loader2, AlertCircle, PlusCircle } from 'lucide-react';
+import { Search, Edit2, Trash2, Shield, Filter, Loader2, AlertCircle, PlusCircle, FileText, ShieldCheck } from 'lucide-react';
 import type { UserRole } from '@/types/types';
 import { format } from 'date-fns';
 import { cn } from '@/lib/utils';
+import {
+  generateUserDirectoryReport,
+  generateComplianceReport,
+  type UserDirectoryRow,
+  type ComplianceReportData,
+} from '@/lib/reportPdf';
 
 const ROLE_COLORS: Record<UserRole, string> = {
   candidate: 'bg-blue-500/10 text-blue-600 dark:text-blue-400 border-blue-500/30',
@@ -44,6 +50,14 @@ const UserManagement: React.FC = () => {
 
   const { data, loading, error, reload } = useAsync(() => usersApi.list({ perPage: 200 }), []);
   const allUsers: UiUser[] = (data?.items ?? []).map(mapUser);
+
+  const { data: assessmentsData } = useAsync(() => assessmentsApi.list({ perPage: 200 }), []);
+  const { data: sessionsData } = useAsync(() => sessionsApi.list({ perPage: 200 }), []);
+  const { data: alertsData } = useAsync(() => alertsApi.list({ perPage: 200 }), []);
+  const { data: auditData } = useAsync(() => auditApi.list({ perPage: 200 }), []);
+
+  const [downloadingDir, setDownloadingDir] = useState(false);
+  const [downloadingCompliance, setDownloadingCompliance] = useState(false);
 
   const handleAddUser = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -96,6 +110,73 @@ const UserManagement: React.FC = () => {
     }
   };
 
+  const downloadDirectory = async () => {
+    if (allUsers.length === 0) {
+      toast.error('No users to export.');
+      return;
+    }
+    setDownloadingDir(true);
+    try {
+      const rows: UserDirectoryRow[] = allUsers.map(u => ({
+        name: u.name,
+        email: u.email,
+        role: u.role,
+        status: u.status,
+        department: u.department || '—',
+        createdAt: safeDate(u.createdAt),
+        lastLogin: u.lastLogin ? safeDate(u.lastLogin) : '—',
+      }));
+      const meta = {
+        total: allUsers.length,
+        candidates: allUsers.filter(u => u.role === 'candidate').length,
+        recruiters: allUsers.filter(u => u.role === 'recruiter').length,
+        admins: allUsers.filter(u => u.role === 'admin').length,
+      };
+      const stamp = format(new Date(), 'yyyyMMdd-HHmm');
+      await generateUserDirectoryReport(rows, meta, `SemanticGuard-User-Directory-${stamp}.pdf`);
+      toast.success('User directory report downloaded.');
+    } catch (err) {
+      console.error(err);
+      toast.error('Failed to generate the user directory report.');
+    } finally {
+      setDownloadingDir(false);
+    }
+  };
+
+  const downloadCompliance = async () => {
+    setDownloadingCompliance(true);
+    try {
+      const sessions = (sessionsData?.items ?? []).map(mapSession);
+      const completed = sessions.filter(s => s.status === 'completed');
+      const avgIntegrity = completed.length
+        ? Math.round((completed.reduce((a, s) => a + s.integrityScore, 0) / completed.length) * 10) / 10
+        : 0;
+      const auditRows = auditData?.items ?? [];
+      const data: ComplianceReportData = {
+        totalUsers: allUsers.length,
+        activeUsers: allUsers.filter(u => u.status === 'active').length,
+        suspendedUsers: allUsers.filter(u => u.status === 'suspended').length,
+        mfaEnabled: allUsers.filter(u => u.mfaEnabled).length,
+        totalAssessments: assessmentsData?.meta?.total ?? (assessmentsData?.items?.length ?? 0),
+        totalSessions: sessionsData?.meta?.total ?? sessions.length,
+        flaggedSessions: (sessionsData?.items ?? []).filter(s => s.status === 'flagged').length,
+        totalAlerts: alertsData?.meta?.total ?? (alertsData?.items?.length ?? 0),
+        unreviewedAlerts: (alertsData?.items ?? []).filter(a => !a.reviewed).length,
+        avgIntegrity,
+        auditTotal: auditData?.meta?.total ?? auditRows.length,
+        auditFailures: auditRows.filter(a => a.status === 'failure').length,
+      };
+      const stamp = format(new Date(), 'yyyyMMdd-HHmm');
+      await generateComplianceReport(data, `SemanticGuard-Compliance-Summary-${stamp}.pdf`);
+      toast.success('Compliance summary downloaded.');
+    } catch (err) {
+      console.error(err);
+      toast.error('Failed to generate the compliance summary.');
+    } finally {
+      setDownloadingCompliance(false);
+    }
+  };
+
   return (
     <AppLayout>
       <div className="max-w-6xl space-y-5">
@@ -105,9 +186,21 @@ const UserManagement: React.FC = () => {
             <h1 className="text-xl font-bold text-balance">User Management</h1>
             <p className="text-muted-foreground text-sm mt-0.5">{filtered.length} of {allUsers.length} users</p>
           </div>
-          <Button size="sm" onClick={() => setShowAddModal(true)}>
-            <PlusCircle className="w-4 h-4 mr-2" /> Add User
-          </Button>
+          <div className="flex flex-wrap gap-2">
+            <Button size="sm" variant="outline" onClick={downloadDirectory} disabled={downloadingDir}>
+              {downloadingDir
+                ? <><Loader2 className="w-4 h-4 mr-2 animate-spin" /> Preparing…</>
+                : <><FileText className="w-4 h-4 mr-2" /> User Directory</>}
+            </Button>
+            <Button size="sm" variant="outline" onClick={downloadCompliance} disabled={downloadingCompliance}>
+              {downloadingCompliance
+                ? <><Loader2 className="w-4 h-4 mr-2 animate-spin" /> Preparing…</>
+                : <><ShieldCheck className="w-4 h-4 mr-2" /> Compliance Summary</>}
+            </Button>
+            <Button size="sm" onClick={() => setShowAddModal(true)}>
+              <PlusCircle className="w-4 h-4 mr-2" /> Add User
+            </Button>
+          </div>
         </div>
 
         {/* Filters */}
@@ -282,6 +375,7 @@ const UserManagement: React.FC = () => {
                     <select
                       value={addForm.role}
                       onChange={e => setAddForm(f => ({ ...f, role: e.target.value as UserRole }))}
+                      aria-label="User role"
                       className="flex h-9 w-full rounded-md border border-input bg-background px-3 py-1 text-sm text-foreground shadow-sm transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring disabled:cursor-not-allowed disabled:opacity-50"
                     >
                       <option value="recruiter">Recruiter</option>

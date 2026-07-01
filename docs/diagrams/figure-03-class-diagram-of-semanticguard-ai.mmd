@@ -1,0 +1,102 @@
+classDiagram
+    class User {
+        +id: UUID
+        +fullName: String
+        +email: String
+        +passwordHash: String
+        +roleName: UserRole
+        +mfaEnabled: Boolean
+        +status: UserStatus
+        +authenticate()
+        +enableMfa()
+    }
+    class CandidateProfile {
+        +candidateCode: String
+        +faceEmbedding: String
+        +referencePhotoUrl: String
+        +integrityScore: Float
+        +enrolFace()
+    }
+    class RecruiterProfile {
+        +recruiterCode: String
+        +department: String
+        +totalAssessmentsCreated: Int
+    }
+    class Assessment {
+        +id: UUID
+        +title: String
+        +durationMinutes: Int
+        +passMark: Float
+        +riskThreshold: Float
+        +status: AssessmentStatus
+        +publish()
+        +configureMonitoring()
+    }
+    class Question {
+        +id: UUID
+        +text: String
+        +type: QuestionType
+        +marks: Float
+    }
+    class AssessmentSession {
+        +id: UUID
+        +startedAt: DateTime
+        +submittedAt: DateTime
+        +riskScore: Float
+        +status: SessionStatus
+        +computeRiskScore()
+    }
+    class Answer {
+        +id: UUID
+        +response: String
+        +isCorrect: Boolean
+        +score: Float
+    }
+    class IntegrityEvent {
+        +id: UUID
+        +eventType: EventType
+        +severity: Float
+        +occurredAt: DateTime
+    }
+    class Alert {
+        +id: UUID
+        +level: AlertLevel
+        +message: String
+        +createdAt: DateTime
+    }
+    class Evidence {
+        +id: UUID
+        +mediaUrl: String
+        +capturedAt: DateTime
+    }
+    class Notification {
+        +id: UUID
+        +channel: Channel
+        +message: String
+        +sentAt: DateTime
+        +status: String
+    }
+    class RiskScoringEngine {
+        +weights: Map
+        +fuse(events) Float
+        +explain() Breakdown
+    }
+    class AuditLog {
+        +id: UUID
+        +action: String
+        +actorId: UUID
+        +timestamp: DateTime
+    }
+
+    User "1" --> "0..1" CandidateProfile
+    User "1" --> "0..1" RecruiterProfile
+    User "1" --> "*" Assessment : creates
+    Assessment "1" --> "*" Question
+    Assessment "1" --> "*" AssessmentSession
+    CandidateProfile "1" --> "*" AssessmentSession
+    AssessmentSession "1" --> "*" Answer
+    AssessmentSession "1" --> "*" IntegrityEvent
+    AssessmentSession "1" --> "*" Alert
+    IntegrityEvent "1" --> "0..1" Evidence
+    AssessmentSession "1" ..> "1" RiskScoringEngine : uses
+    Alert "1" --> "*" Notification

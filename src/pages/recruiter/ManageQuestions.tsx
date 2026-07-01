@@ -1,6 +1,8 @@
 import React, { useEffect, useState } from 'react';
+import { useSearchParams } from 'react-router-dom';
 import { AppLayout } from '@/components/layouts/AppLayout';
 import { assessmentsApi, questionsApi } from '@/lib/api';
+import { ApiError } from '@/lib/api';
 import { mapAssessment, mapQuestion } from '@/lib/mappers';
 import { useAsync } from '@/lib/useApi';
 import { Button } from '@/components/ui/button';
@@ -8,7 +10,7 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { toast } from 'sonner';
 import { PlusCircle, Edit2, Trash2, X, Check, Search, Loader2, Plus, Lock } from 'lucide-react';
-import type { CodingLanguage, Question } from '@/types/types';
+import type { CodingLanguage, Question, QuestionDifficulty } from '@/types/types';
 
 const TYPE_LABELS: Record<string, string> = {
   multiple_choice: 'Multiple Choice',
@@ -24,11 +26,19 @@ interface TestCaseForm {
   hidden: boolean;
 }
 
+interface OptionForm {
+  text: string;
+  isCorrect: boolean;
+  explanation: string;
+}
+
 interface NewQuestionForm {
   text: string;
   type: string;
   marks: number;
-  options: string[];
+  difficulty: QuestionDifficulty;
+  required: boolean;
+  options: OptionForm[];
   correctAnswer: string;
   entryPoint: string;
   language: CodingLanguage;
@@ -36,13 +46,18 @@ interface NewQuestionForm {
   testCases: TestCaseForm[];
 }
 
+const EMPTY_OPTION: OptionForm = { text: '', isCorrect: false, explanation: '' };
+const newOptions = (): OptionForm[] => [{ ...EMPTY_OPTION }, { ...EMPTY_OPTION }, { ...EMPTY_OPTION }, { ...EMPTY_OPTION }];
+
 const EMPTY_TEST_CASE: TestCaseForm = { args: '[]', expectedOutput: '', display: '', hidden: false };
 
 const DEFAULT_NEW_Q: NewQuestionForm = {
   text: '',
   type: 'multiple_choice',
   marks: 2,
-  options: ['', '', '', ''],
+  difficulty: 'medium',
+  required: true,
+  options: newOptions(),
   correctAnswer: '',
   entryPoint: 'sumEven',
   language: 'javascript',
@@ -55,7 +70,8 @@ const DEFAULT_NEW_Q: NewQuestionForm = {
 };
 
 const ManageQuestions: React.FC = () => {
-  const [assessmentId, setAssessmentId] = useState('');
+  const [searchParams] = useSearchParams();
+  const [assessmentId, setAssessmentId] = useState(searchParams.get('assessment') ?? '');
   const [search, setSearch] = useState('');
   const [editing, setEditing] = useState<string | null>(null);
   const [editText, setEditText] = useState('');
@@ -83,23 +99,26 @@ const ManageQuestions: React.FC = () => {
     setNewQ(n => ({
       ...n,
       type,
-      options: type === 'multiple_choice' ? ['', '', '', ''] : n.options,
+      options: type === 'multiple_choice' ? newOptions() : n.options,
       correctAnswer: type === 'true_false' ? 'True' : '',
-      ...(type === 'coding' && !n.entryPoint ? DEFAULT_NEW_Q : {}),
     }));
   };
 
   const buildPayload = () => {
-    const base = { text: newQ.text.trim(), type: newQ.type, marks: newQ.marks };
+    const base = {
+      text: newQ.text.trim(), type: newQ.type, marks: newQ.marks,
+      difficulty: newQ.difficulty, required: newQ.required,
+    };
     if (newQ.type === 'multiple_choice') {
       return {
         ...base,
-        options: newQ.options.filter(Boolean),
-        correctAnswer: newQ.correctAnswer || undefined,
+        options: newQ.options
+          .filter(o => o.text.trim())
+          .map(o => ({ text: o.text.trim(), isCorrect: o.isCorrect, explanation: o.explanation.trim() || undefined })),
       };
     }
     if (newQ.type === 'true_false') {
-      return { ...base, options: ['True', 'False'], correctAnswer: newQ.correctAnswer || 'True' };
+      return { ...base, correctAnswer: newQ.correctAnswer || 'True' };
     }
     if (newQ.type === 'short_answer') {
       return { ...base, correctAnswer: newQ.correctAnswer || undefined };
@@ -129,10 +148,30 @@ const ManageQuestions: React.FC = () => {
   };
 
   const saveNewQuestion = async () => {
-    if (!assessmentId || !newQ.text.trim()) return;
+    if (!assessmentId) {
+      toast.error(myAssessments.length
+        ? 'Select an assessment before adding a question'
+        : 'Create an assessment first, then add questions to it');
+      return;
+    }
+    if (!newQ.text.trim()) {
+      toast.error('Question text is required');
+      return;
+    }
     if (newQ.type === 'coding' && !newQ.entryPoint.trim()) {
       toast.error('Entry function name is required for coding questions');
       return;
+    }
+    if (newQ.type === 'multiple_choice') {
+      const filled = newQ.options.filter(o => o.text.trim());
+      if (filled.length < 2) {
+        toast.error('Add at least two answer options');
+        return;
+      }
+      if (filled.filter(o => o.isCorrect).length !== 1) {
+        toast.error('Mark exactly one option as correct');
+        return;
+      }
     }
     setSaving(true);
     try {
@@ -141,8 +180,9 @@ const ManageQuestions: React.FC = () => {
       setShowAdd(false);
       setNewQ(DEFAULT_NEW_Q);
       reloadQuestions();
-    } catch {
-      toast.error('Could not add question');
+    } catch (err) {
+      const msg = err instanceof ApiError ? err.message : 'Could not add question';
+      toast.error(msg);
     } finally {
       setSaving(false);
     }
@@ -178,6 +218,12 @@ const ManageQuestions: React.FC = () => {
             <PlusCircle className="w-4 h-4 mr-2" /> Add Question
           </Button>
         </div>
+
+        {!myAssessments.length && (
+          <div className="bg-amber-500/10 border border-amber-500/30 text-amber-700 dark:text-amber-400 rounded-md px-4 py-3 text-sm">
+            You don't have any assessments yet. Create an assessment first, then return here to add questions to it.
+          </div>
+        )}
 
         <div className="flex flex-col sm:flex-row gap-3">
           <div className="space-y-1 flex-1">
@@ -246,6 +292,23 @@ const ManageQuestions: React.FC = () => {
                 <Input type="number" value={newQ.marks} onChange={e => setNewQ(n => ({ ...n, marks: Number(e.target.value) }))} min={1} max={20} className="w-20 h-10" />
                 <span className="text-sm text-muted-foreground">marks</span>
               </div>
+              <div className="space-y-1">
+                <Label className="text-xs text-muted-foreground">Difficulty</Label>
+                <select
+                  value={newQ.difficulty}
+                  onChange={e => setNewQ(n => ({ ...n, difficulty: e.target.value as QuestionDifficulty }))}
+                  className="text-sm px-3 py-2 rounded border border-input bg-background text-foreground h-10"
+                  title="Difficulty"
+                >
+                  <option value="easy">Easy</option>
+                  <option value="medium">Medium</option>
+                  <option value="hard">Hard</option>
+                </select>
+              </div>
+              <label className="flex items-center gap-2 h-10 text-sm text-foreground">
+                <input type="checkbox" checked={newQ.required} onChange={e => setNewQ(n => ({ ...n, required: e.target.checked }))} />
+                Required
+              </label>
               <Button size="sm" onClick={saveNewQuestion} disabled={!newQ.text.trim() || saving} className="h-10">
                 {saving ? <Loader2 className="w-4 h-4 mr-1 animate-spin" /> : <Check className="w-4 h-4 mr-1" />} Save Question
               </Button>
@@ -253,33 +316,55 @@ const ManageQuestions: React.FC = () => {
 
             {newQ.type === 'multiple_choice' && (
               <div className="space-y-2 pt-2 border-t border-border/60">
-                <Label className="text-xs text-muted-foreground">Answer Options</Label>
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
-                  {newQ.options.map((opt, i) => (
-                    <div key={i} className="flex items-center gap-2">
-                      <span className="text-xs text-muted-foreground w-5">{String.fromCharCode(65 + i)}.</span>
+                <div className="flex items-center justify-between">
+                  <Label className="text-xs text-muted-foreground">Answer Options — select the correct one</Label>
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="sm"
+                    className="h-7 text-xs"
+                    onClick={() => setNewQ(n => ({ ...n, options: [...n.options, { ...EMPTY_OPTION }] }))}
+                  >
+                    <Plus className="w-3 h-3 mr-1" /> Add Option
+                  </Button>
+                </div>
+                {newQ.options.map((opt, i) => (
+                  <div key={i} className="flex items-start gap-2">
+                    <input
+                      type="radio"
+                      name="mcq-correct"
+                      checked={opt.isCorrect}
+                      title="Mark as correct answer"
+                      onChange={() => setNewQ(n => ({ ...n, options: n.options.map((o, j) => ({ ...o, isCorrect: j === i })) }))}
+                      className="mt-2.5 shrink-0"
+                    />
+                    <div className="flex-1 space-y-1">
                       <Input
-                        value={opt}
-                        onChange={e => setNewQ(n => ({ ...n, options: n.options.map((o, j) => j === i ? e.target.value : o) }))}
+                        value={opt.text}
+                        onChange={e => setNewQ(n => ({ ...n, options: n.options.map((o, j) => j === i ? { ...o, text: e.target.value } : o) }))}
                         placeholder={`Option ${String.fromCharCode(65 + i)}`}
                         className="h-9 text-sm"
                       />
+                      <Input
+                        value={opt.explanation}
+                        onChange={e => setNewQ(n => ({ ...n, options: n.options.map((o, j) => j === i ? { ...o, explanation: e.target.value } : o) }))}
+                        placeholder="Explanation (optional)"
+                        className="h-8 text-xs"
+                      />
                     </div>
-                  ))}
-                </div>
-                <div className="space-y-1">
-                  <Label className="text-xs text-muted-foreground">Correct Answer</Label>
-                  <select
-                    value={newQ.correctAnswer}
-                    onChange={e => setNewQ(n => ({ ...n, correctAnswer: e.target.value }))}
-                    className="text-sm px-3 py-2 rounded border border-input bg-background text-foreground w-full sm:w-auto"
-                  >
-                    <option value="">Select correct option…</option>
-                    {newQ.options.filter(Boolean).map(opt => (
-                      <option key={opt} value={opt}>{opt}</option>
-                    ))}
-                  </select>
-                </div>
+                    {newQ.options.length > 2 && (
+                      <button
+                        type="button"
+                        title="Remove option"
+                        onClick={() => setNewQ(n => ({ ...n, options: n.options.filter((_, j) => j !== i) }))}
+                        className="mt-2 text-muted-foreground hover:text-destructive transition-colors"
+                      >
+                        <Trash2 className="w-4 h-4" />
+                      </button>
+                    )}
+                  </div>
+                ))}
+                <p className="text-[11px] text-muted-foreground">Select the radio next to the correct option. At least two options are required.</p>
               </div>
             )}
 
@@ -329,12 +414,7 @@ const ManageQuestions: React.FC = () => {
                       className="text-sm px-3 py-2 rounded border border-input bg-background text-foreground h-9"
                     >
                       <option value="javascript">JavaScript</option>
-                      <option value="typescript">TypeScript</option>
-                      <option value="python">Python</option>
                       <option value="java">Java</option>
-                      <option value="cpp">C++</option>
-                      <option value="csharp">C#</option>
-                      <option value="go">Go</option>
                     </select>
                   </div>
                 </div>
@@ -439,11 +519,15 @@ const ManageQuestions: React.FC = () => {
                     ) : (
                       <p className="text-sm text-foreground leading-relaxed text-pretty">{q.text}</p>
                     )}
-                    {q.options && (
-                      <div className="mt-2 grid grid-cols-2 gap-1.5">
+                    {q.options && q.options.length > 0 && (
+                      <div className="mt-2 grid grid-cols-1 sm:grid-cols-2 gap-1.5">
                         {q.options.map((opt, oi) => (
-                          <span key={oi} className="text-xs text-muted-foreground flex items-center gap-1">
-                            <span className="font-medium">{String.fromCharCode(65 + oi)}.</span> {opt}
+                          <span
+                            key={opt.id ?? oi}
+                            className={`text-xs flex items-center gap-1 ${opt.isCorrect ? 'text-green-600 dark:text-green-400 font-medium' : 'text-muted-foreground'}`}
+                          >
+                            <span className="font-medium">{String.fromCharCode(65 + oi)}.</span> {opt.text}
+                            {opt.isCorrect && <Check className="w-3 h-3 shrink-0" />}
                           </span>
                         ))}
                       </div>

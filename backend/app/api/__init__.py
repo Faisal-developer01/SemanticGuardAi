@@ -28,6 +28,7 @@ def register_blueprints(app: Flask) -> None:
         ("sessions", "sessions"),
         ("alerts", "alerts"),
         ("evidence", "evidence"),
+        ("certificates", "certificates"),
         ("notifications", "notifications"),
         ("audit", "audit-logs"),
         ("reports", "reports"),

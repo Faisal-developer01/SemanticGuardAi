@@ -1,0 +1,46 @@
+flowchart LR
+    Candidate([Candidate])
+    Recruiter([Recruiter])
+    Admin([Administrator])
+    AIEngine([AI Monitoring Engine])
+    Gateway([Email / SMS Gateway])
+
+    subgraph SG[SemanticGuard AI]
+        UC1((Register / Enrol Identity))
+        UC2((Authenticate / MFA Login))
+        UC3((Take Monitored Assessment))
+        UC4((Verify Identity Continuously))
+        UC5((Detect Prohibited Object))
+        UC6((Track Gaze & Head Pose))
+        UC7((Monitor Browser Activity))
+        UC8((Compute Risk Score))
+        UC9((Create / Configure Assessment))
+        UC10((Monitor Live Sessions))
+        UC11((Review Integrity Report))
+        UC12((Confirm / Override Outcome))
+        UC13((Send Alert / Notification))
+        UC14((Manage Users & Roles))
+        UC15((Configure System Settings))
+        UC16((View Audit Log))
+    end
+
+    Candidate --- UC1
+    Candidate --- UC2
+    Candidate --- UC3
+    Recruiter --- UC2
+    Recruiter --- UC9
+    Recruiter --- UC10
+    Recruiter --- UC11
+    Recruiter --- UC12
+    Admin --- UC2
+    Admin --- UC14
+    Admin --- UC15
+    Admin --- UC16
+
+    AIEngine --- UC4
+    AIEngine --- UC5
+    AIEngine --- UC6
+    AIEngine --- UC7
+    AIEngine --- UC8
+    UC8 --- UC13
+    UC13 --- Gateway

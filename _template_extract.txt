@@ -1,0 +1,2757 @@
+===== PAGE 1 =====
+ADVENTIST UNIVERSITY OF CENTRAL AFRICA 
+ 
+ 
+ 
+AI-BASED SCHOLARSHIP AND INTERNSHIP CANDIDATE SELECTION SYSTEM 
+Case Study: Mastery Hub of Rwanda 
+ 
+A Final Year Project 
+ Presented in partial fulfillment of the  
+Requirements for the degree of 
+BACHELOR OF SCIENCE IN INFORMATION TECHNOLOGY 
+Major in 
+SOFTWARE ENGINEERING 
+ 
+ 
+ 
+ 
+ 
+By 
+NTARINDWA Nshuti Allan 
+June   2026 
+===== PAGE 2 =====
+i 
+ 
+ABSTRACT 
+TITLE: AI-Based Scholarship and Internship Candidate Selection System 
+Name of Researcher: NTARINDWA Nshuti Allan 
+Faculty Advisor: RUGWIZA Jean  Eric 
+Date Completed: June, 2026 
+The fair and transparent selection of candidates for scholarships and internships remains a 
+significant challenge for many organizations in Rwanda. Mastery Hub of Rwanda, an organization 
+dedicated to student development, currently manages candidate selecti on through manual 
+processes involving paper applications, spreadsheet tracking, and uncoordinated committee 
+discussions. This approach has created substantial challenges including lack of transparency, 
+delays in selection decisions, difficulty in comparing  candidates objectively, limited access to 
+reliable information, and potential for subjective bias. 
+This project developed an AI -Based Scholarship and Internship Candidate Selection System to 
+address these challenges by providing a centralized, intelligent digital platform for managing the 
+complete candidate selection lifecycle. The system enables studen ts to create comprehensive 
+profiles, submit applications with supporting documents, and track application progress in real 
+time. Internally, the system supports structured application intake, automated eligibility 
+verification, AI -driven candidate scoring and ranking, intelligent opportunity matching, 
+asynchronous committee discussion forums, digital voting, and fairness reporting. 
+The system was implemented using a modern technology stack with the frontend developed in 
+React.js, the backend built using Spring Boot (Java), and PostgreSQL for relational data storage. 
+Artificial intelligence capabilities were integrated using Python -based libraries including Scikit -
+learn for candidate scoring algorithms. Additional integrations include JWT and Google OAuth2 
+for secure authentication, Twilio API for SMS notifications, and Gmail SMTP for email 
+communication. 
+===== PAGE 3 =====
+ii 
+ 
+DECLARATION 
+I, NTARINDWA Nshuti Allan, Student ID Number 26440, a student at Adventist University of 
+Central Africa in the Faculty of Information Technology, Department of Software Engineering, 
+declare that this research project is my own original work. I wrote it myself based on my own 
+knowledge and experience. This work has never been submitted to any university or college 
+before, either in part or in full. 
+Signature: ………………………………… 
+Date: ………/……………/……………….. 
+  
+===== PAGE 4 =====
+iii 
+ 
+APPROVAL 
+I, RUGWIZA Jean Eric, hereby certify that student NTARINDWA Nshuti Allan in the Faculty 
+of Information Technology, Department of Software Engineering, has completed this Final Year 
+Project report under my supervision and is hereby submitted with my approval. 
+Supervisor's Signature: ………………………………………… 
+Date: ………………………………………………... 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+===== PAGE 5 =====
+iv 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+DEDICATION 
+ 
+To my parents, 
+To my beloved sisters and brothers, 
+To my classmates, friends, and relatives, 
+To my supervisor for his guidance, 
+I dedicate this final report. 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+===== PAGE 6 =====
+v 
+ 
+ACKNOWLEDGEMENTS 
+I would like to express my sincere gratitude to God for His guidance, strength, and protection 
+throughout my academic journey. His grace has enabled me to successfully complete my studies. 
+I extend my heartfelt appreciation to the administration of the Adventist University of Central 
+Africa (AUCA) for providing a supportive academic environment and a well -structured program 
+that has significantly contributed to my intellectual and personal development. 
+I am deeply grateful to my parents, Mr. Ntarindwa Antoine and Mrs. Mukamusoni Bernadette, for 
+their unwavering support, encouragement, prayers, and sacrifices, both morally and financially, 
+throughout my education. 
+My sincere thanks go to the academic staff of the department for their dedication and commitment 
+to student success. I would especially like to express my profound appreciation to my supervisor, 
+RUGWIZA Jean Eric , for his invaluable guidance, constructive feedback, and professional 
+support throughout the development of this work. 
+I also wish to acknowledge my colleagues and classmates for their cooperation, teamwork, and 
+shared learning experiences, which greatly enriched my academic journey. 
+I am equally thankful to my friends for their continuous encouragement and support during 
+challenging moments. 
+Furthermore, I extend my sincere appreciation to the management and staff of Mastery Hub of 
+Rwanda, particularly the Chief Executive Officer, Mr. Dieudonne Uwimana, for granting me 
+permission to conduct this study within the organization and for their cooperation. 
+Finally, I would like to thank everyone who contributed, directly or indirectly, to the successful 
+completion of this work. 
+May God bless you all abundantly.  
+Ntarindwa Nshuti Allan 
+ 
+===== PAGE 7 =====
+vi 
+ 
+TABLE OF CONTENTS 
+ABSTRACT ..................................................................................................................................... i 
+DECLARATION ............................................................................................................................ ii 
+APPROVAL .................................................................................................................................. iii 
+DEDICATION ............................................................................................................................... iv 
+ACKNOWLEDGEMENTS ............................................................................................................ v 
+TABLE OF CONTENTS ............................................................................................................... vi 
+LIST OF TABLES ......................................................................................................................... ix 
+LIST OF FIGURES ........................................................................................................................ x 
+CHAPTER 1 ................................................................................................................................... 1 
+GENERAL INTRODUCTION ....................................................................................................... 1 
+Introduction ................................................................................................................................. 1 
+Background of the Study ............................................................................................................ 2 
+Statement of the Problem ............................................................................................................ 3 
+Choice and Motivation ................................................................................................................ 4 
+Objectives of the Study ............................................................................................................... 5 
+General Objective ................................................................................................................... 5 
+Specific Objectives ................................................................................................................. 5 
+Scope of the Project .................................................................................................................... 6 
+Methodology and Techniques ..................................................................................................... 7 
+Documentation ........................................................................................................................ 7 
+Interview Questions and Responses........................................................................................ 7 
+Expected Results ....................................................................................................................... 13 
+Organization of Work ............................................................................................................... 14 
+CHAPTER 2 ................................................................................................................................. 15 
+ANALYSIS OF CURRENT SYSTEM ........................................................................................ 15 
+Introduction ............................................................................................................................... 15 
+Description of Current System Environment ............................................................................ 16 
+Historical Background .......................................................................................................... 16 
+Vision .................................................................................................................................... 16 
+===== PAGE 8 =====
+vii 
+ 
+Mission .................................................................................................................................. 16 
+Description of Current System.................................................................................................. 17 
+Analysis of the Existing System ............................................................................................... 18 
+Modeling of the Current System ............................................................................................... 20 
+Problems of the Current System ............................................................................................... 21 
+System Requirements................................................................................................................ 25 
+Functional Requirements ...................................................................................................... 25 
+Non-Functional Requirements .............................................................................................. 26 
+CHAPTER 3 ................................................................................................................................. 27 
+REQUIREMENTS ANALYSIS AND DESIGN OF THE NEW SYSTEM ................................ 27 
+Introduction ............................................................................................................................... 27 
+Unified Modeling Language (UML Design) ............................................................................ 28 
+Use Case Diagram................................................................................................................. 28 
+Class Diagrams ..................................................................................................................... 37 
+Sequence Diagrams ............................................................................................................... 41 
+Activity Diagrams ................................................................................................................. 45 
+Database Diagrams ............................................................................................................... 50 
+Data Dictionary ..................................................................................................................... 53 
+System Architecture Design ................................................................................................. 55 
+CHAPTER 4 ................................................................................................................................. 57 
+IMPLEMENTATION OF THE NEW SYSTEM ......................................................................... 57 
+Introduction ............................................................................................................................... 57 
+Technologies Used .................................................................................................................... 57 
+Front-End Development: ...................................................................................................... 57 
+Back-End & Database Development: ................................................................................... 59 
+Development & Deployment Tools: ..................................................................................... 60 
+Presentation of the New System ............................................................................................... 62 
+Software Testing ....................................................................................................................... 90 
+The Unit Test ........................................................................................................................ 90 
+The Integration Test .............................................................................................................. 90 
+The Validation Test............................................................................................................... 91 
+===== PAGE 9 =====
+viii 
+ 
+Hardware and Software Requirements ..................................................................................... 91 
+Client-Side Software Requirements:..................................................................................... 91 
+Server-Side Software Requirements: .................................................................................... 92 
+CHAPTER 5 ................................................................................................................................. 93 
+CONCLUSIONS AND RECOMMENDATIONS ....................................................................... 93 
+Conclusions ............................................................................................................................... 93 
+Recommendations ..................................................................................................................... 94 
+Books .................................................................................................................................... 95 
+Journals ................................................................................................................................. 95 
+Websites ................................................................................................................................ 95 
+APPENDICES .............................................................................................................................. 96 
+Curriculum Vitae .......................................................................................................................... 97 
+Data Collection Letter ................................................................................................................... 98 
+Approval Letter from Organization .............................................................................................. 99 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+===== PAGE 10 =====
+ix 
+ 
+ LIST OF TABLES 
+ 
+Table 1: Use Case Description for student ................................................................................... 31 
+Table 2: Use Case Description for Student  Track Status ............................................................. 32 
+Table 3: Use Case Description for Program Manager Create Program ........................................ 33 
+Table 4: Use Case Description for Program Manager Grant/Deny Decision ............................... 34 
+Table 5: Use Case Description for Reviewer ................................................................................ 35 
+Table 6: Use Case Description for Reviewer  Cast Vote .............................................................. 36 
+Table 7: Use Case Description for System Administrator ............................................................ 36 
+Table 8: Class Diagram  System Entities and Responsibilities .................................................... 41 
+Table 9: The notations and their definitions ................................................................................. 42 
+Table 10: Notations and their description ..................................................................................... 46 
+Table 11: Activity Diagram Key Activities and Descriptions ...................................................... 50 
+Table 12: Database Schema  Table Overview .............................................................................. 53 
+Table 13: Data Dictionary students Table .................................................................................... 53 
+Table 14: Data Dictionary  applications Table ............................................................................. 54 
+Table 15: Data Dictionary  ai_scores Table .................................................................................. 54 
+Table 16: Data Dictionary  final_decisions Table ........................................................................ 55 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+===== PAGE 11 =====
+x 
+ 
+LIST OF FIGURES 
+Figure 1 Modelling of the current system ..................................................................................... 20 
+Figure 2 Use case diagram ............................................................................................................ 30 
+Figure 3: Class Diagram ............................................................................................................... 40 
+Figure 4: Sequence Diagram  Student Application Submission ................................................... 43 
+Figure 5: Sequence Diagram  Committee Member Voting .......................................................... 44 
+Figure 6: Sequence Diagram  Program Manager Final Decision ................................................. 44 
+Figure 7: Full System Activity Diagram ....................................................................................... 48 
+Figure 8: Database Schema Diagram ............................................................................................ 51 
+Figure 9: System Architecture Diagram ....................................................................................... 55 
+Figure 10: Landing page ............................................................................................................... 62 
+Figure 11: Registration page ......................................................................................................... 64 
+Figure 12: Student dashboard ....................................................................................................... 65 
+Figure 13: Program Discovery and Search Interface .................................................................... 66 
+Figure 14: Application Submission Wizard (Step 1 - Your Profile) ............................................ 67 
+Figure 15: Application Submission Wizard (Step 2 - Documents) .............................................. 68 
+Figure 16: Application Submission Wizard (Step 3 - Review & Submit) .................................... 69 
+Figure 17:  Program Manager Dashboard ..................................................................................... 70 
+Figure 18: AI-Ranked Applicants Interface .................................................................................. 70 
+Figure 19: Reviewer Dashboard ................................................................................................... 71 
+Figure 20: Committee Discussion Forum Interface ...................................................................... 72 
+Figure 21: Digital Voting Interface ............................................................................................... 73 
+Figure 22:  System Administrator Dashboard .............................................................................. 74 
+Figure 23:  User Management Interface ....................................................................................... 75 
+Figure 24: Reporting & Analytics Interface ................................................................................. 76 
+Figure 25: Sample Generated Report Programs Activity Audit ................................................... 77 
+Figure 26: Sample Generated Report  Detailed Applicant Roster ................................................ 78 
+Figure 27: Grant Award Letter (Downloadable PDF Document) ................................................ 79 
+Figure 28: Grant SMS Notification............................................................................................... 80 
+Figure 29: Denial Notification Letter (Downloadable PDF Document) ...................................... 81 
+Figure 30: Denial SMS Notification ............................................................................................. 82 
+Figure 31: AI Fairness & Ethical Audit Dashboard...................................................................... 83 
+Figure 32: AI Fairness & Ethical Audit Dashboard...................................................................... 84 
+Figure 33: Student Profile  Personal Information ......................................................................... 85 
+Figure 34: Student Profile  Education & Academic Information ................................................. 86 
+Figure 35: Student Profile  Documents & Identity ....................................................................... 87 
+ 
+ 
+===== PAGE 12 =====
+xi 
+ 
+LIST OF ABBREVIATIONS 
+Abbreviation Full Form 
+AI Artificial Intelligence 
+API Application Programming Interface 
+AUCA Adventist University of Central Africa 
+DB Database 
+GPA Grade Point Average 
+IDE Integrated Development Environment 
+IT Information Technology 
+JWT JSON Web Token 
+MFA Multi-Factor Authentication 
+OOP Object-Oriented Programming 
+SDLC Software Development Life Cycle 
+SMS Short Message Service 
+SMTP Simple Mail Transfer Service 
+UAT User Acceptance Testing 
+UML Unified Modeling Language 
+UI User Interface 
+URL Uniform Resource Locator 
+===== PAGE 13 =====
+1 
+ 
+ 
+CHAPTER 1 
+GENERAL INTRODUCTION 
+INTRODUCTION  
+Mastery Hub of Rwanda is an innovative organization that supports student development through 
+scholarship and internship programs in Kigali. Established to create educational and professional 
+opportunities for Rwandan students, the organization partners wi th educational institutions and 
+corporate sponsors to provide valuable learning and career experiences. Its mission is to equip 
+students with the skills and support needed to succeed in Rwanda's evolving economy. 
+A critical but often neglected aspect of student support is the fair and transparent selection of 
+candidates for limited opportunities. The process of evaluating qualifications, comparing 
+applicants, and matching candidates to programs must be conducted wi th integrity. Fairness is 
+essential for maintaining trust among applicants, donors, and partners. Without transparency, 
+organizations risk losing credibility and overlooking deserving candidates. However, the current 
+process at Mastery Hub is manual, fragm ented, and opaque. This creates inefficiencies including 
+delayed decisions, inconsistent evaluation, lost documents, limited feedback, and increased staff 
+workload. 
+The AI -Based Scholarship and Internship Candidate Selection System is a web application 
+developed to digitize and automate the selection lifecycle. It transitions from a paper -based 
+workflow to a centralized digital platform with artificial intelligence ca pabilities. The system 
+provides real -time transparency, automated candidate evaluation, AI -driven scoring, and data -
+driven analytics. By leveraging AI, the system reduces human bias, increases processing speed, 
+and ensures fair consideration based on objec tive criteria. It analyzes academic performance, 
+extracurricular achievements, leadership experience, and program fit. The system augments rather 
+than replaces human judgment, providing insights for informed decisions. This system represents 
+a significant step forward in the digital transformation of student support services in Rwanda. 
+===== PAGE 14 =====
+2 
+ 
+BACKGROUND OF THE STUDY 
+The rapid advancement of information technology has significantly transformed how 
+organizations operate, compete, and deliver value in the education and professional development 
+sectors. In Rwanda, access to scholarships and internships plays a critical ro le in shaping the 
+educational and career trajectories of young people, particularly university students seeking to 
+enhance their academic and professional prospects. As the demand for these opportunities grows, 
+organizations must continuously improve their  selection processes to ensure fairness, 
+transparency, and efficiency. 
+Despite this growing need, many organizations still rely on manual or semi -automated methods, 
+such as paper -based applications, spreadsheets, and unstructured review processes, to select 
+scholarship and internship beneficiaries. These approaches are often static, error-prone, and unable 
+to provide real-time insights into candidate qualifications and program fit. As a result, selection 
+committees face difficulties in consistently evaluating applicants, identifying the most suitable 
+candidates, and ensuring that selection decisions are free from bias. 
+This challenge is evident at Mastery Hub of Rwanda, an organization dedicated to supporting 
+student development through scholarship and internship programs in Kigali. As Mastery Hub 
+expands its program portfolio and receives increasing numbers of applications, the complexity of 
+managing candidate selection processes increases. Without a centralized and intelligent selection 
+system, it becomes difficult to align candidate profiles with program requirements, leading to 
+inefficiencies in resource allocation and potential dissatisfaction among applicants. 
+The fair and transparent selection of candidates for scholarships and internships remains a 
+significant challenge for many organizations in Rwanda. Mastery Hub currently manages 
+candidate selection through manual processes involving paper applications, spr eadsheet tracking, 
+and uncoordinated committee discussions. This approach has created substantial challenges 
+including lack of transparency, delays in selection decisions, difficulty in comparing candidates 
+objectively, limited access to reliable information, and potential for subjective bias. 
+ 
+===== PAGE 15 =====
+3 
+ 
+STATEMENT OF THE PROBLEM 
+Organizations offering scholarships and internships increasingly operate in competitive 
+environments where the quality and fairness of selection processes directly impact their reputation 
+and effectiveness. However, many organizations lack an effective and  intelligent mechanism to 
+accurately evaluate candidate profiles, identify the most suitable applicants, and ensure 
+transparency in selection decisions. 
+In the context of Mastery Hub of Rwanda, an organization providing scholarship and internship 
+opportunities to students, the challenge is particularly evident. As the organization receives diverse 
+applications from students across multiple institutions, ca ndidate qualifications span various 
+academic disciplines, extracurricular achievements, and personal backgrounds. Currently, 
+candidate selection and program matching are largely dependent on manual records, fragmented 
+tools, and subjective assessments. The se approaches do not provide real -time visibility into 
+applicant qualifications nor support systematic analysis of candidate-program fit. 
+The impact of this problem includes inefficient selection processes, delayed program placements, 
+underutilization of available opportunities, and poorly matched candidate -program assignments. 
+Without accurate candidate evaluation, deserving students may be  overlooked, leading to missed 
+educational and professional development opportunities. Additionally, the inability to quickly 
+identify suitable candidates for specific programs limits organizational agility and scalability. 
+The root cause of these challenges lies in the absence of a centralized, data-driven, and intelligent 
+system capable of integrating applicant data, analyzing candidate qualifications, and supporting 
+informed selection decisions. The lack of analytical and AI-based tools further prevents objective 
+evaluation and fairness monitoring. Addressing this problem is essential for Mastery Hub of 
+Rwanda to optimize its selection processes, enhance program effectiveness, and maintain trust 
+among applicants and stakeholders. 
+ 
+ 
+===== PAGE 16 =====
+4 
+ 
+CHOICE AND MOTIVATION 
+The study inspirations are from practical exposure to operational challenges observed within 
+Mastery Hub of Rwanda during an academic internship. The manual and semi -digital processes 
+currently used for managing scholarship and internship applications reve aled inefficiencies in 
+tracking, documentation, communication, and reporting. These challenges faced demonstrate the 
+urgent need for a structured and automated digital solution. 
+To Mastery Hub of Rwanda : Mastery Hub serves a critical role in student development and 
+opportunity matching. However, the current workflow relies deeply on manual processes, which 
+result in delays in case processing, difficulty in tracking application status, risk of data loss o r 
+duplication, and limited real-time reporting. The proposed system aims to digitize and centralize 
+application management, improve efficiency and transparency, enhance record tracking, and 
+strengthen accountability. 
+To Adventist University of Central Africa (AUCA):  This project aligns with AUCA's mission 
+to produce competent, ethical, and innovative professionals. It provides an opportunity to apply 
+core competencies including requirements engineering, systems analysis and design, UML 
+modeling, database architecture, web application development, AI integration, system testing, and 
+project planning. 
+To the Researcher (Student): This study offers hands-on experience in developing an enterprise-
+level system with AI components, strengthens problem -solving skills, develops project 
+management expertise, and builds a portfolio-level system applicable to educational institutions. 
+ 
+ 
+ 
+ 
+===== PAGE 17 =====
+5 
+ 
+OBJECTIVES OF THE STUDY 
+General Objective 
+The general objective of this study is to design and develop a comprehensive AI-Based Scholarship 
+and Internship Candidate Selection System that digitizes and automates the full lifecycle of 
+candidate selection at Mastery Hub of Rwanda, enabling efficient application management, 
+intelligent candidate evaluation, AI -driven matching, and real -time transparency for all 
+stakeholders. 
+Specific Objectives 
+1. To design a secure, wizard-based student portal that enables online profile creation, application 
+submission with document upload, and real-time status tracking. 
+2. To develop an automated eligibility verification module that checks candidate qualifications 
+against program requirements instantly. 
+3. To implement an AI-powered candidate scoring and ranking engine using configurable criteria 
+weighting for objective evaluation. 
+4. To build an intelligent opportunity matching system that recommends suitable scholarships and 
+internships to students based on profile analysis. 
+5. To create a fairness monitoring dashboard providing management with real -time metrics on 
+selection rates, demographic distributions, and bias detection. 
+6. To integrate external communication services including Twilio SMS and Gmail SMTP to ensure 
+automated notifications at all workflow stages. 
+7. To implement role-based access control using JWT and Google OAuth2, ensuring that each user 
+role can access only the functions appropriate to their position. 
+ 
+ 
+===== PAGE 18 =====
+6 
+ 
+SCOPE OF THE PROJECT 
+The scope of this study encompasses the full design, development, testing, and deployment of the 
+AI-Based Scholarship and Internship Candidate Selection System for Mastery Hub of Rwanda. 
+The system covers the complete candidate selection lifecycle from application submission through 
+final decision, including the student -facing portal, the program manager dashboard, the reviewer 
+workspace, the committee discussion forum, the AI scoring engine, and the fairness analytics layer. 
+The system includes student profile management, program management, application submission 
+and tracking, automated eligibility assessment, AI -powered candidate scoring and ranking, 
+intelligent opportunity matching, structured reviewer evaluation, asynchron ous committee 
+discussion forums, digital voting, fairness reporting, and automated notifications. 
+The study does not include financial aid disbursement or scholarship payment processing, 
+internship placement and supervision management, full human resource management 
+functionalities, or integration with external educational institution databases beyond optional API 
+connections. Geographic scope is limited to operations conducted through Mastery Hub's 
+headquarters in Kigali, with the understanding that the architecture is sufficiently scalable to 
+accommodate extension to regional programs. 
+This research makes a significant contribution to the field by developing an intelligent, centralized 
+selection platform that fundamentally transforms how scholarship and internship decisions are 
+made. The system delivers substantial improvements over exis ting manual methods, including 
+dramatically enhanced transparency, markedly reduced processing times, rigorously objective 
+candidate comparisons, reliably accessible information, and the systematic elimination of 
+subjective bias. The successful implementation represents a meaningful advancement for Mastery 
+Hub of Rwanda, establishing a scalable, data -driven foundation that substantially strengthens the 
+fairness and efficiency of candidate selection across all programs. 
+ 
+ 
+===== PAGE 19 =====
+7 
+ 
+ METHODOLOGY AND TECHNIQUES 
+This study employs appropriate research methods to identify and analyze existing weaknesses in 
+the scholarship and internship candidate selection process and to design and develop a new AI -
+Based Scholarship and Internship Candidate Selection System by leveraging modern information 
+technology solutions. These methods were selected to ensure accurate data collection, reliable 
+analysis, and practical system design. The following methods and techniques were applied in 
+conducting this research: 
+Documentation 
+Documentation is a research method that involves the systematic collection, review, and analysis 
+of existing records, reports, and written materials relevant to the study topic. It helps researchers 
+understand the background information, identify operation al challenges, and gather evidence to 
+support research objectives. 
+In this study, I used documentation review to examine existing records, reports, and policies from 
+Mastery Hub of Rwanda. This included analyzing current application forms, selection guidelines, 
+evaluation rubrics, committee meeting minutes, decision notification templates, and past applicant 
+records. The review also covered digital transformation policies such as the Smart Rwanda Master 
+Plan and the National Strategy for Transformation (NST2) to align the system's objectives with 
+national priorities. Additionally, I explored academic publications and international best practices 
+on AI -driven candidate selection systems, scholarship management platforms, and fairness 
+monitoring in automated decision -making to guide the system's design and functionality (Marr , 
+2021; Mehrabi et al., 2021). 
+Interview Questions and Responses 
+Interviews are a qualitative research method involving structured or semi -structured discussions 
+with key stakeholders to obtain detailed insights into their experiences, perceptions, and 
+operational challenges. This method provides practical data that com plement findings from 
+observation and documentation. 
+In this study, I conducted interviews with program managers, committee members, and student 
+applicants from Mastery Hub of Rwanda. These discussions provided an in -depth understanding 
+of the manual candidate selection process and highlighted the need for a  more transparent, 
+===== PAGE 20 =====
+8 
+ 
+centralized, and automated digital system with artificial intelligence capabilities. The interviews 
+focused on operational difficulties, communication gaps, fairness concerns, and expectations from 
+a modern AI-powered selection platform. 
+I, NTARINDWA Nshuti Allan, a final -year student in the Faculty of Information Technology, 
+Department of Software Engineering at the Adventist University of Central Africa (AUCA), 
+conducted this research to design and develop the AI-Based Scholarship and Internship Candidate 
+Selection System, specifically addressing inefficiencies in student application submission, 
+candidate evaluation, committee deliberation, and fairness reporting. 
+Below are the key questions asked during the interviews, along with summarized responses: 
+Question 1: How do students currently submit their scholarship and internship applications, and 
+what challenges do you encounter during the intake process? 
+Response: "Students submit their applications either physically at our office or by sending emails 
+to a shared mailbox. The problem is that there is no standardized form, so submissions arrive in 
+different formats and with varying levels of completeness. We then ha ve to follow up manually, 
+which takes a lot of time and delays the registration process." 
+Question 2: How do you currently evaluate and compare candidates for opportunities? 
+Response: "We use a spreadsheet where reviewers enter scores for different criteria. However, not 
+everyone scores consistently. One reviewer might rate a student's leadership experience highly 
+while another gives it low marks. There is no standardized rubric, so th e final ranking often 
+depends on who is in the room." 
+Question 3: How are supporting documents managed throughout the application process? 
+Response: "Documents are stored in different places. Physical submissions are kept in filing 
+cabinets, while email attachments remain in inboxes. There is no central repository. I have seen 
+situations where transcripts get lost because different staff members handl e different parts of the 
+same application without proper coordination." 
+Question 4: How are committee decisions recorded, and do you believe the current method is 
+reliable? 
+===== PAGE 21 =====
+9 
+ 
+Response: "Decisions are recorded in meeting minutes taken by a secretary. The minutes are 
+written manually and may not capture every individual vote accurately. There is no formal way to 
+verify quorum or that each member's decision was correctly documented. This c reates a risk if a 
+decision is ever challenged." 
+Question 5: Are applicants informed about the progress and final outcome of their application in 
+a timely manner? 
+Response: "Not consistently. We try to communicate by phone or email, but there is no automated 
+system. If a staff member is busy, the student may remain uninformed for weeks. We receive many 
+calls from students asking about their application status, which adds to our workload." 
+Question 6: What features would you expect from a digital candidate selection platform? 
+Response: "Online application submission, automatic eligibility checking, AI -based scoring to 
+reduce bias, real-time status tracking for students, digital voting for committee members, fairness 
+reports, and automated notifications via email and SMS." 
+Question 7: What improvements would make candidate selection more effective and fairer? 
+Response: "Automation of application intake, structured evaluation rubrics, AI-assisted candidate 
+ranking, transparent score breakdowns, asynchronous committee discussion tools, digital voting 
+with justification, and fairness monitoring to ensure equal opportunity across demographic 
+groups." 
+Question 8: Would you trust an AI system to help evaluate and rank candidates? 
+Response: "I would trust it for initial screening, but I would want to understand how scores are 
+calculated. If the system is transparent and we can see the breakdown of scores, I would trust it. 
+The final decision should still be made by the committee, but AI coul d save us a lot of time and 
+reduce human bias." 
+Observation 
+Direct observation sessions were carried out within Mastery Hub of Rwanda over a period of two 
+weeks during an academic internship. The researcher observed daily operational activities across 
+===== PAGE 22 =====
+10 
+ 
+the full candidate selection workflow, from initial application intake through committee 
+deliberation and final decision notification. The following findings were documented through 
+direct observation: 
+1. Manual and Fragmented Application Registration 
+It was observed that students arriving at Mastery Hub office were required to fill out paper 
+application forms and submit physical documents. In several instances, staff members had to 
+request additional documents from students because the submission was i ncomplete, resulting in 
+repeated visits. Email submissions arrived in an unstructured shared inbox with no automated 
+acknowledgment, and these were manually copied into a spreadsheet register by a program 
+manager. I observed that on some occasions, newly received emails remained unread for an entire 
+day before being processed, directly contributing to registration delays. 
+2. Disconnected Document Storage Across Multiple Locations 
+Supporting documents for a single application were observed to exist in multiple disconnected 
+locations simultaneously. Physical copies were stored in labeled folders in filing cabinets, while 
+electronic attachments from email submissions remained in indiv idual staff members' personal 
+inboxes. Academic transcripts and recommendation letters were saved on local hard drives. I 
+observed instances where a program manager spent considerable time searching through physical 
+files and email threads to assemble all documents for an application before being able to begin 
+evaluation. This fragmentation made it difficult to confirm that all required materials had been 
+collected, and three applications were observed where referenced documents could not be 
+immediately located. 
+3. Inefficient Committee Coordination 
+During the observation period, the researcher directly witnessed a committee deliberation 
+scheduling process. The Committee Leader composed and sent an email to five committee 
+members proposing three possible meeting dates. Over the following three days, responses arrived 
+gradually and asynchronously, with some members not responding at all until followed up by 
+phone. Application materials, including student profiles, academic records, and supporting 
+documents, were compiled and attached to a separate email  distributed the evening before the 
+===== PAGE 23 =====
+11 
+ 
+scheduled meeting. One member indicated during the session that they had not had time to review 
+all applications, which affected the quality of deliberation for two candidates. 
+4. Informal and Unverifiable Voting Records 
+Committee decisions observed during the internship were recorded by a secretary who took 
+handwritten notes during the meeting. Votes were expressed verbally by each member, and no 
+individual vote record was created separately from the minutes. I observed t hat when a vote 
+resulted in a split outcome, there was a brief verbal disagreement over the correct count, and the 
+secretary had to ask each member to restate their decision. There was no mechanism to verify 
+quorum independently of the minutes, nor to produce an auditable per-member voting record after 
+the fact. 
+5. Absence of Real-Time Reporting and Management Visibility 
+When senior management requested a summary of current application volumes and selection rates, 
+I observed that a program manager spent approximately half a working day compiling data 
+manually from the spreadsheet register, physical files, and email records . The resulting report 
+contained data that was several days out of date and acknowledged gaps where information could 
+not be confirmed. This confirmed the absence of any centralized reporting mechanism and 
+demonstrated the direct cost of the manual approac h in terms of staff time and decision -making 
+quality. 
+Collectively, these observations confirmed the operational challenges described by interviewees 
+and provided concrete, firsthand evidence of the inefficiencies that the proposed AI -Based 
+Scholarship and Internship Candidate Selection System was designed to address. The observation 
+method ensured that the system requirements were grounded in real institutional practice rather 
+than theoretical assumptions alone. 
+Documentation Analysis 
+A detailed analysis of institutional documents was conducted, including: 
+• Historical application files from previous selection cycles 
+• Applicant records and selection outcome data 
+===== PAGE 24 =====
+12 
+ 
+• Internal procedural guidelines and evaluation rubrics 
+• Reporting templates and decision documents 
+• Selection committee meeting minutes 
+• Applicant notification templates and communication logs 
+Documentation analysis helped to: 
+• Understand existing data structures for student profiles and applications 
+• Identify recurring decision patterns and scoring criteria 
+• Examine communication protocols between staff and applicants 
+• Define database entities and relationships for the new system 
+• Identify gaps in data collection and record-keeping 
+• Understand the legal and procedural framework governing candidate selection 
+This technique was essential in designing a data model aligned with real institutional records. The 
+analysis revealed that existing records were often incomplete, inconsistently formatted, and stored 
+across multiple locations. Standardized fields such as a pplicant ID, application date, evaluation 
+scores, and final decisions were frequently missing or recorded in non -uniform ways. These 
+findings directly informed the design of the database schema for the proposed system, ensuring 
+that all necessary data fields were included and properly structured. 
+Additionally, the review of procedural guidelines highlighted the absence of formalized rubrics 
+for candidate evaluation, confirming the need for structured AI scoring criteria. The analysis of 
+reporting templates revealed that management required specific  metrics including application 
+volumes by program, selection rates, demographic distributions, and processing times, all of which 
+were incorporated into the analytics dashboard design. 
+===== PAGE 25 =====
+13 
+ 
+EXPECTED RESULTS 
+The implementation of the AI -Based Scholarship and Internship Candidate Selection System is 
+expected to generate measurable improvements in operational efficiency, service delivery, 
+accountability, and institutional performance. 
+1. Enhanced Transparency and Student Accessibility:  Introduction of a real -time tracking 
+dashboard and automated notifications via SMS and email. 
+2. Centralized and Secure Digital Repository:  Centralization of all documents into a secure 
+digital repository, ensuring data integrity and easy retrieval. 
+3. Integrated Digital Platform: Automation of committee processes including discussion forums, 
+voting, and decision recording. 
+4. Real-Time Data-Driven Reporting: Analytical dashboards providing real -time insights into 
+key performance indicators. 
+5. Improved Processing Efficiency:  Streamlined operations through automation, reducing 
+processing time and administrative workload. 
+6. Enhanced Transparency through Digital Audit Trails:  A comprehensive digital audit trail 
+of all actions, including submissions, updates, and decisions. 
+7. Contribution to Digital Governance:  Promotion of paperless operations and standardized 
+workflows, aligning with national digital transformation initiatives. 
+ 
+ 
+ 
+ 
+ 
+===== PAGE 26 =====
+14 
+ 
+ORGANIZATION OF WORK 
+This research report is structured into five main chapters, each addressing a specific phase of the 
+study and system development process. 
+Chapter 1:  General Introduction presents the general overview of the study. It includes the 
+background of the study, problem statement, objectives (both general and specific), scope, 
+methodology and techniques used, expected results, and justification of the study. 
+Chapter 2: Analysis of Current System examines the operational environment of Mastery Hub of 
+Rwanda. It provides an analysis of the current system, including institutional background, 
+workflow description, strengths and weaknesses, and identified challenges. The cha pter also 
+defines the functional and non-functional requirements. 
+Chapter 3:  Requirements Analysis and Design of the New System focuses on the proposed 
+system. It presents the detailed requirements analysis and system design using UML diagrams, 
+database schema, data dictionary, and system architecture. 
+Chapter 4: Implementation of the New System describes the practical development of the system. 
+It outlines the tools and technologies used, system configuration, and implementation procedures. 
+The chapter also presents key user interface screenshots, testing strategies, and the results obtained 
+during system evaluation. 
+Chapter 5:  Conclusions and Recommendations summarizes the findings of the study and 
+evaluates whether the project objectives were achieved. It highlights the contributions of the 
+system to institutional improvement and provides recommendations for future enhancements. 
+ 
+ 
+ 
+ 
+ 
+===== PAGE 27 =====
+15 
+ 
+CHAPTER 2 
+ANALYSIS OF CURRENT SYSTEM 
+INTRODUCTION 
+This chapter presents a detailed and systematic analysis of the operational environment in which 
+the proposed AI -Based Scholarship and Internship Candidate Selection System is to be 
+implemented. The purpose of this chapter is to establish a clear understanding of the institutional, 
+procedural, and technological context of Mastery Hub of Rwanda's selection processes, which 
+forms the foundation for the development of the proposed digital solution. 
+The chapter begins with an overview of Mastery Hub of Rwanda, including its historical 
+background, organizational mandate, mission, and vision. Understanding the institutional 
+framework is essential because the effectiveness of any information system depends on how well 
+it aligns with organizational objectives, governance structures, and operational policies. 
+Following the institutional overview, the chapter provides a comprehensive examination of the 
+existing candidate selection process. This includes an analysis of how applications are received, 
+recorded, reviewed, deliberated, and resolved. The workflow is e xamined from both procedural 
+and operational perspectives in order to identify how information flows within the system, how 
+decisions are documented, and how communication is handled among stakeholders. 
+Particular attention is given to evaluating the current system's strengths and weaknesses. While the 
+existing approach demonstrates certain organizational strengths, such as structured procedures and 
+defined administrative roles, it also reveals significan t operational limitations. These include 
+reliance on manual processes, fragmented data storage, limited automation, inefficiencies in 
+application tracking, and challenges in generating timely performance reports. 
+By thoroughly documenting these strengths and limitations, this chapter establishes a clear 
+benchmark against which the proposed system will be measured. This ensures that the AI-Based 
+Scholarship and Internship Candidate Selection System is not built on assumptions but on evidence 
+gathered directly from Mastery Hub's operational reality. The chapter therefore serves as the 
+essential bridge between problem identification and solution design. 
+===== PAGE 28 =====
+16 
+ 
+DESCRIPTION OF CURRENT SYSTEM ENVIRONMENT 
+Historical Background 
+Mastery Hub of Rwanda was established to create educational and professional opportunities for 
+Rwandan students, addressing the need for structured student support services in a growing 
+economy. Over time, the organization has partnered with schools and co rporate sponsors to 
+provide scholarships and internships across fields such as technology, business, engineering, and 
+social sciences. Traditionally, Mastery Hub managed candidate selection using paper applications, 
+spreadsheets, and manual reviews, relyin g heavily on subjective committee judgment without 
+standardized criteria. While this approach worked for basic tracking, it became increasingly 
+inefficient as the organization expanded its programs and application volumes grew. These 
+limitations led to del ays, inconsistent outcomes, and frustration among both applicants and 
+administrators. 
+Vision 
+Mastery Hub's vision is to become a leading center for student development and opportunity 
+matching in East Africa, setting a benchmark for fair and transparent candidate selection. By 
+embracing innovation and technology, the organization aspires to create a trusted platform where 
+every qualified student, regardless of their background, can access life-changing scholarships and 
+internships that align with their abilities and aspirations. Ultimately, Mastery Hub envisions a 
+future where opportunity is determined solely by merit and potential, not by access to information 
+or personal connections. 
+Mission 
+Its mission is to equip Rwandan students with the skills, opportunities, and support needed to 
+succeed in the modern economy, thereby contributing to national human capital development 
+goals. Through strategic partnerships, data-driven decision-making, and a commitment to equity, 
+Mastery Hub seeks to bridge the gap between student potential and institutional opportunity. 
+ 
+  
+===== PAGE 29 =====
+17 
+ 
+DESCRIPTION OF CURRENT SYSTEM 
+The existing candidate selection process at Mastery Hub of Rwanda is conducted entirely through 
+a cumbersome combination of physical document handling, disjointed email correspondence, and 
+manual record-keeping methods that have remained largely unchanged for years. When a student 
+wishes to apply for a scholarship or internship opportunity, they must initiate the entire process by 
+submitting a formal application form, either in person by visiting the Mastery Hub office during 
+operating hours or by email to a designated organizational address that is monitored intermittently. 
+This lack of a centralized digital portal means applicants have no real-time visibility into the status 
+of their submissions. 
+Upon receipt of an application, a staff member typically a Program Manager must manually enter 
+the applicant's personal details, academic information, and supporting documentation into either a 
+basic spreadsheet or a physical paper register stored in a filing cabinet. This manual data entry 
+process is time-consuming, error-prone, and offers no automated validation or duplicate detection. 
+The application is then reviewed subjectively to determine whether it meets the formal 
+requirements for a valid submissio n, a step that relies heavily on the individual judgment of the 
+staff member rather than any standardized checklist or automated eligibility engine. If the 
+application is accepted, it is forwarded to a Program Manager who bears the responsibility of 
+evaluating the candidate against specific program criteria, carefully reviewing academic records 
+line by line, and assessing supporting documents such as transcripts, recommendation letters, and 
+personal statements all without any analytical tools to assist in comparison. 
+When applications have been preliminarily reviewed and are ready for committee consideration, 
+the relevant Committee Leader must coordinate schedules manually, typically by circulating 
+multiple emails back and forth to identify a suitable meeting time that accommodates all members. 
+This scheduling process alone can take several days or even weeks. Application documents are 
+then prepared, printed or attached, and distributed individually by email to each committee 
+member. During the actual committee meeting, members discuss each candidate orally and attempt 
+to reach a collective decision through unstructured conversation, which is then recorded manually 
+in meeting minutes that are often incomplete or difficult to reference later. This entire workflow 
+lacks tr ansparency, efficiency, and standardization, ultimately compromising the fairness and 
+timeliness of selection outcomes. 
+===== PAGE 30 =====
+18 
+ 
+ANALYSIS OF THE EXISTING SYSTEM 
+Strengths of the Current System 
+Despite its significant limitations, the existing system has several genuine strengths that must be 
+acknowledged. 
+• Low initial cost: The system requires no specialized software investment and can operate 
+with standard office tools available to all Mastery Hub staff, including basic computers and 
+internet access. 
+• Familiarity: Staff are accustomed to the current process and do not require training on 
+new technologies, which reduces the immediate burden of learning entirely new 
+workflows. 
+• Flexibility: Manual handling allows staff to manage unusual or exceptional applications 
+without being constrained by rigid system logic, accommodating special circumstances 
+that automated systems might reject. 
+• No technology dependency:  The process can continue during system outages, network 
+failures, or other technical disruptions, ensuring that selection activities are never 
+completely halted. 
+• Personal communication:  Direct contact between staff and students can facilitate 
+clarification of application requirements and build institutional relationships that 
+encourage future applications. 
+Weaknesses of the Current System 
+The weaknesses of the current system are extensive and serious. They can be organized into four 
+categories: tracking and transparency failures, documentation fragmentation, governance 
+deficiencies, and analytical limitations. 
+Tracking and Transparency Failures 
+The most visible weakness of the current system is the complete absence of real-time tracking for 
+applicants. Once an application is submitted, the student has no automated way to determine its 
+===== PAGE 31 =====
+19 
+ 
+status. Applications may sit in an inbox for days before being formally registered; they may be 
+assigned to a reviewer without the applicant being notified; they may be scheduled for committee 
+deliberation without any communication to the claimant. This lack of transparency creates anxiety 
+for students, who are left uncertain about whether their application has been received, is under 
+review, or has been rejected. Consequently, staff receive repeated phone calls and emails from 
+students seeking status updat es, which consumes time that could otherwise be spent on actual 
+evaluation work. 
+Documentation Fragmentation 
+Application materials associated with each submission are stored in multiple disconnected 
+locations. A single application may have supporting documents in a physical file, relevant emails 
+in a staff member's personal inbox, evaluation notes on a local hard drive, and meeting minutes in 
+a shared folder. There is no mechanism to ensure that all of this material is associated with the 
+correct application record. When a committee member requests additional information, staff must 
+search across these disparate l ocations, leading to delays and occasional loss of documents. This 
+fragmentation also makes it difficult to maintain a complete audit trail of what documents were 
+submitted, by whom, and when. 
+Governance Deficiencies 
+The manual scoring and voting process at the committee level creates significant governance risks. 
+Because individual scores and evaluations are not formally recorded in a structured, verifiable 
+way, it is difficult to demonstrate after the fact that decis ions were made objectively and fairly. 
+There is no systematic method to verify that all committee members reviewed the same materials, 
+that scoring criteria were applied consistently, or that quorum was met during voting. If a selection 
+decision is ever challenged, the organization lacks the documented evidence needed to defend its 
+process. This governance gap exposes Mastery Hub to reputational risk and potential disputes with 
+applicants, donors, or partner institutions. 
+ 
+ 
+ 
+===== PAGE 32 =====
+20 
+ 
+Analytical Limitations 
+The absence of a centralized database means that management cannot easily generate reports on 
+the performance of the selection process. Basic questions such as how many applications are 
+currently pending, what is the average time from submission to decision, which programs are most 
+popular, what are the demographic distributions of applicants versus selected candidates, and 
+which reviewers are most productive cannot be answered without laboriously compiling data from 
+multiple spreadsheets, email threads, an d paper files. This analytical blindness prevents 
+management from identifying bottlenecks, measuring performance, or demonstrating impact to 
+donors and stakeholders. Decisions about resource allocation and process improvement are 
+therefore made based on anecdote rather than evidence. 
+MODELING OF THE CURRENT SYSTEM 
+ 
+Figure 1 Modelling of the current system 
+
+===== PAGE 33 =====
+21 
+ 
+PROBLEMS OF THE CURRENT SYSTEM 
+❖ Performance 
+Throughput 
+• The manual workflow from application submission to final selection decision involves 
+multiple handovers between students, program managers, reviewers, and committee 
+members, which slows the entire selection process. 
+• The absence of automation leads to repetitive work, delays in confirming application status, 
+and difficulty consolidating data from multiple applicants across different programs. 
+• Reliance on paper -based and email communication causes data duplication, loss of 
+application records, and inconsistencies in applicant information across different staff 
+members. 
+Response Time 
+• Information sharing between program managers and committee members takes a long time 
+due to manual verification and physical distribution of application documents. 
+• Students often receive late notifications about selection decisions or requests for additional 
+documentation, causing anxiety and missed opportunities. 
+• The process lacks real-time communication tools, forcing all follow -ups to occur through 
+in-person visits or phone calls, resulting in delayed response times. 
+❖ Information 
+Input 
+• Student details are collected on paper forms or via unstructured emails without a 
+standardized format, making it difficult to organize or verify data. 
+• There is no automated data entry or validation system, which increases the likelihood of 
+errors, missing information, or duplicate applications. 
+===== PAGE 34 =====
+22 
+ 
+• Changes to student profiles or application status are not updated systematically, leading to 
+outdated or conflicting records across different staff members. 
+Output 
+• Notifications and updates to students are shared manually, with no digital tracking or 
+confirmation of receipt. 
+• Selection reports are prepared by hand using spreadsheets, limiting accuracy and delaying 
+submission to management. 
+• The manual nature of output generation prevents real -time dissemination of accurate 
+statistics to donors, partners, and other stakeholders. 
+❖ Storage 
+• All application forms, academic transcripts, and committee records are stored physically 
+or in scattered email folders, with no centralized digital database. 
+• Paper-based and scattered digital storage increases the risk of document loss, damage, and 
+poor data accessibility for future reference. 
+• Lack of backup mechanisms exposes critical student and selection data to permanent loss 
+in case of hardware failure, accidental deletion, or physical damage. 
+❖ Economics 
+• The manual system requires substantial time, paper, printing, and transportation costs for 
+collecting, submitting, and verifying student applications across multiple programs. 
+• Repeated manual compilation, rewriting of reports, and physical document delivery 
+consume human resources that could otherwise be used for strategic program planning and 
+applicant engagement. 
+• The lack of automation leads to inefficiency and resource wastage, especially during high-
+volume application periods involving many students across multiple institutions. 
+ 
+===== PAGE 35 =====
+23 
+ 
+❖ Control 
+• There is no systematic mechanism for monitoring application records, evaluation 
+consistency, or compliance with selection guidelines. 
+• Manual scoring and voting make it difficult to verify whether all committee members 
+applied the same criteria fairly to all applicants. 
+• The absence of digital tools prevents transparent tracking of evaluator performance, 
+accountability for decisions, and validation of selection outcomes. 
+❖ Efficiency 
+• The selection process requires continuous manual interaction among students, program 
+managers, reviewers, committee members, and administrators, making operations slow, 
+cumbersome, and error-prone. 
+• Manual interventions at every stage of the process increase the risk of data inaccuracies, 
+information loss, and inconsistent records across different selection cycles. 
+• Without integrated digital systems, it is impossible to generate real-time updates, optimize 
+workflows, or respond effectively during high-volume application periods. 
+❖ Service 
+• Students receive limited feedback and have no visibility over the status of their application 
+or the reasons for selection or rejection. 
+• There are no automated notifications, making students reliant on phone calls or in -person 
+visits for application status updates. 
+• Communication gaps and delays reduce transparency, create frustration among applicants, 
+and discourage future applications to Mastery Hub programs. 
+Proposed Solutions 
+To address the challenges of the current manual system, the following solutions are proposed 
+through the AI-Based Scholarship and Internship Candidate Selection System: 
+===== PAGE 36 =====
+24 
+ 
+1. Centralized Digital Platform: The system will serve as a unified online portal for student 
+registration, application submission, candidate evaluation, committee deliberation, and 
+reporting across all levels: student, reviewer, program manager, and committee. 
+2. User-Friendly Interface and Accessibility:  Built with React.js for the frontend, Spring 
+Boot (Java) for the backend, and PostgreSQL for data management, the platform will be 
+intuitive, responsive, and mobile-accessible to reach students across different locations. 
+3. Enhanced Collaboration and Communication:  Integrated discussion forums and 
+notification tools will allow direct communication between committee members, program 
+managers, and applicants in real time. 
+4. Automated Reporting and Notifications: The system will generate automatic application 
+status updates, eligibility results, score breakdowns, and final decision letters to enhance 
+transparency and decision-making efficiency. 
+5. AI-Powered Candidate Scoring and Matching:  Intelligent algorithms will evaluate 
+applicants based on academic performance, extracurricular achievements, and program -
+specific criteria, recommending the most suitable candidates for each opportunity. 
+6. Data Transparency and Accountability: Every activity, from application submission to 
+final selection decision, will be logged digitally with timestamps and user identification for 
+traceability and evaluation, promoting accountability and fairness. 
+7. Fairness Monitoring Dashboard:  The system will track selection outcomes across 
+demographic groups, alerting administrators to potential bias and supporting continuous 
+improvement in selection practices. 
+ 
+ 
+ 
+ 
+ 
+===== PAGE 37 =====
+25 
+ 
+SYSTEM REQUIREMENTS 
+ Functional Requirements 
+The proposed AI-Based Scholarship and Internship Candidate Selection System shall provide the 
+following functional capabilities: 
+• REQ-1: The system shall allow students to create accounts and log in securely. 
+• REQ-2: The system shall enable students to submit applications with personal details, 
+academic background, skills, and supporting documents. 
+• REQ-3: The system shall generate a unique reference number and confirmation upon 
+submission. 
+•  REQ-4: The system shall allow students to track application progress in real time. 
+• REQ-5: The system shall send automated notifications about application updates and 
+outcomes. 
+• REQ-6: The system shall allow Program Managers to configure program details, 
+eligibility criteria, deadlines, and scoring weightings. 
+•  REQ-7: The system shall enable Program Managers to verify applications, view AI 
+rankings, assign reviewers, and generate reports. 
+• REQ-8: The system shall provide Reviewers with a standardized evaluation rubric and 
+rating scales. 
+• REQ-9: The system shall allow Reviewers to submit ratings and comments for assigned 
+applications. 
+•  REQ-10: The system shall provide an asynchronous discussion forum for committee 
+members. 
+•  REQ-11: The system shall support secure digital voting with mandatory justification 
+comments. 
+• REQ-12: The system shall record user identity and timestamp for each vote. 
+ 
+ 
+===== PAGE 38 =====
+26 
+ 
+Non-Functional Requirements 
+The system shall satisfy the following non -functional requirements to ensure effective 
+performance and usability: 
+• REQ-1 (Security): The system shall implement JWT and OAuth2 authentication, role -
+based access control, and TLS encryption for data transmission. 
+• REQ-2 (Performance):  The system shall process AI scoring within seconds and load 
+dashboards in under three seconds under normal load. 
+• REQ-3 (Usability): Students shall complete applications in under ten minutes, and staff 
+shall perform core tasks with minimal training. 
+• REQ-4 (Maintainability):  The system shall use a modular architecture separating 
+frontend, backend, AI service, and database. 
+• REQ-5 (Scalability):  The system shall accommodate additional programs, increased 
+users, and future feature integrations. 
+• REQ-6 (Availability):  The system shall maintain 99.5% availability during peak 
+application periods. 
+•  REQ-7 (Reliability): The AI scoring engine shall produce consistent results when given 
+the same input data. 
+• REQ-8 (Auditability):  The system shall maintain a tamper -evident audit log of all 
+significant actions including logins, submissions, scores, reviews, votes, and decisions. 
+• REQ-9 (Compliance):  The system shall comply with applicable data protection 
+regulations and retention policies. 
+• REQ-10 (Interoperability): The system shall support data exchange with external 
+educational institution databases through RESTful APIs using JSON format. 
+• REQ-11 (Data Integrity): The system shall prevent duplicate application submissions for 
+the same student and program combination through automated validation checks. 
+ 
+ 
+ 
+===== PAGE 39 =====
+27 
+ 
+CHAPTER 3 
+REQUIREMENTS ANALYSIS AND DESIGN OF THE NEW 
+SYSTEM 
+INTRODUCTION 
+This chapter presents the comprehensive requirements analysis and system design of the AI-Based 
+Scholarship and Internship Candidate Selection System. Building upon the weaknesses and 
+operational gaps identified in Chapter 2, this chapter translates instit utional problems into 
+structured technical specifications and architectural solutions. 
+The primary objective of this chapter is to formally define what the new system must do, how it 
+must behave, and how it will be constructed to ensure reliability, security, scalability, and 
+governance integrity. While Chapter 2 established the justificatio n for digital transformation, 
+Chapter 3 provides the engineering blueprint that makes such transformation technically feasible. 
+The development of a modern AI -driven selection system requires a disciplined approach to 
+requirements engineering. Therefore, this chapter adopts a structured modeling methodology 
+based on Unified Modeling Language (UML), relational database theory, and layered architectural 
+principles to ensure clarity, traceability, and completeness of system design. 
+The requirements analysis phase involved identifying all system actors, defining their interactions 
+with the system, documenting system behaviors under normal and exceptional conditions, and 
+specifying both functional and non -functional constraints. Functi onal requirements describe the 
+services the system must provide, including student profile management, program management, 
+application submission, automated eligibility assessment, AI -powered scoring, opportunity 
+matching, reviewer evaluation, committee de liberation, digital voting, fairness reporting, and 
+automated notifications. Non -functional requirements specify quality attributes such as 
+performance thresholds, security guarantees, scalability expectations, availability targets, and 
+usability standards. 
+ 
+===== PAGE 40 =====
+28 
+ 
+ 
+UNIFIED MODELING LANGUAGE (UML DESIGN) 
+Unified Modeling Language (UML) is the internationally standardized notation for modeling 
+software systems. It provides a family of diagram types each suited to capturing a different aspect 
+of system behavior or structure  that together provide a complete and unambiguous specification 
+of how the system is designed to work. In this project, UML serves three purposes: it guides 
+development by providing a precise blueprint for implementation; it communicates system design 
+to stakeholders who may not be technic al specialists; and it forms part of the permanent 
+documentation of the system. 
+ Design of the New System Diagrams 
+The design process determines how the functionalities specified in the analysis model will be 
+implemented. It has the purpose of creating a technical solution that satisfies the functional 
+requirements for the system. 
+Use Case Diagram 
+Use case diagrams are visual tools within UML that show the interactions between a system and 
+its external environment, capturing the essential business requirements for system operation. These 
+diagrams represent a business entity or software system, its e xternal stakeholders (known as 
+actors), and a set of tasks (use cases) that users are expected or authorized to perform when 
+interacting with the system. 
+These diagrams utilize the following symbols: 
+Actor 
+When directly interacting with a system, an external entity takes on a designated role defined by 
+an actor. This role might represent a user's function or a role fulfilled by another system that 
+engages with the given system 
+
+===== PAGE 41 =====
+29 
+ 
+Use Case 
+The use case entails detailing the sequence of actions that a system can undertake while interacting 
+with external actors. It encompasses tasks that the system should perform in response to an actor's 
+request. 
+Relationship 
+Genuine associations illustrate the direct interactions between actors and use cases in a system. 
+These are represented using the UML association symbol, indicating a meaningful connection 
+within the system's functionality. This helps ensure that all user interactions are clearly defined 
+and properly linked to the system's operations. 
+ 
+System Boundary 
+A box is drawn around the use case diagram to visually represent the system's boundary. This 
+defines the scope of the modeled system and distinguishes internal functionalities from external 
+interactions. It helps stakeholders clearly identify what is included within the system and what lies 
+outside its operational scope  
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+===== PAGE 42 =====
+30 
+ 
+ 
+Ai-Based Scholarship &Internship Selection System Use Case Diagram 
+ 
+Figure 2 Use case diagram 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+
+===== PAGE 43 =====
+31 
+ 
+Use Case Description for Student 
+Element Description 
+Name Submit Application 
+Actor Student 
+Description Allows student to apply for a scholarship or internship program 
+Precondition Student must be logged in and have a complete profile 
+Post-condition 
+Application is stored with status "Submitted" and a unique reference number is 
+generated 
+Normal Flow 
+1. Student logs into the system.  
+2. Navigates to "Find Programs".  
+3. Selects a program.  
+4. Completes the wizard-based form with application details. 
+ 5. Uploads supporting evidence documents. 
+ 6. Submits the form.  
+7. System validates the data and confirms submission, providing a unique reference 
+number. 
+Alternative 
+Flow 
+If required fields are missing or documents are invalid, the system prompts the 
+student to correct the errors before submission. 
+Table 1: Use Case Description for student 
+ 
+ 
+ 
+ 
+===== PAGE 44 =====
+32 
+ 
+Use Case Description for Student - Track Status   
+Element Description 
+Name Track Application Status 
+Actor Student 
+Description Allows student to monitor the progress and status of submitted applications 
+Precondition Student must have submitted at least one application 
+Post-
+condition 
+Student can view updated application status in real time 
+Normal 
+Flow 
+1. Student logs into dashboard. 
+ 2. Selects "My Applications". 
+ 3. Views list of submitted applications. 
+ 4. Opens application details. 
+ 5. System displays current status (Submitted, Eligibility Passed, Under Review, Committee 
+Deliberation, Granted, Denied). 
+Alternative 
+Flow 
+System shows message if no applications exist. 
+Table 2: Use Case Description for Student - Track Status 
+ 
+===== PAGE 45 =====
+33 
+ 
+Use Case Description for Program Manager - Create Program 
+Element Description 
+Name Create and Configure Program 
+Actor Program Manager 
+Description 
+Allows program manager to create new scholarship or internship opportunities 
+with eligibility criteria and AI scoring weights 
+Precondition Program manager must be authenticated 
+Post-condition Program is stored in database and visible to students 
+Normal Flow 
+1. Program Manager logs in. 
+ 2. Selects "Create Program".  
+3. Enters program details (title, description, deadline, type).  
+4. Configures eligibility criteria (minimum GPA, required field of study, etc.).  
+5. Sets AI scoring weights for different criteria.  
+6. Publishes the program.  
+7. System confirms program is live. 
+Alternative 
+Flow 
+If required fields are missing, system prevents publication and alerts the manager. 
+Table 3: Use Case Description for Program Manager - Create Program 
+ 
+ 
+ 
+ 
+ 
+===== PAGE 46 =====
+34 
+ 
+Use Case Description for Program Manager - Grant/Deny Decision 
+Element Description 
+Name Grant or Deny Scholarship/Internship 
+Actor Program Manager 
+Description 
+Allows program manager to make the final decision to grant or deny a scholarship 
+or internship to a candidate 
+Precondition Committee voting has been completed and voting results are available 
+Post-condition Final decision is recorded and student is notified 
+Normal Flow 
+1. Program Manager logs in. 
+ 2. Navigates to program dashboard.  
+3. Reviews committee votes and recommendations 
+ 4. Selects a candidate.  
+5. Clicks "Grant" or "Deny".  
+6. Adds decision justification.  
+7. Confirms the decision. 8. System records final decision.  
+9. System triggers notification to student. 
+Alternative 
+Flow 
+If Program Manager attempts to grant more candidates than available slots, system 
+displays warning and prevents action. 
+Table 4: Use Case Description for Program Manager - Grant/Deny Decision 
+ 
+ 
+ 
+===== PAGE 47 =====
+35 
+ 
+Use Case Description for Reviewer 
+Element Description 
+Name Review Assigned Application 
+Actor Reviewer 
+Normal Flow 1. Reviewer logs in.  
+2. Views assigned applications queue. 
+3. Selects an application.  
+4. Reviews student profile, AI scores, and uploaded documents.  
+5. Provides ratings using structured rubrics. 
+ 6. Adds mandatory comments.  
+7. Submits the review.  
+8. System confirms submission. 
+Alternative Flow If reviewer attempts to submit without completing all required 
+ratings, system prompts to complete missing fields. 
+Table 5: Use Case Description for Reviewer 
+Use Case Description for Reviewer - Cast Vote 
+Element Description 
+Name Cast Vote 
+Actor Reviewer 
+Description Allows reviewer (as committee member) to cast vote on candidate selection 
+Precondition Reviewer must be logged in, assigned to committee, and voting must be open 
+Post-condition Vote is recorded with timestamp and justification 
+Normal Flow 
+1. Reviewer logs in.  
+2. Navigates to "Committee Workspace".  
+===== PAGE 48 =====
+36 
+ 
+Element Description 
+3. Selects a candidate for voting.  
+4. Reviews candidate information, AI scores, and discussion.  
+5. Selects vote option (Approve/Reject). 
+ 6. Adds mandatory justification comment.  
+7. Submits the vote.  
+8. System records the vote and updates progress tracker. 
+Alternative 
+Flow 
+If a reviewer attempts to vote twice on the same candidate, the system rejects the 
+second attempt with an error message. 
+Table 6: Use Case Description for Reviewer - Cast Vote 
+Use Case Description for System Administrator 
+Element Description 
+Name Manage Users 
+Actor System Administrator 
+Description Allows administrator to create, modify, and deactivate user 
+accounts 
+Normal Flow 1. Administrator logs in.  
+2. Navigates to "User Management".  
+3. Views list of all users.  
+4. Selects a user to edit.  
+5. Modifies role (Student, Reviewer, Program Manager, Admin). 
+ 6. Saves changes.  
+7. System confirms update. 
+Alternative Flow If administrator attempts to delete own account, system prevents 
+action. 
+Table 7: Use Case Description for System Administrator 
+===== PAGE 49 =====
+37 
+ 
+Class Diagrams 
+A class diagram serves as a fundamental component of software modeling and design in the field 
+of software engineering. It provides a visual representation of the building blocks of an application, 
+aiding in the understanding and planning of software syste ms. Within a class diagram, each class 
+typically consists of three key elements: attributes, operations (methods), and associations. 
+Attributes represent the properties or data members of a class, defining the state that an object of 
+that class can hold. Operations, also known as methods, define the behaviors or functions that the 
+class can perform, specifying what actions an object can execute when requested. Associations 
+illustrate the relationships and connections between classes, allowing designers to d epict how 
+different classes interact within the system and influence one another's behavior. These 
+relationships can include inheritance (is -a), association (has -a), aggregation (part -of), and 
+composition (stronger part-of), each represented by specific UM L notation. Through these three 
+elements, a class diagram captures both the data structure and behavioral responsibilities of system 
+components, making it an indispensable tool for object -oriented analysis and design. Without a 
+well-constructed class diagr am, developers risk creating systems with redundant code, unclear 
+responsibilities, or inconsistent data relationships, leading to maintenance difficulties and reduced 
+software quality. 
+In UML, the Unified Modeling Language, class diagrams play a crucial role in modeling the static 
+structure of a software system. They not only reveal the relationships between classes but also 
+showcase source code dependencies, inheritance hierarchies, and interface implementations. This 
+makes class diagrams an indispensable tool for both high-level architectural design and low-level 
+coding details, bridging the gap between abstract design and concrete implementation while 
+ensuring consistency and traceability throughout the development process.  
+The notations and their definitions that are used in class diagram: 
+Class 
+- A blueprint for objects. Contains a name, attributes, and methods. Represented as a rectangle 
+divided into three compartments. 
+===== PAGE 50 =====
+38 
+ 
+   
+Attribute 
+- A property or data member of a class. The minus sign (-) indicates private visibility. 
+   
+Method 
+- A behavior or function that a class can perform. The plus sign (+) indicates public visibility.  
+ 
+Association 
+
+===== PAGE 51 =====
+39 
+ 
+- A basic relationship between two classes. Shown as a solid line connecting them. 
+ 
+Inheritance 
+- An "is-a" relationship where a child class inherits from a parent class. Shown as a line with a 
+hollow triangle arrow. 
+ 
+ 
+ 
+ 
+ 
+ 
+
+===== PAGE 52 =====
+40 
+ 
+Class Diagram 
+ 
+Figure 3: Class Diagram 
+Class Diagram - System Entities and Responsibilities 
+Class Key Attributes Responsibilities 
+User userId, email, passwordHash, role Manages authentication and 
+access control 
+Student studentId, firstName, lastName, email, 
+phone, gender 
+Represents applicant; manages 
+profile and submits applications 
+AcademicRecord recordId, institution, fieldOfStudy, gpa Stores educational history for AI 
+scoring 
+Achievement achievementId, title, type, level Tracks awards and extracurricular 
+activities 
+
+===== PAGE 53 =====
+41 
+ 
+Program programId, title, description, type, deadline, 
+availableSlots 
+Represents scholarship or 
+internship opportunity 
+EligibilityCriteria criteriaId, minGpa, requiredFieldOfStudy Defines rules for automated 
+eligibility verification 
+Application applicationId, referenceNumber, status, 
+submittedAt 
+Core application record tracking 
+lifecycle 
+AIScore scoreId, overallScore, rank, confidence Stores AI-generated evaluation 
+results 
+Review reviewId, overallRating, comments Stores reviewer evaluations and 
+feedback 
+DiscussionComment commentId, content, postedAt Stores committee discussion 
+messages 
+CommitteeVote voteId, decision, justification Records individual committee 
+member votes 
+Resolution resolutionId, outcome, resolvedAt Records final selection outcome 
+(Granted/Denied) 
+FairnessReport reportId, metrics, alerts Stores demographic analysis and 
+bias detection 
+Notification notifId, message, sentAt, status Logs all email and SMS 
+communications 
+Table 8: Class Diagram - System Entities and Responsibilities 
+Sequence Diagrams 
+A sequence diagram is a type of interaction chart that depicts objects as lifelines running down the 
+page, with messages rendered as bolts from the source lifeline to the target lifeline, representing 
+their interactions through time. Object interactions ar e arranged in temporal sequence in a 
+sequence diagram. 
+In UML, the stages required to perform an operation are described in sequence diagrams, which 
+are interaction diagrams. They show how things interact when operating within a cooperative 
+system. Sequence Diagrams are time-focused and use the vertical axis o f the diagram to indicate 
+time, what messages are received when, and how the interaction is organized graphically. 
+===== PAGE 54 =====
+42 
+ 
+The notations and their definitions that are used in sequence diagram: 
+Term and Definition Symbol 
+Actor: 
+• Could be a person or external 
+system that interacts with but is 
+not part of the system 
+• Participates in interactions by 
+sending and/or receiving 
+messages 
+• Positioned at the top of the 
+diagram 
+ 
+ 
+Object Lifeline: 
+• Represents an object that 
+participates in a sequence by 
+sending and/or receiving 
+messages 
+• Shows the lifespan of the object 
+during the interaction 
+• Placed vertically in the diagram 
+with object name at top 
+ 
+ 
+Table 9: The notations and their definitions 
+ 
+ 
+ 
+ 
+ 
+ 
+
+===== PAGE 55 =====
+43 
+ 
+Sequence Diagram - Student Application Submission 
+ 
+Figure 4: Sequence Diagram - Student Application Submission 
+Sequence Diagram - AI Scoring 
+ 
+
+===== PAGE 56 =====
+44 
+ 
+Sequence Diagram : Committee Member Voting 
+ 
+Figure 5: Sequence Diagram : Committee Member Voting 
+Sequence Diagram : Program Manager Final Decision 
+ 
+Figure 6: Sequence Diagram : Program Manager Final Decision 
+
+===== PAGE 57 =====
+45 
+ 
+Activity Diagrams 
+An activity diagram represents the behavior of a business process by showing the main tasks and 
+activities involved from beginning to end. It can model anything from high-level workflows across 
+multiple use cases to the detailed steps of a single method or  function. Every activity diagram 
+begins with a start node and ends with a final node, ensuring a clear flow from initiation to 
+completion. 
+These diagrams are especially useful for visualizing the flow of control and the logical sequence 
+of tasks. They include actions, decisions, parallel activities, and outcomes, making complex 
+processes significantly easier to understand and communicate. Sta ndard UML notations, such as 
+circles for start and end nodes, diamonds for decision points, and arrows for directional flow, make 
+them simple and consistent to read across different projects. 
+The flexibility of activity diagrams makes them valuable to both managers and developers. At a 
+high level, they show overall workflows for stakeholders and business leaders, while at a detailed 
+level, they guide developers through the step -by-step execution of a use case. For example, the 
+activity diagram presents the complete workflow of the AI -Based Scholarship and Internship 
+Candidate Selection System from the perspective of all actors, showing how the system progresses 
+through its defined states and where decision points determine the flow of control. 
+In the context of this project, the activity diagram begins when a student submits an application 
+through the online portal. The diagram then branches based on eligibility verification, with 
+ineligible applications being rejected immediately while eligible  ones proceed to AI scoring and 
+ranking. Subsequent decision points determine whether a reviewer is assigned, whether the 
+committee approves or rejects the candidate through digital voting, and whether the final outcome 
+is communicated to the student via a utomated notification. This visual representation helps 
+stakeholders understand the entire selection logic at a glance without needing to read through 
+lengthy technical documentation. 
+ 
+ 
+ 
+===== PAGE 58 =====
+46 
+ 
+The notations and their definitions that are used in Activity diagram: 
+Term and definition Symbol 
+Activity: Is used to represent a set of actions 
+ 
+Action: A task to be performed 
+ 
+Initial Node: Portrays the beginning of a set of actions or activities 
+ 
+Control Flow: Shows the sequence of execution 
+ 
+Decision Node: Represent a test condition to ensure that the control flow 
+or object flow only goes down one path 
+ 
+Activity Final Node: Stop all control flows and object flows in an activity 
+(or action). Clarifies where processes end. 
+ 
+Table 10: Notations and their description 
+
+===== PAGE 59 =====
+47 
+ 
+The activity diagram presented in this section illustrates the complete end-to-end workflow of the 
+AI-Based Scholarship and Internship Candidate Selection System developed for Mastery Hub of 
+Rwanda. This diagram captures the dynamic behavior of the system by showing the sequential 
+flow of activities, decision points, and interactions between different actors throughout the entire 
+candidate selection lifecycle. 
+The diagram employs swim lanes (partitions) to clearly distinguish responsibilities among the key 
+actors in the system: 
+• Student: The individual or entity initiating the application 
+• System: The automated platform that processes, stores, and coordinates information 
+• Program Manager: Staff responsible for creating programs and making final decisions 
+• Reviewer (Committee Member): Staff who evaluate applications, discuss, and cast votes 
+This visual representation demonstrates how an application progresses from initial submission 
+through eligibility verification, AI scoring, reviewer evaluation, committee discussion, voting, and 
+final grant or denial decision, with automated system actions  occurring at each stage to ensure 
+transparency, efficiency, and accountability. 
+This activity diagram serves as both a communication tool for non -technical stakeholders and a 
+development blueprint for technical implementers. For program managers and committee 
+members, the diagram provides a clear overview of how their actions and deci sions fit into the 
+broader workflow, helping them understand when to expect notifications, when to cast votes, and 
+how their inputs influence outcomes. For developers, the diagram clarifies the logical sequence of 
+system operations, revealing where automat ed checks occur, where conditional branches lead to 
+different paths, and where parallel activities such as multiple reviewers evaluating different 
+applications can happen simultaneously. By visualizing the entire process in one unified diagram, 
+Mastery Hub can more easily identify potential bottlenecks, optimize workflow efficiency, and 
+ensure that no step in the selection process is accidentally overlooked or skipped. 
+ 
+ 
+===== PAGE 60 =====
+48 
+ 
+Full System Activity Diagram 
+ 
+Figure 7: Full System Activity Diagram 
+ 
+ 
+ 
+
+===== PAGE 61 =====
+49 
+ 
+Activity Diagram - Key Activities and Descriptions 
+Activity Actor Description 
+Student Registration 
+Student 
+Student creates account and 
+completes profile 
+Profile Completion 
+Student 
+Committee members post comments 
+and discuss candidates 
+Program Discovery 
+Student 
+Student searches and filters available 
+programs 
+Application Submission 
+Student 
+Student completes wizard and 
+uploads documents 
+Eligibility Verification 
+System 
+System automatically checks criteria; 
+if eligible, proceed; else notify 
+student 
+AI Scoring 
+System 
+System calculates scores and ranks 
+candidates 
+Program Creation 
+Program Manager 
+Program Manager creates program 
+and configures criteria 
+Committee Formation 
+Program Manager 
+Program Manager assigns reviewers 
+to committee 
+Reviewer Evaluation 
+Reviewer 
+Reviewers evaluate assigned 
+applications and provide ratings 
+Committee Discussion 
+Reviewer 
+Committee members post comments 
+and discuss candidates 
+Voting Session Reviewer 
+Committee members cast votes with 
+justification 
+Vote Review 
+Program Manager 
+Program Manager reviews committee 
+votes and recommendations 
+Final Decision 
+Program Manager 
+Program Manager grants or denies 
+scholarship/internship 
+===== PAGE 62 =====
+50 
+ 
+Table 11: Activity Diagram - Key Activities and Descriptions 
+ 
+Database Diagrams 
+The database is implemented in PostgreSQL and designed in strict accordance with Third Normal 
+Form (3NF) to minimize data redundancy, eliminate duplicate information, and ensure complete 
+referential integrity across all tables. The schema comprises multipl e core tables organized 
+logically around the central Student, Application, and Program entities, with additional supporting 
+tables for related data such as reviews, votes, notifications, and audit logs. In the context of the 
+AI-Based Scholarship and Intern ship Candidate Selection System developed specifically for 
+Mastery Hub of Rwanda, the database design must accommodate complex and interconnected data 
+requirements including student profiles, academic records, program definitions, application 
+submissions, AI scoring results, reviewer evaluations, committee discussions, voting records, final 
+decisions, and comprehensive audit trails for compliance purposes. The design must also support 
+role-based access control to restrict data visibility based on user roles, ensure data security through 
+encryption and proper authentication mechanisms, and maintain complete historical records for 
+long-term compliance, reporting, and future analysis needs. 
+To achieve these objectives, the database implements foreign key constraints to maintain 
+relationships between tables, indexing strategies to optimize query performance during peak 
+application periods, and timestamp columns to track when each record was cr eated or modified. 
+Separate tables are dedicated to storing AI-generated scores and their contributing factors, enabling 
+explainable AI outputs that show why a particular candidate received a specific ranking. 
+Additionally, the audit log table captures every significant action in a read-only format, recording 
+the user identifier, timestamp, action type, and affected record, which provides a tamper -evident 
+trail that can be reviewed during disputes or external audits. This thoughtful design ensures that 
+the database not only meets current operational needs but also scales effectively as Mastery Hub 
+expands its program offerings and user base in future years. 
+Notification 
+System 
+System sends email and SMS to 
+student with outcome 
+Decision Storage 
+System 
+System archives decision and updates 
+application status 
+===== PAGE 63 =====
+51 
+ 
+Database Schema Diagram 
+ 
+ 
+Figure 8: Database Schema Diagram 
+ 
+ 
+ 
+ 
+
+===== PAGE 64 =====
+52 
+ 
+Database Schema - Table Overview 
+Table Primary Key Foreign Keys Description 
+users User_id --------------- Authentication 
+records, role field 
+determine access tier 
+Students student_id user_id Student profile linked 
+to user account 
+academic_records record_id student_id Educational history 
+with GPA and 
+institution 
+Achievements 
+achievement_id 
+student_id Awards, 
+extracurriculars, and 
+leadership roles 
+Programs 
+program_id manager_id 
+Scholarship and 
+internship definitions 
+eligibility_criteria 
+criteria_id 
+program_id  Rules for  automated  
+eligibility  verification 
+Applications Application_id student_id, program_id Core application 
+record with status 
+supporting_documents 
+doc_id 
+application_id Metadata for 
+documents stored in 
+cloud storage 
+ai_scores 
+score_id 
+application_id AI- generated  overall 
+scores and rankings 
+Reviews 
+review_id 
+application_id, 
+reviewer_id 
+Evaluator  ratings  and 
+comments 
+Committees 
+committee_id 
+program_id Selection  committee 
+for a program 
+committee_members 
+committee_member_id 
+committee_id, 
+reviewer_id 
+Links reviewers to 
+committees 
+===== PAGE 65 =====
+53 
+ 
+discussion_threads thread_id application_id Committee discussion 
+forums 
+discussion_comments comment_id thread_id, member_id Individual comments 
+in  discussion threads 
+final_decisions decision_id application_id, 
+program_manager_id 
+Final 
+grant/denydecisions 
+Notifications 
+notif_id 
+recipient_id Log of all email and 
+SMS notifications 
+fairness_reports report_id program_id Demographic analysis 
+and bias detection 
+Votes vote_id application_id, 
+member_id 
+Individual vote records 
+with justification 
+Table 12: Database Schema - Table Overview 
+ 
+ Data Dictionary 
+ 
+Data Dictionary - students Table 
+Field name Data Type Constraint Description 
+student_id BIGSERIAL PK, NOT NULL Auto-increment, Unique 
+identifier 
+user_id BIGINT FK, NOT NULL Reference to users table 
+first_name VARCHAR(50) NOT NULL Student's first name 
+last_name VARCHAR(50) NOT NULL Student's last name 
+email VARCHAR(100) NOT NULL, UNIQUE Contact email 
+phone VARCHAR(20) NOT NULL Mobile number for SMS 
+gender VARCHAR(20) NULL For fairness reporting 
+district VARCHAR(50) NULL Geographic origin 
+created_at TIMESTAMP NOT NULL Profile creation 
+timestamp 
+ 
+Table 13: Data Dictionary - students Table 
+ 
+===== PAGE 66 =====
+54 
+ 
+Data Dictionary - applications Table 
+Field Name Data Type Constraint Description 
+application_id BIGSERIAL PK, NOT NULL Auto-incrementing 
+identifier 
+student_id BIGINT FK, NOT NULL Reference to students 
+table 
+program_id BIGINT FK, NOT NULL Reference to programs 
+table 
+reference_number VARCHAR(50) NOT NULL,UNIQUE Unique tracking number 
+status 
+VARCHAR(30) 
+NOT NULLL Submitted, Under 
+Review, Granted, 
+Denied 
+submitted_at TIMESTAMP NOT NULL Submission timestamp 
+Table 14: Data Dictionary - applications Table 
+Data Dictionary - ai_scores Table 
+Field Name Data Type Constraint Description 
+vote_id BIGSERIAL PK, NOT NULL Auto-incrementing 
+identifier 
+application_id BIGINT FK, NOT NULL Reference to 
+applications table 
+member_id BIGINT FK, NOT NULL Reference to users table 
+(committee member) 
+decision VARCHAR(20) NOT NULL Approve, Reject 
+justification TEXT NOT NULLL Mandatory comment 
+explaining the vote 
+casted_at TIMESTAMP NOT NULL Timestamp of vote 
+submission  
+Table 15: Data Dictionary - ai_scores Table 
+ 
+ 
+ 
+ 
+ 
+ 
+===== PAGE 67 =====
+55 
+ 
+Data Dictionary - final_decisions Table 
+Field Name Data Type Constraint Description 
+decision_id BIGSERIAL PK, NOT NULL Auto-incrementing 
+identifier 
+application_id BIGINT FK, NOT NULL Reference to 
+applications table 
+program_manager_id BIGINT FK, NOT NULL Reference to users table 
+outcome VARCHAR(20) NOT NULL Granted or Denied 
+justification TEXT NOT NULLL Explanation for final 
+decision 
+decided_at TIMESTAMP NOT NULL Timestamp of final 
+decision  
+ 
+Table 16: Data Dictionary - final_decisions Table 
+System Architecture Design 
+The system is built on a layered architecture that provides clear separation of concerns, 
+independent scalability, and maintainability. The architecture consists of five layers: Presentation 
+Layer, Application Layer, AI Service Layer, Data Access Layer, and Data Storage Layer. 
+System Architecture Diagram 
+Figure 9: System Architecture Diagram 
+
+===== PAGE 68 =====
+56 
+ 
+• Presentation Layer (React.js/Next.js): Manages all user interface rendering and client -
+side interactions. This layer includes the Student Portal for applicants, Program Manager 
+Dashboard for administrators, Reviewer Dashboard for evaluators, Committee Workspace 
+for collaborative discussion, and Admin Panel for system oversight. 
+• Application Layer (Spring Boot REST API): Contains the core business logic that drives 
+the entire system. This layer is composed of Authentication Controllers for secure login, 
+Profile Controllers for user management, Application Controllers for submission handling, 
+Program Controllers for opport unity configuration, Review Controllers for evaluation 
+management, Vote Controllers for digital decision recording, and Report Controllers for 
+analytics generation 
+• AI Service Layer (Python):  Handles all artificial intelligence and machine learning 
+functionality. This layer includes the Eligibility Verification Service for automated 
+candidate screening, Candidate Scoring Engine for intelligent ranking, Opportunity 
+Matching Algorithm for aligning students with suitable programs, and Fairness Monitoring 
+Service for detecting potential bias in selection outcomes. 
+• Data Access Layer (Spring Data JPA): Provides repository interfaces and query methods 
+that bridge the application logic with the underlying database, enabling seamless data 
+retrieval and persistence operations. 
+• Data Storage Layer (PostgreSQL + Cloud Storage): Stores all structured data including 
+student profiles, applications, scores, and voting records in PostgreSQL, while uploaded 
+documents such as transcripts and recommendation letters are stored in cloud storage. 
+• External Services : Integrates with third -party APIs including Twilio for SMS 
+notifications, Gmail SMTP for email communications, and Google OAuth2 for secure 
+social authentication. 
+ 
+===== PAGE 69 =====
+57 
+ 
+CHAPTER 4 
+IMPLEMENTATION OF THE NEW SYSTEM 
+INTRODUCTION 
+This chapter documents the comprehensive implementation of the AI -Based Scholarship and 
+Internship Candidate Selection System. The transition from the previously analyzed manual, 
+paper-based system to this intelligent digital solution represents a signific ant technological 
+advancement in how candidate selection is managed at Mastery Hub of Rwanda. 
+The implementation phase translated the theoretical system design from Chapter 3 into a 
+functional, production-ready application through a structured and iterative development process. 
+This chapter describes the technology stack employed, the rationale beh ind the selection of each 
+component, and how they collectively form a cohesive layered architecture. 
+Following the technology overview, this chapter presents the key interfaces of the system through 
+annotated descriptions. Each interface is examined in detail, demonstrating how the system 
+addresses the specific needs of different actors: the student portal with its wizard-based application 
+submission and real-time status tracking dashboard; the program manager dashboard for program 
+creation and AI scoring review; the reviewer dashboard for structured evaluation; the committee 
+workspace for asynchronous discussion and digital voting; and the fairness monitoring dashboard 
+for bias detection. 
+TECHNOLOGIES USED 
+To build the robust, user -friendly web platform for the AI -Based Scholarship and Internship 
+Candidate Selection System, a modern technology stack was selected, prioritizing scalability, 
+security, and a smooth developer experience. The implementation utilized the following tools and 
+technologies: 
+Front-End Development: 
+• React.js: This open -source JavaScript library was used to build the dynamic and 
+responsive user interfaces for both student and administrator dashboards. Its component -
+based architecture allowed for the creation of reusable UI elements such as application 
+===== PAGE 70 =====
+58 
+ 
+forms, program discovery filters, AI score visualization charts, and committee voting 
+interfaces, ensuring a consistent and maintainable codebase for complex features like real-
+time application tracking and discussion forums. (React Team, 2024) 
+• Next.js: As a React framework, Next.js was employed to provide server -side rendering 
+and improved performance. This ensured fast page loads for program listings and 
+application status pages, as well as enhanced SEO capabilities for publicly available 
+scholarship information. The built-in API routes also facilitated seamless integration with 
+the backend services. (Vercel Team, 2024) 
+• CSS3 with Bootstrap Framework:  For styling and responsive design, CSS3 was 
+employed in conjunction with the Bootstrap CSS framework. This approach enabled rapid, 
+consistent UI development that works seamlessly across devices —from the program 
+manager's desktop to the student's mobile ph one—ensuring accessibility for all users, 
+including those in remote areas with limited internet connectivity. (Bootstrap Team, 2024) 
+• Visual Studio Code: As the primary integrated development environment (IDE), VS Code 
+provided a powerful and efficient environment for writing, debugging, and version -
+controlling the front -end code. Its extensive extensions for React, TypeScript, and Git 
+streamlined the development workflow and improved productivity. (Microsoft, 2024) 
+• JavaScript (ES6+):  Modern JavaScript was the core programming language for 
+implementing interactive features on the client side, including form validations during 
+student registration, dynamic updates of program availability, real -time notification 
+handling, and asynchronous  API calls for application submission and status tracking. 
+(Mozilla, 2024) 
+• Axios: This promise-based HTTP client was used to make asynchronous requests from the 
+frontend to the backend REST APIs. It facilitated smooth data exchange for submitting 
+applications, fetching AI rankings, posting discussion comments, and retrieving voting 
+results, with built-in request and response interception for consistent error handling. (Axios 
+Team, 2024) 
+===== PAGE 71 =====
+59 
+ 
+• Chart.js: For data visualization, Chart.js was integrated to create interactive and readable 
+charts within the analytics dashboard. This enabled program managers and administrators 
+to visualize application trends, selection rates, demographic distributions, and fai rness 
+metrics in an intuitive and easy-to-understand format. (Chart.js Contributors, 2024) 
+Back-End & Database Development: 
+• Spring Boot (Java):  The server-side logic of the AI -Based Scholarship and Internship 
+Candidate Selection System was developed using Spring Boot, a Java -based framework. 
+This combination was chosen for its enterprise-grade performance, robust security features, 
+and ability to  build production -ready RESTful APIs. Spring Boot enabled rapid 
+development of critical modules such as user authentication with JWT, profile 
+management, application processing, AI score integration, committee voting, and 
+automated report generation. Its dependency injection and aspect -oriented programming 
+features improved maintainability and code organization across the entire system. (Spring 
+Team, 2024) 
+• Java 21 LTS:  As the core programming language for the backend, Java 21 LTS was 
+selected for its stability, performance, and long -term support. Its strong typing, object -
+oriented paradigm, and extensive ecosystem of libraries ensured that the system was built 
+on a solid, secure, and scalable foundation. (Oracle, 2024) 
+• PostgreSQL: For the database layer, PostgreSQL was selected as the primary relational 
+database management system. PostgreSQL was chosen to handle the platform's structured 
+data due to its proven reliability, ACID compliance, advanced data types (such as ENUM 
+and JSONB for fairness reports), and excellent performance characteristics. It is ideal for 
+managing the system's core transactional data —including student profiles, academic 
+records, application submissions, AI scores, review ratings, committee votes, and final 
+decisions—ensuring data integrity and consistency for critical selection and reporting 
+operations. (PostgreSQL Global Development Group, 2024) 
+• Spring Data JPA (Hibernate):  As the Object -Relational Mapping (ORM) tool, Spring 
+Data JPA with Hibernate was used to simplify database interactions. It provided an 
+abstraction layer that allowed the backend to communicate with PostgreSQL using Java 
+===== PAGE 72 =====
+60 
+ 
+objects rather than raw SQL queries, reducing boilerplate code and improving developer 
+productivity. (Hibernate Team, 2024) 
+AI & Analytics Development: 
+• Python 3.11: Python was selected as the programming language for developing the AI 
+service layer due to its extensive libraries for data science and machine learning. It was 
+used to implement the eligibility verification logic, candidate scoring algorithms, 
+opportunity matching engine, and fairness monitoring calculations. (Python Software 
+Foundation, 2024) 
+• Scikit-learn: This open-source machine learning library was used to implement the AI 
+scoring and ranking algorithms. Scikit-learn provided tools for data preprocessing, feature 
+scaling, and weighted scoring calculations, enabling the system to evaluate candidates 
+based on academic performance, extracurricular achievements, and program -specific 
+criteria. (Scikit-learn Developers, 2024) 
+• Pandas: For data manipulation and analysis, the Pandas library was employed to process 
+and transform student profile data, academic records, and achievement information into 
+structured formats suitable for AI scoring. It also facilitated the generation of fairnes s 
+reports by aggregating and analyzing selection outcomes across demographic groups. 
+(Pandas Development Team, 2024) 
+• NumPy: NumPy was used to perform numerical operations required for score calculations 
+and rank determinations. Its efficient array processing capabilities ensured that AI scoring 
+was fast and accurate, even when processing hundreds of applications. (NumPy 
+Developers, 2024) 
+Development & Deployment Tools: 
+• IntelliJ IDEA: As the primary integrated development environment (IDE) for backend 
+development, IntelliJ IDEA provided powerful tools for Java and Spring Boot 
+development, including intelligent code completion, built -in database tools, and seamless 
+integration with Maven and Git. (JetBrains, 2024) 
+===== PAGE 73 =====
+61 
+ 
+• Postman: This API development and testing tool was used to design, test, and document 
+all REST API endpoints. Postman enabled the team to simulate client requests, validate 
+response structures, and automate integration testing before frontend integration. (Postman 
+Team, 2024) 
+• Git & GitHub: For version control and collaborative development, Git was used alongside 
+GitHub as the remote repository. This allowed for efficient code management, feature 
+branching, pull request reviews, and tracking of changes throughout the development 
+lifecycle. (GitHub, 2024) 
+External Services & Integrations: 
+• Twilio API:  Twilio's programmable SMS API was integrated to send automated text 
+message notifications to students. This included application submission confirmations, 
+status update alerts, deadline reminders, and final decision notifications, ensuring that 
+students received timely updates even without constant internet access. (Twilio, 2024) 
+• Gmail SMTP:  Google's Gmail SMTP server was used to send formal email 
+communications to students and program managers. This included application receipts, 
+eligibility results, committee voting notifications, and official grant or denial letters. 
+(Google, 2024) 
+• Google OAuth2:  For secure and convenient authentication, Google OAuth2 was 
+implemented to allow users to log in using their existing Google accounts. This reduced 
+the need for password management and improved the overall user experience. (Google 
+Identity Platform, 2024) 
+ 
+ 
+ 
+ 
+ 
+===== PAGE 74 =====
+62 
+ 
+PRESENTATION OF THE NEW SYSTEM 
+ 
+Landing Page (Homepage) 
+ 
+Figure 10: Landing page 
+The Landing Page serves as the system entry point featuring the headline "The unified portal for 
+scholarships and internships." It includes a brief description of the platform's purpose, two call-to-
+action buttons ("Start now" and "How the process works"),  a navigation bar with "Home," 
+"Capabilities," "Process," and "Contact" links, plus a "Sign in here" link for returning users. The 
+page also features a "How the system works" section that explains the step -by-step application, 
+review, and decision workflow to first-time visitors, helping them understand the selection process 
+before they begin. Additionally, a "Companies/Partners" section displays the logos and names of 
+organizations collaborating with Mastery Hub of Rwanda to provide scholarship and interns hip 
+opportunities, building trust and credibility with applicants. The footer displays "MHR | internship 
+and scholarship selection system" as the organization's branding. This page welcomes all users and 
+provides clear pathways for both new and returning visitors to access the system's features.. 
+  
+ 
+
+===== PAGE 75 =====
+63 
+ 
+Login Page 
+ 
+ 
+The Login Page displays "SECURE ACCESS" with fields for E-mail and Password, a 
+"Remember me next time" checkbox, a "Continue →" button, and a "Create an account" link for 
+new users. Footer links include "Help & Policies" and "Contact" for user support. 
+This page provides secure authentication for all user roles using JWT tokens and role-based 
+access control. Upon successful login, students, program managers, reviewers, and 
+administrators are redirected to their respective dashboards. 
+ 
+
+===== PAGE 76 =====
+64 
+ 
+Student Registration  
+ 
+Figure 11: Registration page 
+The Registration Page displays "NEW APPLICANT" and "Create your account" with fields for 
+Full name (as on official ID), Mobile number (+250 format), and Email, plus a Password field with 
+security requirements (8+ characters, uppercase, lowercase, number, s pecial character) and a 
+"Remember my email on this device" checkbox. New students create their account by providing 
+these details, and upon submission, the system validates all fields, creates the student account. 
+ 
+ 
+ 
+
+===== PAGE 77 =====
+65 
+ 
+Student Dashboard 
+ 
+Figure 12: Student dashboard 
+The Student Dashboard welcomes the student by name and displays key overview cards showing 
+the number of applications submitted and the average match score. Quick action buttons include 
+"Browse all opportunities," "Update profile," and "View applications,"  while the recent activity 
+section shows the latest application submissions with dates and statuses. A sidebar provides 
+navigation to Opportunities, My Applications, Profile, Settings, and Help & FAQ. The dashboard 
+also displays a match score card showing the average stored match across all submitted 
+applications, helping students understand how well their profile aligns with available 
+opportunities. 
+This dashboard gives students real -time visibility into their application activity and progress. 
+Students can track submitted applications, view their AI -generated match scores, access 
+recommended opportunities, and quickly update their profile information  all from one central 
+location. The dashboard serves as the student's command center, providing a complete overview 
+of their journey from application submission to final decision, eliminating the uncertainty of 
+manual tracking and keeping students informed at every stage. 
+
+===== PAGE 78 =====
+66 
+ 
+Program Discovery and Search Interface 
+ 
+ 
+Figure 13: Program Discovery and Search Interface 
+Students can browse and search for available scholarships and internships using keywords and 
+filters. Filter options include program type (All, Scholarship, Internship) and quick filter buttons 
+for categories like Technology and Science. Each opportunity card displays the program type, title, 
+deadline, AI-generated match percentage, and action buttons to "View details" or "Apply now." 
+This interface helps students identify opportunities that best match their profile and qualifications. 
+The AI -generated match percentage is calculated based on the student's academic records, 
+achievements, skills, and program requirements, allowing students to prioritize applications where 
+they have the highest chance of success. Students can click "View details" to read full program 
+descriptions, eligibility criteria, and required documents before deciding to apply. The search and 
+filter functionality saves time by narrowing down relevant opportunities, and the interface shows 
+how many opportunities match the current search criteria, ensuring students never miss a deadline 
+or suitable program. 
+. 
+ 
+
+===== PAGE 79 =====
+67 
+ 
+Application Submission Wizard (Step 1 - Your Profile) 
+ 
+Figure 14: Application Submission Wizard (Step 1 - Your Profile) 
+Step 1 displays the student's read -only profile information including personal details (full name, 
+email, phone, address, national ID), academic background (education level, study status, 
+institution, major, GPA), and personal statement. Students cannot ed it their information directly 
+in this step, ensuring data consistency across all applications. 
+This design prevents students from submitting inconsistent information for different applications 
+and encourages them to maintain an accurate, up -to-date profile. By displaying profile data in a 
+read-only format, the system ensures that every application i s based on the same verified student 
+information, reducing errors and fraudulent submissions. Students who notice outdated 
+information can navigate to their Profile, make corrections once, and return to the application 
+where the updated information will automatically appear. This step also allows students to review 
+their qualifications before committing to the application, helping them confirm they meet the 
+eligibility requirements before proceeding to document upload. 
+
+===== PAGE 80 =====
+68 
+ 
+Application Submission Wizard (Step 2 - Documents) 
+ 
+Figure 15: Application Submission Wizard (Step 2 - Documents) 
+Step 2 allows students to upload required documents including cover letter and transcript. The 
+system validates file types (PDF, JPG, PNG) and file sizes, with a maximum of 10MB per file. 
+The transcript is automatically loaded from the student's profile do cuments, but students can 
+replace it for this specific application if needed. The cover letter must be uploaded manually as it 
+is application-specific. A drag-and-drop area makes document upload simple and intuitive. 
+This automated transcript loading saves students time and ensures consistency across applications. 
+By pre-populating the transcript from the profile, students do not need to locate and upload the 
+same file repeatedly for different opportunities. However, t he flexibility to replace the transcript 
+for a specific application is useful when a student has completed new courses or earned a higher 
+GPA after the original transcript was uploaded. The cover letter requirement being manual allows 
+students to tailor each application to the specific program, demonstrating their unique interest and 
+qualifications. The drag-and-drop interface accepts clicks or file dragging, and real-time validation 
+alerts students immediately if a file type or size is incorrect, preventin g submission errors later in 
+the process. 
+ 
+
+===== PAGE 81 =====
+69 
+ 
+Application Submission Wizard (Step 3 - Review & Submit) 
+ 
+Figure 16: Application Submission Wizard (Step 3 - Review & Submit) 
+Step 3 displays a complete summary of the application including profile details, selected program, 
+GPA, and uploaded documents. Students must confirm information accuracy and document 
+authenticity by checking three boxes before submitting. Once confirmed, the system generates a 
+unique reference number, stores the application, sends notifications, and saves a snapshot for audit 
+purposes. 
+ 
+
+===== PAGE 82 =====
+70 
+ 
+ Program Manager Dashboard 
+ 
+Figure 17:  Program Manager Dashboard 
+The Program Manager Dashboard provides an overview of all programs, total applications, 
+pending reviews, and processed applications. It includes program performance metrics and action 
+buttons to manage programs or generate reports. 
+AI-Ranked Applicants Interface 
+ 
+Figure 18: AI-Ranked Applicants Interface 
+This interface displays candidates ranked by AI scores. Program managers can see each applicant's 
+rank, percentage score, and document status, with options to review individual applications. 
+ 
+
+===== PAGE 83 =====
+71 
+ 
+Reviewer Dashboard 
+ 
+Figure 19: Reviewer Dashboard 
+The Reviewer Dashboard displays the assigned applications queue, giving reviewers a clear 
+overview of their workload and progress. Key metrics at the top show pending reviews, decided 
+applications, average match scores, and positive rates, helping reviewers track their performance 
+and prioritize tasks. Each application card includes essential information such as the applicant's 
+name, major, GPA, program name, AI-generated match score, submission date, and a prominent 
+"Start review" button. This centralized workspace allows reviewers to efficiently access, 
+evaluate, and document their assessments for each assigned candidate, ensuring no application is 
+overlooked and deadlines are met. The dashboard also includes filtering and sorting options, 
+enabling reviewers to organize applications by priority, program, or submission date to manage 
+their time effectively. Reviewers can access AI ranking data and analytics from the same 
+interface, providing context about how each candidate compares to others before they begin their 
+manual evaluation. The positive rate metric helps reviewers understand their own evaluation 
+patterns, while the average match score gives insight into the overall quality of applicants in their 
+queue. By consolidating all necessary information and tools in one place, the Reviewer 
+Dashboard streamlines the evaluation process, reduces administrative burden, and helps maintain 
+consistency across reviews. 
+
+===== PAGE 84 =====
+72 
+ 
+Committee Discussion Forum Interface 
+ 
+ 
+Figure 20: Committee Discussion Forum Interface 
+Committee members can discuss candidates asynchronously through a threaded forum. The 
+interface displays applicant information, reviewer notes, and allows members to post replies 
+visible to the entire committee. 
+ 
+ 
+
+===== PAGE 85 =====
+73 
+ 
+Digital Voting Interface 
+ 
+Figure 21: Digital Voting Interface 
+Committee members cast their votes with mandatory justification comments. The interface shows 
+voting progress, quorum status, and allows members to approve or reject candidates before the 
+deadline. 
+  
+
+===== PAGE 86 =====
+74 
+ 
+System Administrator Dashboard 
+ 
+Figure 22:  System Administrator Dashboard 
+The System Administrator Dashboard, also known as the System Control Center, provides a 
+comprehensive overview of platform health and operational status. Key metrics displayed 
+include user counts broken down by role, showing how many students, reviewers, managers, and 
+administrators are registered in the system. The dashboard also monitors API status to ensure all 
+external integrations (Twilio SMS, Gmail SMTP, and Google OAuth2) are functioning properly, 
+along with active session counts showing how many users are currently logged in. Recent 
+failures are tracked in an audit feed, allowing administrators to quickly identify and resolve any 
+system issues before they affect users. The application pipeline overview displays real-time 
+counts for submitted applications, pending reviews, shortlisted candidates, and denied 
+applications, giving administrators visibility into the overall selection workflow. Additional 
+metrics include awarded counts, average time to review, bottleneck stage identification, and total 
+applications processed. Program-level pipeline data shows specific program performance, such 
+as pending, active, and total applications per program. This dashboard serves as the central 
+monitoring hub, enabling administrators to maintain system reliability, identify performance 
+issues, and ensure smooth operation of the entire selection platform.  
+
+===== PAGE 87 =====
+75 
+ 
+User Management Interface 
+ 
+Figure 23:  User Management Interface 
+The User Management Interface allows administrators to manage all system users from a single, 
+organized dashboard. Administrators can create new user accounts by clicking the "Add user" 
+button, assign appropriate roles (Student, Reviewer, Manager, or Admin ), and control activation 
+status for each account. A comprehensive searchable table displays all registered users with 
+columns showing member name, email address, access level, account status (Active, Suspended, 
+or Inactive), management options, and action  buttons. Summary cards at the top provide quick 
+statistics including total members, active reviewers, pending activations, and system 
+administrators, giving administrators an instant overview of the user base. From this interface, 
+administrators can edit existing user details, change user roles, reset passwords, suspend or 
+deactivate accounts, and view audit logs showing each user's login history and actions performed. 
+Search and filter options allow quick location of specific users by name, email, or role . This 
+interface ensures proper access control, accountability, and security across the entire system, 
+preventing unauthorized access and ensuring that each user has only the permissions appropriate 
+to their role. The ability to deactivate accounts immedia tely removes system access for former 
+staff members or students who are no longer eligible, maintaining the integrity of the selection 
+process. 
+
+===== PAGE 88 =====
+76 
+ 
+Reporting & Analytics Interface 
+ 
+Figure 24: Reporting & Analytics Interface 
+The Reporting & Analytics Interface allows program managers to generate comprehensive reports 
+by selecting from four report types: Selection Summary Report (overview of applicants, selected 
+candidates, and selection rates), Processing Time Report (average days from submission to final 
+decision), Program Analytics Report (program popularity, completion rates, and demographic 
+distributions), and Fairness Compliance Report (audit of selection fairness and bias indicators). 
+Users can set a date range filter to focus on specific time periods, generate a preview before export, 
+and download reports in PDF, Excel, or CSV formats for stakeholder communication and donor 
+reporting. 
+ 
+ 
+ 
+ 
+
+===== PAGE 89 =====
+77 
+ 
+Sample Generated Report - Programs Activity Audit 
+ 
+Figure 25: Sample Generated Report - Programs Activity Audit 
+This sample report displays program-level activity including program title, deadline date, available 
+slots, pending applications, shortlisted candidates, awarded counts, denied counts, and usage 
+percentage. The report is generated on official Mastery Hub o f Rwanda letterhead with the 
+organization's contact information and includes the generation date for record-keeping. 
+Program managers can use this report to evaluate program performance, identify bottlenecks, and 
+make data-driven decisions about resource allocation. For example, a low usage percentage might 
+indicate that a program needs more promotion, while a high number of pending applications could 
+signal the need for additional reviewers. This report helps management track selection efficiency, 
+monitor program popularity, and ensure that available slots are being utilized effectively. The data 
+can also be shared with donors and partners to demonstrate program impact and transparency. 
+ 
+
+===== PAGE 90 =====
+78 
+ 
+Sample Generated Report - Detailed Applicant Roster 
+ 
+Figure 26: Sample Generated Report - Detailed Applicant Roster 
+This sample report provides a detailed applicant list by program showing each candidate's full 
+name, email address, GPA, application date, and current status (shortlisted, awarded, or denied). 
+The report is formatted on official Mastery Hub of Rwanda letterhead and includes a total system 
+summary showing the total number of programs and total applications processed. 
+Program managers can use this report to review individual applicant statuses, track selection 
+outcomes, and verify that all applications have been properly processed. The detailed roster allows 
+managers to see which candidates have been shortlisted for com mittee review, which have been 
+awarded opportunities, and which have been denied. This transparency helps ensure accountability 
+in the selection process and provides a clear record that can be referenced during appeals or audits. 
+The report can be exported and shared with committee members or stakeholders as needed. 
+ 
+ 
+ 
+
+===== PAGE 91 =====
+79 
+ 
+Grant Award Letter (Downloadable PDF Document) 
+ 
+Figure 27: Grant Award Letter (Downloadable PDF Document) 
+Students receive an official PDF award letter when granted a scholarship or internship. The letter 
+includes program details, award terms, acceptance deadline, and the selection committee chair's 
+signature. 
+
+===== PAGE 92 =====
+80 
+ 
+Grant SMS Notification 
+ 
+Figure 28: Grant SMS Notification 
+Students receive an SMS notification on their mobile phone informing them that their application 
+has been granted. The message directs them to check their email for the formal PDF award letter 
+containing complete details and acceptance instructions. 
+This immediate SMS alert ensures students are notified of their grant decision even without instant 
+email access. The message includes the program name and a reference number, allowing students 
+to quickly identify which opportunity they have been granted before accessing the full award letter 
+in their dashboard or email. 
+ 
+ 
+
+===== PAGE 93 =====
+81 
+ 
+Denial Notification Letter (Downloadable PDF Document) 
+ 
+Figure 29: Denial Notification Letter (Downloadable PDF Document) 
+Students receive an official PDF denial letter on Mastery Hub letterhead when not selected. The 
+letter includes a clear denial statement, constructive feedback explaining areas for improvement, 
+acknowledgment of the student's achievements, and encouragement to apply again in future cycles. 
+The letter is signed by the Selection Committee Chair and can be downloaded, saved, or printed 
+for the student's records. 
+
+===== PAGE 94 =====
+82 
+ 
+Denial SMS Notification 
+ 
+Figure 30: Denial SMS Notification 
+Students receive an SMS notification on their mobile phone informing them that their application 
+has been denied. The message directs them to check their email for the formal PDF letter 
+containing detailed feedback and decision information. This immediate alert ensures students are 
+notified promptly while directing them to the email for complete details. 
+The SMS includes the program name and reference number, allowing students to quickly identify 
+which application decision has been made. This two -step notification system (SMS then email) 
+ensures students never miss a decision, even if they are away from th eir inbox. The SMS is 
+delivered instantly after the Program Manager makes the final decision, providing real -time 
+transparency and reducing the anxiety of waiting for unknown outcomes. Students can then log 
+into their dashboard or check their email to access the full denial letter with constructive feedback 
+to help them improve future applications. 
+
+===== PAGE 95 =====
+83 
+ 
+AI Fairness & Ethical Audit Dashboard 
+ 
+Figure 31: AI Fairness & Ethical Audit Dashboard 
+This dashboard provides cohort -level fairness metrics including total applications, pending 
+reviews, mean match scores, standard deviation of match scores, and identifies cases where denials 
+occurred despite high match scores (above 90%). The interface inc ludes a clear disclaimer that 
+statistics are heuristic and not legal evidence of discrimination, treating every signal as a prompt 
+to look closer rather than proof of bias. Local audit events are tracked, showing how many review 
+actions have been recorded. 
+Program managers and administrators can use this dashboard to monitor selection equity across 
+different applicant groups. The dashboard helps detect potential bias by flagging unusual patterns 
+such as a denial being issued to a candidate with an exceptiona lly high match score while lower -
+scoring candidates were approved. This transparency supports the organization's commitment to 
+fair and ethical selection practices, allowing committees to review questionable decisions and 
+adjust processes as needed. The da ta shown includes API references and fairness snapshot fields 
+captured at the time of application submission, ensuring that fairness monitoring is based on 
+accurate, timestamped records. 
+ 
+
+===== PAGE 96 =====
+84 
+ 
+AI Fairness & Ethical Audit Dashboard 
+ 
+ 
+Figure 32: AI Fairness & Ethical Audit Dashboard 
+This dashboard displays shortlist size (number of applications shortlisted), shortlist share 
+percentage, review completion rate, and unique applicant count. The interface also shows shortlist 
+rates broken down by applicant major, allowing administrators to see which academic disciplines 
+have higher or lower selection rates. A signal note alerts users when data is limited, stating "Few 
+shortlisted decisions yet  fairness metrics will stabilize after more reviews." 
+Program managers can use this dashboard to identify potential bias in the selection process across 
+different demographic and academic groups. For example, if the dashboard shows that Networking 
+majors have a 100% shortlist rate while masonry majors have 0%, this signals a need for committee 
+review to ensure selection criteria are being applied fairly. The dashboard groups applicants by 
+major text from their profile and provides active signal indicators when patterns require attention. 
+This tool supports Mas tery Hub's commitment to equitable opportunity distribution and helps 
+maintain trust among applicants from all academic backgrounds 
+
+===== PAGE 97 =====
+85 
+ 
+Student Profile - Personal Information 
+ 
+Figure 33: Student Profile - Personal Information 
+Students manage their personal information including first name, email address, national ID or 
+passport number, mailing address, and bio. This information is stored securely in the system and 
+automatically auto-populates all future applications, saving students time and ensuring consistency 
+across multiple submissions. The profile displays the student's name and major at the top for quick 
+identification. 
+Keeping this information accurate is essential because it is used for eligibility verification, 
+document matching, and official award letters. When a student updates their profile, the changes 
+automatically reflect in any draft applications and all future submissions. The bio section allows 
+students to introduce themselves, which can be reviewed by committee members during the 
+selection process. This centralized profile management ensures that students maintain control over 
+their personal data while reducing repetitive data entry across multiple program applications. 
+ 
+
+===== PAGE 98 =====
+86 
+ 
+Student Profile - Education & Academic Information 
+ 
+Figure 34: Student Profile - Education & Academic Information 
+Students manage their education information including level of education (Bachelor's, Master's, 
+PhD, etc.), study status (Completed or In Progress), current institution name, major or field of 
+study, and GPA. The GPA field can be manually entered or automatically extracted from uploaded 
+transcripts, with a notification informing students that automatic extraction is enabled when they 
+upload their official transcript. 
+Accurate academic information is critical for the AI scoring engine, as GPA and field of study are 
+key factors in eligibility verification and candidate ranking. The system uses this data to calculate 
+match percentages with available programs and to determ ine whether a student meets minimum 
+requirements such as GPA floors or required majors. Students can save changes to their academic 
+profile at any time, and the updated information will apply to all future applications. The automatic 
+GPA extraction feature reduces manual entry errors and ensures that the AI scoring is based on 
+accurate, verifiable data from official transcripts. 
+
+===== PAGE 99 =====
+87 
+ 
+Student Profile - Documents & Identity 
+ 
+Figure 35: Student Profile - Documents & Identity 
+Students upload identity documents (National ID front and back) and academic transcripts through 
+this interface. The system validates that uploaded transcripts contain the student's name and are 
+legitimate academic records by reading the text inside the fi le, not just the file name. The upload 
+area accepts PDF, JPEG, PNG, and Word documents with a maximum file size of 5MB per file, 
+with a preference for PDF or DOCX formats as legacy Word .doc files are not supported by the 
+document AI pipeline. 
+This validation process ensures that only authentic academic documents are accepted, preventing 
+students from uploading random PDFs, ID images, or other unrelated files as transcripts. The 
+system checks that the name on the transcript matches the student's profile name, adding an extra 
+layer of identity verification. Uploaded transcripts are stored securely and can be automatically 
+reloaded for future applications, saving students time. The interface displays previously uploaded 
+transcripts with file name, size, and upload date, allowing students to track their document history. 
+
+===== PAGE 100 =====
+88 
+ 
+This AI-powered document validation maintains the integrity of the selection process by ensuring 
+all applicants submit genuine, verifiable academic records. 
+Document Validation - Cover Letter Content Mismatch 
+ 
+Figure 36: Document Validation - Cover Letter Content Mismatch 
+This interface shows an error when a student uploads a file for the cover letter section that appears 
+to be a transcript or other document type rather than a genuine cover letter. The system analyzes 
+the document content using AI -powered text recognition a nd displays a clear warning message: 
+"Warning: The uploaded file appears not to be a cover letter. Please upload your cover letter 
+document." The upload area highlights the error in red, and the student must remove the incorrect 
+file and upload a proper cover letter before proceeding. 
+This AI -powered validation helps ensure students submit the correct documents for each 
+requirement, reducing processing delays caused by incorrect submissions. By detecting 
+mismatched documents early in the application process, the system saves time for bo th students 
+(who would otherwise face rejection or requests for resubmission) and reviewers (who would have 
+to handle incomplete or incorrect applications). The validation also discourages students from 
+attempting to bypass requirements by uploading unrela ted documents, maintaining the integrity 
+and fairness of the selection process for all applicants. 
+ 
+
+===== PAGE 101 =====
+89 
+ 
+Document Validation Error - Transcript Name Mismatch 
+ 
+Figure 37: Document Validation Error - Transcript Name Mismatch 
+This interface displays an error message when a student uploads a transcript where the readable 
+text does not clearly show the student's profile name. The system performs AI -powered text 
+extraction and optical character recognition to read the name on the transcript, then compares it 
+with the student's registered profile name. In this example, the student "Shingiro Faisal" receives 
+the following error message: "Name mismatch: the readable text from this PDF does not show 
+your profile name (Shingiro Faisal). This can happen when the PDF text extraction is weak or the 
+document prints your name in a different format. Use a clearer text -based transcript, or update 
+your profile name to match how it appears on the document." 
+The system blocks the upload until the issue is resolved, providing the student with two clear 
+options: upload a clearer text-based transcript where the name can be properly extracted, or update 
+their profile name to match how it appears on the document. T his validation prevents fraudulent 
+applications where students might attempt to use someone else's academic credentials, while also 
+accommodating legitimate cases where document formatting or name variations cause extraction 
+issues. The helpful error messa ge guides students toward a solution rather than simply rejecting 
+the file, improving user experience while maintaining system integrity. This AI -powered name 
+matching works across different document formats and provides specific, actionable feedback to 
+help students successfully upload their authentic academic records. 
+
+===== PAGE 102 =====
+90 
+ 
+SOFTWARE TESTING 
+The design of software benefits from the use of software tests. They aid in determining whether the 
+software genuinely accomplishes the task it was designed to tackle. 
+When undertaking software testing, it is vital to keep the following things in mind: 
+• Is the application compliant with the standards that guided its design and development? 
+• Is the application functioning as it should? 
+• Is it possible to implement the application in the same way and satisfy the needs of the 
+stakeholders? 
+The following are some software testing techniques: 
+The Unit Test 
+Unit testing is a technique for ensuring the correct operation of a particular piece of software or a 
+program. It is a method of evaluating the acceptability for use of individual pieces of source code, 
+sets of one or more computer program modules, related control data, usage processes, and operating 
+procedures. In other words, every little component that can be assembled with the aim of verifying 
+that each part is in accordance with its specifications and checking for logical errors. Unit testing is 
+a powerful tool that allows for the most thorough error detection. At every point where code has 
+been created, a unit test has been run on the application. For the AI-Based Scholarship and Internship 
+Candidate Selection System, unit tests were conducted on criti cal components including the 
+eligibility verification module, AI scoring algorithm, application submission handler, and 
+notification service. Each method was tested in isolation with both positive and negative test cases 
+to ensure correct functionality. 
+The Integration Test 
+Integration testing is the stage of software testing where many software components are combined 
+and tested together. This test is crucial for confirming the correct assembly of the software's 
+numerous components. As more tests are run, the hardware and software components are gathered 
+and tested, and eventually the full system is tested. The application modules were thoroughly tested 
+one after another until they were finished to guarantee that the assembled software components met 
+all of the necessary func tional and technical requirements. For this system, integration testing 
+===== PAGE 103 =====
+91 
+ 
+focused on the interaction between the frontend and backend APIs, the communication between the 
+application layer and the AI service layer, and the data flow between the application and the 
+PostgreSQL database. The integration of external services including Twilio SMS, Gmail SMTP, and 
+Google OAuth2 was also verified to ensure seamless operation. 
+The Validation Test 
+The software is validated in its external context during the final test step. To guarantee that it fully 
+satisfies the requirements established in the beginning phase, the product has been tested in its final 
+configuration. The validation test is essential  to make sure that the setup of the application 
+corresponds to the needs stated. For instance, the student ID must be unique, the email address must 
+follow a valid format, and the GPA must be within the range of 0 to 4.0. The application was 
+thoroughly tested, and it was during this process that we discovered that the operations' progress 
+matched the functional requirements. User acceptance testing was conducted with program 
+managers, reviewers, and student applicants from Mastery Hub of Rwanda to validate that the system 
+meets their expectations and operational needs. The validation test confirmed that the system 
+correctly processes applications, calculates AI scores, facilitates committee voting, and enables 
+program managers to grant or deny scholarships and internships 
+HARDWARE AND SOFTWARE REQUIREMENTS 
+Client-Side Software Requirements: 
+• A web browser (Google Chrome, Mozilla Firefox, Microsoft Edge, Opera, etc.) 
+• Operating System (minimum Windows 10, Windows 11, Linux Ubuntu 20.04+, or macOS 
+12+) 
+• A RAM of 4 GB (minimum), 8 GB recommended 
+• A hard disk of minimum 8 Gigabytes of free space 
+• Internet connection with minimum 5 Mbps download speed (10 Mbps+ recommended for 
+document uploads) 
+• Screen resolution of 1366 x 768 or higher 
+===== PAGE 104 =====
+92 
+ 
+Server-Side Software Requirements: 
+• Operating System: minimum Windows Server 2019, Ubuntu Server 22.04 LTS, or similar 
+Linux distribution 
+• Java Development Kit (JDK) 21 LTS for Spring Boot backend 
+• Node.js 20 LTS for Next.js frontend server 
+• Python 3.11 or higher for AI service layer 
+• PostgreSQL 16 or higher for database management 
+• Cloud storage account (Firebase Storage or AWS S3) for document management 
+• Network card: 1 GB/Second or higher 
+• RAM: 4 GB minimum, 8 GB or higher recommended for production 
+• CPU: Minimum dual-core, recommended quad-core or higher 
+• Storage: Minimum 50 GB SSD, recommended 100 GB or higher 
+• Twilio API account for SMS notifications 
+• Gmail SMTP access for email notifications 
+• Google OAuth2 credentials for social authentication 
+ 
+ 
+ 
+===== PAGE 105 =====
+93 
+ 
+CHAPTER 5 
+CONCLUSIONS AND RECOMMENDATIONS 
+ CONCLUSIONS 
+The AI-Based Scholarship and Internship Candidate Selection System developed in this study 
+successfully addresses the identified problems in manual candidate selection processes at Mastery 
+Hub of Rwanda. The system provides a centralized, intelligent, and transparent platform that 
+supports efficient and fair selection of scholarship and internship beneficiaries. 
+The system demonstrates that AI can be effectively applied to candidate selection in the Rwandan 
+context, improving efficiency, transparency, and fairness while maintaining human oversight of 
+final decisions. The layered architecture and use of industry-standard technologies ensure that the 
+system is maintainable and scalable for future growth. 
+All specific objectives established in Chapter One were achieved. A secure, wizard-based student 
+portal was designed and implemented, enabling online profile creation, application submission, 
+and real-time status tracking. An automated eligibility verifica tion module was developed that 
+checks candidate qualifications against program requirements instantly. An AI-powered candidate 
+scoring and ranking engine was implemented using configurable criteria weighting. An intelligent 
+opportunity matching system was built to recommend suitable programs to students. A fairness 
+monitoring dashboard was created providing management with real-time metrics on selection rates 
+and demographic distributions. External communication services including Twilio SMS and 
+Gmail SMTP were integrated for automated notifications. Role -based access control using JWT 
+and Google OAuth2 was implemented ensuring appropriate access for each user role. 
+The system provides a transparent, efficient, and auditable platform for the management of 
+scholarship and internship candidate selection that is well -suited to the operational realities of 
+Mastery Hub of Rwanda and aligned with Rwanda's national strategy for digital transformation 
+and innovation. 
+ 
+===== PAGE 106 =====
+94 
+ 
+RECOMMENDATIONS 
+Based on the findings and limitations of this study, the following recommendations are offered. 
+Mobile Application Development 
+While the web application is responsive, a dedicated mobile application would improve 
+accessibility for students whose primary internet access is through smartphones. A Progressive 
+Web App approach could provide offline capabilities for profile creation and application drafting, 
+meaningfully expanding reach, particularly for students outside Kigali. 
+Advanced Natural Language Processing 
+Future versions should incorporate more sophisticated NLP techniques to analyze personal 
+statements and essays. Sentiment analysis, topic modeling, and writing quality assessment could 
+provide additional scoring dimensions beyond structured criteria, addin g nuance to candidate 
+evaluation. 
+Integration with Educational Databases 
+Integration with partner institution databases would enable automatic verification of academic 
+records, reducing reliance on self-reported data and uploaded documents. This would require API 
+development and data sharing agreements with partner institutions. 
+Predictive Analytics for Program Success 
+With sufficient historical data, predictive models could estimate the likelihood of candidate 
+success in scholarship or internship programs. Such models would inform selection decisions and 
+help identify candidates who would benefit most from specific opportunities. 
+Explainable AI Enhancements 
+While the current system provides score breakdowns, more detailed explanations of AI decisions 
+would increase user trust and understanding. Techniques such as LIME (Local Interpretable 
+Model-agnostic Explanations) could be integrated to generate natural la nguage explanations of 
+scoring outcomes. 
+ 
+===== PAGE 107 =====
+95 
+ 
+REFERENCES 
+Books 
+Booch, G., Rumbaugh, J., & Jacobson, I. (2005). The Unified Modeling Language user guide (2nd 
+ed.). Addison-Wesley. 
+Elmasri, R., & Navathe, S. B. (2016). Fundamentals of database systems (7th ed.). Pearson. 
+Fowler, M. (2004). UML distilled: A brief guide to the standard object modeling language (3rd 
+ed.). Addison-Wesley. 
+Marr, B. (2021). Artificial intelligence in HR: Use AI to support and develop a successful 
+workforce. Wiley. 
+Russell, S. J., & Norvig, P. (2021). Artificial intelligence: A modern approach (4th ed.). Pearson. 
+Journals 
+Mehrabi, N., Morstatter, F., Saxena, N., Lerman, K., & Galstyan, A. (2021). A survey on bias and 
+fairness in machine learning. ACM Computing Surveys, 54(6), 1-35. 
+Stone, D. L., Deadrick, D. L., Lukaszewski, K., & Johnson, R. (2015). The influence of technology 
+on the future of human resource management. Human Resource Management Review, 25(2), 216-
+231. 
+Websites 
+Mastery Hub of Rwanda. (n.d.). Official website. https://masteryhub.co.rw 
+Scikit-learn. (n.d.). Machine learning in Python. https://scikit-learn.org 
+Twilio. (n.d.). Programmable SMS documentation. https://www.twilio.com/docs/sms 
+ 
+ 
+ 
+ 
+===== PAGE 108 =====
+96 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+APPENDICES 
+  
+===== PAGE 109 =====
+97 
+ 
+Curriculum Vitae 
+ 
+ 
+ 
+
+===== PAGE 110 =====
+98 
+ 
+Data Collection Letter 
+ 
+  
+
+===== PAGE 111 =====
+99 
+ 
+Approval Letter from Organization 
+ 

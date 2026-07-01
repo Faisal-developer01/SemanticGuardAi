@@ -7,7 +7,7 @@ from datetime import datetime, timedelta, timezone
 from flask import current_app
 from flask_jwt_extended import create_access_token, create_refresh_token
 
-from app.errors import ConflictError, ForbiddenError, UnauthorizedError
+from app.errors import ConflictError, ForbiddenError, RateLimitError, UnauthorizedError
 from app.models import User
 from app.models.enums import AuditStatus, UserRole, UserStatus
 from app.repositories import (
@@ -29,7 +29,7 @@ from app.security import (
     verify_mfa_code,
     verify_password,
 )
-from app.services import audit_service, email_service
+from app.services import audit_service, email_service, sendgrid_service, sms_service
 
 
 def _now() -> datetime:
@@ -63,7 +63,9 @@ def register(data: dict) -> tuple[User, str]:
     role_enum = UserRole(role_value)
     role_row = roles.get_by_name(role_value)
 
-    is_dev_or_test = current_app.config.get("DEBUG") or current_app.config.get("TESTING")
+    # Accounts must verify their email via OTP unless an environment explicitly
+    # opts out (e.g. offline demos that cannot deliver email).
+    auto_verify = current_app.config.get("AUTH_AUTO_VERIFY_EMAIL", False)
     verification_token = generate_token()
     user = users.create(
         full_name=data["full_name"],
@@ -72,10 +74,10 @@ def register(data: dict) -> tuple[User, str]:
         password_hash=hash_password(data["password"]),
         role_name=role_enum,
         role_id=role_row.id if role_row else None,
-        status=UserStatus.active if is_dev_or_test else UserStatus.pending,
-        email_verified=is_dev_or_test,
-        email_verification_token=None if is_dev_or_test else verification_token,
-        email_verification_sent_at=None if is_dev_or_test else _now(),
+        status=UserStatus.active if auto_verify else UserStatus.pending,
+        email_verified=auto_verify,
+        email_verification_token=None if auto_verify else verification_token,
+        email_verification_sent_at=None if auto_verify else _now(),
         commit=False,
     )
 
@@ -96,10 +98,13 @@ def register(data: dict) -> tuple[User, str]:
             commit=False,
         )
 
+    otp = None if auto_verify else _set_verification_otp(user)
+
     users.session.commit()
     audit_service.record("auth.register", user=user, resource=email)
-    if not is_dev_or_test:
-        email_service.deliver("verification", str(user.id), verification_token)
+    if not auto_verify:
+        # Send the 6-digit registration OTP via SendGrid Dynamic Template.
+        sendgrid_service.deliver_otp(str(user.id), otp)
     return user, verification_token
 
 
@@ -123,7 +128,15 @@ def authenticate(email: str, password: str, mfa_code: str | None) -> dict:
     if user.status == UserStatus.suspended:
         raise ForbiddenError("Account suspended")
     if not user.email_verified:
-        raise ForbiddenError("Email not verified")
+        # Self-heal accounts stuck unverified in environments that cannot send
+        # verification email (no SMTP provider). Otherwise enforce verification.
+        if current_app.config.get("AUTH_AUTO_VERIFY_EMAIL"):
+            user.email_verified = True
+            if user.status == UserStatus.pending:
+                user.status = UserStatus.active
+            users.session.commit()
+        else:
+            raise ForbiddenError("Email not verified")
 
     # MFA gate
     if user.mfa_enabled:
@@ -199,6 +212,66 @@ def verify_email(token: str) -> User:
     return user
 
 
+# ─── Registration OTP verification ──────────────────────────────────
+
+def _set_verification_otp(user: User) -> str:
+    """Generate, hash and store a fresh 6-digit registration OTP (no commit).
+
+    Returns the plaintext code so the caller can hand it to SendGrid. Only the
+    SHA-256 hash and an expiry timestamp are persisted, so the code never lives
+    at rest in plaintext.
+    """
+    ttl = current_app.config.get("EMAIL_OTP_TTL_MINUTES", 10)
+    code = generate_numeric_code(6)
+    user.email_otp_hash = hash_code(code)
+    user.email_otp_expires_at = _now() + timedelta(minutes=ttl)
+    user.email_verification_sent_at = _now()
+    return code
+
+
+def verify_otp(email: str, otp: str) -> User:
+    """Verify a registration OTP and activate the account. One-time use."""
+    user = users.get_by_email(email.lower().strip())
+    invalid = UnauthorizedError("Invalid or expired verification code")
+    if not user:
+        raise invalid
+    if user.email_verified:
+        return user  # idempotent: already verified
+    # _verify_email_otp checks the hash + expiry and clears the code on success,
+    # so a verified OTP cannot be replayed.
+    if not _verify_email_otp(user, otp):
+        audit_service.record("auth.email_verify_failed", user=user, status=AuditStatus.failure)
+        raise invalid
+    user.email_verified = True
+    user.email_verification_token = None
+    if user.status == UserStatus.pending:
+        user.status = UserStatus.active
+    users.session.commit()
+    audit_service.record("auth.email_verified", user=user)
+    return user
+
+
+def resend_otp(email: str) -> None:
+    """Regenerate and resend a registration OTP, enforcing a per-account cooldown."""
+    user = users.get_by_email(email.lower().strip())
+    # Never reveal whether the account exists or its verification state.
+    if not user or user.email_verified:
+        return
+    cooldown = current_app.config.get("OTP_RESEND_COOLDOWN_SECONDS", 60)
+    last_sent = _aware(user.email_verification_sent_at)
+    if last_sent:
+        elapsed = (_now() - last_sent).total_seconds()
+        if elapsed < cooldown:
+            retry_after = int(cooldown - elapsed) + 1
+            raise RateLimitError(
+                f"Please wait {retry_after}s before requesting another code.",
+                payload={"retryAfter": retry_after},
+            )
+    otp = _set_verification_otp(user)
+    users.session.commit()
+    sendgrid_service.deliver_otp(str(user.id), otp)
+
+
 def change_password(user: User, current_password: str, new_password: str) -> None:
     if not verify_password(current_password, user.password_hash):
         raise UnauthorizedError("Current password is incorrect")
@@ -247,7 +320,10 @@ def _set_email_otp(user: User) -> str:
 
 def _send_email_otp(user: User) -> None:
     code = _set_email_otp(user)
+    # Deliver the same one-time code over both channels so the user receives it
+    # by email and by SMS (Africa's Talking). Either channel is sufficient.
     email_service.deliver("mfa_code", str(user.id), code)
+    sms_service.deliver_mfa_code(str(user.id), code)
 
 
 def _verify_email_otp(user: User, code: str) -> bool:

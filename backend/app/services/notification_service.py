@@ -89,3 +89,40 @@ def notify_alert(session, alert) -> None:
         type=_type_for_alert(alert),
         link="/recruiter/monitoring",
     )
+
+
+def _recruiter_of(session):
+    assessment = getattr(session, "assessment", None)
+    return getattr(assessment, "recruiter_id", None)
+
+
+def notify_high_risk(session) -> None:
+    """Notify the recruiter that a candidate crossed the risk threshold (once)."""
+    recruiter_id = _recruiter_of(session)
+    if not recruiter_id:
+        return
+    candidate = getattr(session, "candidate", None)
+    name = getattr(candidate, "full_name", None) or "A candidate"
+    create(
+        recruiter_id,
+        title="High-risk candidate flagged",
+        message=f"{name} exceeded the integrity risk threshold (score {int(session.risk_score or 0)}).",
+        type=NotificationType.alert,
+        link=f"/recruiter/review/{session.id}",
+    )
+
+
+def notify_disconnect(session) -> None:
+    """Notify the recruiter that a candidate went offline mid-assessment."""
+    recruiter_id = _recruiter_of(session)
+    if not recruiter_id:
+        return
+    candidate = getattr(session, "candidate", None)
+    name = getattr(candidate, "full_name", None) or "A candidate"
+    create(
+        recruiter_id,
+        title="Candidate disconnected",
+        message=f"{name} went offline or closed the browser during the assessment.",
+        type=NotificationType.warning,
+        link="/recruiter/monitoring",
+    )

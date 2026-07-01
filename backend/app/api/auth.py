@@ -14,6 +14,8 @@ from app.schemas import (
     LoginSchema,
     MFASetupSchema,
     MFAVerifySchema,
+    OtpResendSchema,
+    OtpVerifySchema,
     PasswordChangeSchema,
     PasswordResetRequestSchema,
     PasswordResetSchema,
@@ -31,10 +33,10 @@ bp = Blueprint("auth", __name__)
 def register():
     data = parse(RegisterSchema())
     user, _token = auth_service.register(data)
-    # The verification email is delivered by auth_service (Celery or inline).
+    # The verification OTP is delivered by auth_service via SendGrid.
     return created({
         "user": user_schema.dump(user),
-        "message": "Registration successful. Check your email to verify your account.",
+        "message": "Registration successful. Enter the 6-digit code we emailed to verify your account.",
     })
 
 
@@ -72,6 +74,22 @@ def verify_email():
     data = parse(EmailVerifySchema())
     user = auth_service.verify_email(data["token"])
     return ok({"user": user_schema.dump(user), "message": "Email verified"})
+
+
+@bp.post("/verify-otp")
+@limiter.limit("10 per 10 minutes")
+def verify_otp():
+    data = parse(OtpVerifySchema())
+    user = auth_service.verify_otp(data["email"], data["otp"])
+    return ok({"user": user_schema.dump(user), "message": "Account verified"})
+
+
+@bp.post("/resend-otp")
+@limiter.limit("5 per 10 minutes")
+def resend_otp():
+    data = parse(OtpResendSchema())
+    auth_service.resend_otp(data["email"])
+    return ok({"message": "If the account exists and is unverified, a new code has been sent."})
 
 
 @bp.post("/change-password")

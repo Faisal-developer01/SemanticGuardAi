@@ -329,6 +329,14 @@ export interface ApiTestCase {
   order?: number;
 }
 
+export interface ApiQuestionOption {
+  id?: string;
+  text: string;
+  isCorrect?: boolean;
+  explanation?: string | null;
+  order?: number;
+}
+
 export interface ApiQuestion {
   id: string;
   assessmentId: string;
@@ -336,7 +344,9 @@ export interface ApiQuestion {
   type: 'multiple_choice' | 'true_false' | 'short_answer' | 'coding';
   marks: number;
   order: number;
-  options?: string[] | null;
+  difficulty?: string | null;
+  required?: boolean | null;
+  options?: ApiQuestionOption[] | null;
   language?: string | null;
   languages?: string[] | null;
   entryPoint?: string | null;
@@ -345,10 +355,20 @@ export interface ApiQuestion {
   testCases?: ApiTestCase[] | null;
 }
 
+/** Payload for creating/updating a question. Test cases are created server-side, so `id` is optional on input. */
+export type QuestionInput = { text: string; type: string } & Partial<
+  Omit<ApiQuestion, 'text' | 'type' | 'testCases'>
+> & {
+  testCases?: Array<Omit<ApiTestCase, 'id'> & { id?: string }>;
+};
+
 export interface ApiSession {
   id: string;
   assessmentId: string;
+  assessmentTitle?: string | null;
   candidateId: string;
+  candidateName?: string | null;
+  candidateEmail?: string | null;
   startedAt?: string | null;
   submittedAt?: string | null;
   status: 'in_progress' | 'completed' | 'abandoned' | 'flagged';
@@ -356,6 +376,7 @@ export interface ApiSession {
   maxScore: number;
   percentage?: number | null;
   passed?: boolean | null;
+  gradingStatus?: 'graded' | 'processing' | 'under_review' | null;
   integrityScore: number;
   riskScore: number;
   riskLevel?: 'low' | 'medium' | 'high' | null;
@@ -363,8 +384,13 @@ export interface ApiSession {
   lookingAwayCount: number;
   faceNotDetectedCount: number;
   liveStatus?: Record<string, unknown> | null;
+  monitoringEnabled?: boolean;
+  deviceFingerprint?: string | null;
+  deviceInfo?: Record<string, unknown> | null;
+  ipAddress?: string | null;
   createdAt: string;
 }
+
 
 export interface ApiAlert {
   id: string;
@@ -379,6 +405,87 @@ export interface ApiAlert {
   reviewed: boolean;
   reviewedAt?: string | null;
   resolutionNote?: string | null;
+}
+
+export interface RiskFactor {
+  type: string;
+  label: string;
+  count: number;
+  contribution: number;
+  avgConfidence: number;
+  severity: 'low' | 'medium' | 'high' | 'critical';
+  lastOccurredAt?: string | null;
+}
+
+export interface RiskTimelineEvent {
+  id: string;
+  type: string | null;
+  label: string | null;
+  severity: 'low' | 'medium' | 'high' | 'critical' | null;
+  riskDelta: number;
+  confidence: number;
+  occurredAt: string | null;
+  payload?: Record<string, unknown> | null;
+}
+
+export interface RiskBreakdown {
+  sessionId: string;
+  candidateId: string;
+  candidateName: string;
+  assessmentId: string;
+  assessmentTitle: string;
+  status: string | null;
+  passed?: boolean | null;
+  percentage?: number | null;
+  riskScore: number;
+  riskLevel: 'low' | 'medium' | 'high';
+  integrityScore: number;
+  riskThreshold?: number | null;
+  totalEvents: number;
+  tabSwitchCount: number;
+  lookingAwayCount: number;
+  faceNotDetectedCount: number;
+  flagged: boolean;
+  startedAt?: string | null;
+  submittedAt?: string | null;
+  factors: RiskFactor[];
+  timeline: RiskTimelineEvent[];
+}
+
+export interface ApiEvidence {
+  id: string;
+  sessionId: string;
+  alertId?: string | null;
+  type: 'screenshot' | 'snapshot' | 'video' | 'audio' | 'document';
+  url?: string | null;
+  contentType?: string | null;
+  sizeBytes?: number | null;
+  capturedAt?: string | null;
+  createdAt: string;
+}
+
+export type CodeVerdict = 'clean' | 'review' | 'likely_copy' | 'likely_ai_generated';
+
+export interface CodeAnalysis {
+  language?: string | null;
+  codeLength: number;
+  similarity: {
+    score: number;
+    percent: number;
+    matchedCandidateId?: string | null;
+    matchedCandidateName?: string | null;
+  };
+  ai: { score: number; reasons: string[] };
+  keystroke?: Record<string, number> | null;
+  verdict: CodeVerdict;
+}
+
+export interface CodeIntegrityItem {
+  questionId: string;
+  questionText: string;
+  language?: string | null;
+  answered: boolean;
+  analysis: CodeAnalysis | null;
 }
 
 export interface ApiLiveSession {
@@ -482,7 +589,7 @@ export const assessmentsApi = {
   questions(assessmentId: string) {
     return request<ApiQuestion[]>(`/assessments/${assessmentId}/questions`, { auth: true });
   },
-  addQuestion(assessmentId: string, payload: { text: string; type: string } & Partial<Omit<ApiQuestion, 'text' | 'type'>>) {
+  addQuestion(assessmentId: string, payload: QuestionInput) {
     return request<ApiQuestion>(`/assessments/${assessmentId}/questions`, {
       method: 'POST',
       auth: true,
@@ -509,14 +616,24 @@ export const sessionsApi = {
   get(id: string) {
     return request<ApiSession>(`/sessions/${id}`, { auth: true });
   },
-  start(assessmentId: string) {
-    return request<ApiSession>('/sessions', { method: 'POST', auth: true, body: { assessmentId } });
+  start(assessmentId: string, device?: { fingerprint?: string; info?: Record<string, unknown> }) {
+    return request<ApiSession>('/sessions', {
+      method: 'POST',
+      auth: true,
+      body: { assessmentId, deviceFingerprint: device?.fingerprint, deviceInfo: device?.info },
+    });
   },
-  saveAnswer(id: string, questionId: string, response?: string, selectedLanguage?: string) {
+  saveAnswer(
+    id: string,
+    questionId: string,
+    response?: string,
+    selectedLanguage?: string,
+    keystrokeStats?: Record<string, unknown>,
+  ) {
     return request<{ message: string }>(`/sessions/${id}/answers`, {
       method: 'POST',
       auth: true,
-      body: { questionId, response, selectedLanguage },
+      body: { questionId, response, selectedLanguage, keystrokeStats },
     });
   },
   submit(id: string) {
@@ -535,6 +652,12 @@ export const sessionsApi = {
   alerts(id: string) {
     return request<ApiAlert[]>(`/sessions/${id}/alerts`, { auth: true });
   },
+  riskBreakdown(id: string) {
+    return request<RiskBreakdown>(`/sessions/${id}/risk-breakdown`, { auth: true });
+  },
+  codeIntegrity(id: string) {
+    return request<CodeIntegrityItem[]>(`/sessions/${id}/code-integrity`, { auth: true });
+  },
   live() {
     return request<ApiLiveSession[]>('/sessions/live', { auth: true });
   },
@@ -545,7 +668,15 @@ export const sessionsApi = {
       body: { status },
     });
   },
+  toggleMonitoring(id: string, enabled: boolean) {
+    return request<ApiSession>(`/sessions/${id}/monitoring`, {
+      method: 'POST',
+      auth: true,
+      body: { enabled },
+    });
+  },
 };
+
 
 /* ─── Alerts (recruiter) ────────────────────────────────────────────────────── */
 
@@ -562,6 +693,56 @@ export const alertsApi = {
       auth: true,
       body: { resolutionNote },
     });
+  },
+};
+
+/* ─── Evidence (proctoring media) ───────────────────────────────────────────── */
+
+async function uploadEvidenceRequest(
+  sessionId: string,
+  form: FormData,
+  retried = false,
+): Promise<ApiEvidence> {
+  const res = await fetch(`${API_BASE}/sessions/${sessionId}/evidence`, {
+    method: 'POST',
+    headers: accessToken ? { Authorization: `Bearer ${accessToken}` } : {},
+    body: form,
+  });
+  if (res.status === 401 && !retried && refreshToken) {
+    if (await tryRefresh()) return uploadEvidenceRequest(sessionId, form, true);
+  }
+  if (!res.ok) throw new ApiError('Evidence upload failed', res.status);
+  return res.json();
+}
+
+async function fetchEvidenceBlob(id: string, retried = false): Promise<Blob> {
+  const res = await fetch(`${API_BASE}/evidence/${id}/download?inline=1`, {
+    headers: accessToken ? { Authorization: `Bearer ${accessToken}` } : {},
+  });
+  if (res.status === 401 && !retried && refreshToken) {
+    if (await tryRefresh()) return fetchEvidenceBlob(id, true);
+  }
+  if (!res.ok) throw new ApiError('Failed to load evidence', res.status);
+  return res.blob();
+}
+
+export const evidenceApi = {
+  upload(sessionId: string, blob: Blob, type: ApiEvidence['type'], capturedAt?: string) {
+    const form = new FormData();
+    const ext = blob.type.includes('webm') ? 'webm' : blob.type.includes('mp4') ? 'mp4' : 'bin';
+    form.append('file', blob, `${type}-${Date.now()}.${ext}`);
+    form.append('type', type);
+    if (capturedAt) form.append('capturedAt', capturedAt);
+    return uploadEvidenceRequest(sessionId, form);
+  },
+  list(sessionId: string) {
+    return request<ApiEvidence[]>(`/sessions/${sessionId}/evidence`, { auth: true });
+  },
+  fetchBlob(id: string) {
+    return fetchEvidenceBlob(id);
+  },
+  async objectUrl(id: string): Promise<string> {
+    return URL.createObjectURL(await fetchEvidenceBlob(id));
   },
 };
 
@@ -587,6 +768,87 @@ export const notificationsApi = {
 export const auditApi = {
   list(params?: PageQuery & { action?: string }) {
     return request<Paginated<ApiAuditLog>>(`/audit-logs${qs(params)}`, { auth: true });
+  },
+};
+
+/* ─── Certificates & offer letters ──────────────────────────────────────────── */
+
+export type CredentialType = 'certificate' | 'offer_letter';
+
+export interface ApiCredential {
+  id: string;
+  type: CredentialType;
+  number: string;
+  verificationToken: string;
+  candidateId: string;
+  assessmentId?: string | null;
+  sessionId?: string | null;
+  candidateName: string;
+  title: string;
+  position?: string | null;
+  department?: string | null;
+  integrityScore?: number | null;
+  score?: number | null;
+  percentage?: number | null;
+  body?: string | null;
+  issuedAt: string;
+  revoked: boolean;
+  createdAt: string;
+}
+
+export interface CredentialVerification {
+  valid: boolean;
+  type?: CredentialType;
+  number?: string;
+  candidateName?: string;
+  title?: string;
+  position?: string | null;
+  integrityScore?: number | null;
+  issuedAt?: string | null;
+  revoked: boolean;
+  issuer: string;
+}
+
+async function fetchPdfBlob(id: string, retried = false): Promise<Blob> {
+  const res = await fetch(`${API_BASE}/certificates/${id}/download`, {
+    headers: accessToken ? { Authorization: `Bearer ${accessToken}` } : {},
+  });
+  if (res.status === 401 && !retried && refreshToken) {
+    if (await tryRefresh()) return fetchPdfBlob(id, true);
+  }
+  if (!res.ok) throw new ApiError('Failed to download document', res.status);
+  return res.blob();
+}
+
+export const certificatesApi = {
+  list(params?: PageQuery & { type?: CredentialType; candidateId?: string; assessmentId?: string }) {
+    return request<Paginated<ApiCredential>>(`/certificates${qs(params)}`, { auth: true });
+  },
+  get(id: string) {
+    return request<ApiCredential>(`/certificates/${id}`, { auth: true });
+  },
+  verify(token: string) {
+    return request<CredentialVerification>(`/certificates/verify/${encodeURIComponent(token)}`);
+  },
+  fetchPdf(id: string) {
+    return fetchPdfBlob(id);
+  },
+  async download(id: string, filename: string): Promise<void> {
+    const blob = await fetchPdfBlob(id);
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = filename;
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
+    URL.revokeObjectURL(url);
+  },
+  issue(payload: { sessionId: string; type: CredentialType; position?: string; body?: string }) {
+    return request<ApiCredential>('/certificates', { method: 'POST', auth: true, body: payload });
+  },
+  revoke(id: string, reason?: string) {
+    return request<ApiCredential>(`/certificates/${id}/revoke`, { method: 'POST', auth: true, body: { reason } });
   },
 };
 

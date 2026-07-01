@@ -21,6 +21,7 @@ def create_app(config_name: str | None = None) -> Flask:
     app.config.from_object(config)
 
     _load_keyvault_secrets(app)
+    _validate_production_secrets(app)
     _init_extensions(app)
     _register_jwt_callbacks(app)
     _register_blueprints(app)
@@ -49,6 +50,29 @@ def create_app(config_name: str | None = None) -> Flask:
         )
 
     return app
+
+
+def _validate_production_secrets(app: Flask) -> None:
+    """Refuse to boot a production app with default/empty signing secrets.
+
+    A well-known ``SECRET_KEY``/``JWT_SECRET_KEY`` would let anyone forge session
+    cookies and JWTs, so fail fast rather than start insecurely. Skipped for
+    development and tests.
+    """
+    if app.debug or app.testing:
+        return
+    weak = {None, "", "dev-secret-change-me", "change-me-to-a-long-random-string",
+            "change-me-to-another-long-random-string"}
+    problems = [
+        key for key in ("SECRET_KEY", "JWT_SECRET_KEY")
+        if app.config.get(key) in weak
+    ]
+    if problems:
+        raise RuntimeError(
+            "Refusing to start in production with insecure/default "
+            f"{', '.join(problems)}. Set strong random values via environment "
+            "variables or Azure Key Vault."
+        )
 
 
 def _init_extensions(app: Flask) -> None:

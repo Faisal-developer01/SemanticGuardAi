@@ -38,6 +38,7 @@ redis==5.0.7
 
 # Email & SMS
 Flask-Mail==0.10.0
+sendgrid==6.11.0
 africastalking==1.2.6
 
 # Storage (Azure Blob + S3/MinIO compatible)

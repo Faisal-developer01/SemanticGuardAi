@@ -7,13 +7,14 @@ import { authApi, assessmentsApi, sessionsApi } from '@/lib/api';
 import { mapAssessment, mapSession } from '@/lib/mappers';
 import { useAsync } from '@/lib/useApi';
 import { Button } from '@/components/ui/button';
+import { assessmentAvailability, normalizeUtc } from '@/lib/utils';
 import { BookOpen, Clock, CheckCircle2, TrendingUp, Calendar, Award, ArrowRight } from 'lucide-react';
 import { LineChart, Line, XAxis, YAxis, Tooltip, ResponsiveContainer, CartesianGrid } from 'recharts';
 import { format } from 'date-fns';
 
 function safeDate(value: string, fmt: string): string {
   if (!value) return '—';
-  const d = new Date(value);
+  const d = new Date(normalizeUtc(value));
   return Number.isNaN(d.getTime()) ? '—' : format(d, fmt);
 }
 
@@ -38,7 +39,7 @@ const CandidateDashboard: React.FC = () => {
 
   const upcoming = (assessmentsData?.items ?? [])
     .map(a => mapAssessment(a))
-    .filter(e => e.status === 'upcoming' || e.status === 'active')
+    .filter(e => assessmentAvailability(e) !== 'closed')
     .slice(0, 3);
 
   const recent = completed
@@ -181,7 +182,9 @@ const CandidateDashboard: React.FC = () => {
               <p className="text-muted-foreground text-xs py-4 text-center">No upcoming assessments.</p>
             ) : (
               <div className="space-y-2">
-                {upcoming.map(assessment => (
+                {upcoming.map(assessment => {
+                  const availability = assessmentAvailability(assessment);
+                  return (
                   <div key={assessment.id} className="flex items-center gap-3 p-3 bg-muted/40 hover:bg-accent/50 rounded-lg border border-border transition-colors">
                     <div className="w-8 h-8 rounded-lg bg-primary/10 flex items-center justify-center shrink-0">
                       <BookOpen className="w-4 h-4 text-primary" />
@@ -193,17 +196,18 @@ const CandidateDashboard: React.FC = () => {
                         <span className="flex items-center gap-0.5"><Clock className="w-2.5 h-2.5" /> {assessment.duration}m</span>
                       </div>
                     </div>
-                    {assessment.status === 'active' ? (
+                    {availability === 'open' ? (
                       <Button size="sm" asChild className="rounded-md h-7 text-xs shrink-0">
                         <Link to={`/candidate/assessment/${assessment.id}`}>Join</Link>
                       </Button>
                     ) : (
                       <span className="text-[10px] font-medium text-muted-foreground bg-muted px-2 py-0.5 rounded border border-border capitalize shrink-0">
-                        {assessment.status}
+                        {availability === 'locked' ? 'Not started' : 'Closed'}
                       </span>
                     )}
                   </div>
-                ))}
+                  );
+                })}
               </div>
             )}
           </div>

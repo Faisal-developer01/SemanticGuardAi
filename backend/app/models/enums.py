@@ -32,16 +32,15 @@ class QuestionType(str, enum.Enum):
     coding = "coding"
 
 
+class QuestionDifficulty(str, enum.Enum):
+    easy = "easy"
+    medium = "medium"
+    hard = "hard"
+
+
 class CodingLanguage(str, enum.Enum):
     javascript = "javascript"
-    typescript = "typescript"
-    python = "python"
     java = "java"
-    r = "r"
-    cpp = "cpp"
-    csharp = "csharp"
-    go = "go"
-    sql = "sql"
 
 
 class SessionStatus(str, enum.Enum):
@@ -68,6 +67,12 @@ class AlertType(str, enum.Enum):
     identity_mismatch = "identity_mismatch"
     browser_unfocused = "browser_unfocused"
     object_detected = "object_detected"
+    # ── Secure Browser Lockdown events ──────────────────────────────────────
+    devtools_open = "devtools_open"
+    keyboard_shortcut = "keyboard_shortcut"
+    clipboard_attempt = "clipboard_attempt"
+    multiple_tabs = "multiple_tabs"
+
 
 
 class AlertSeverity(str, enum.Enum):
@@ -90,6 +95,11 @@ class NotificationType(str, enum.Enum):
     warning = "warning"
     alert = "alert"
     success = "success"
+
+
+class CredentialType(str, enum.Enum):
+    certificate = "certificate"
+    offer_letter = "offer_letter"
 
 
 class AuditStatus(str, enum.Enum):

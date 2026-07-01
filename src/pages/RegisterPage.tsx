@@ -246,19 +246,6 @@ const RegisterPage: React.FC = () => {
                   {errors.name && <p className="text-destructive text-xs">{errors.name}</p>}
                 </div>
 
-                <div className="space-y-1.5">
-                  <Label htmlFor="role" className="text-sm font-normal">I want to register as a</Label>
-                  <select
-                    id="role"
-                    value={form.role}
-                    onChange={e => handleChange('role', e.target.value)}
-                    className="flex h-9 w-full rounded-md border border-input bg-background px-3 py-1 text-sm text-foreground shadow-sm transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring disabled:cursor-not-allowed disabled:opacity-50"
-                  >
-                    <option value="candidate">Candidate</option>
-                    <option value="recruiter">Recruiter</option>
-                  </select>
-                </div>
-
                 {form.role === 'candidate' ? (
                   <div className="grid grid-cols-2 gap-3">
                     <div className="space-y-1.5">
@@ -301,10 +288,10 @@ const RegisterPage: React.FC = () => {
                 )}
 
                 <div className="space-y-1.5">
-                  <Label htmlFor="reg-email" className="text-sm font-normal">Work Email</Label>
+                  <Label htmlFor="reg-email" className="text-sm font-normal">Email</Label>
                   <div className="relative">
                     <Mail className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
-                    <Input id="reg-email" type="email" value={form.email} onChange={e => handleChange('email', e.target.value)} placeholder="you@semanticservices.rw" className="pl-9" />
+                    <Input id="reg-email" type="email" value={form.email} onChange={e => handleChange('email', e.target.value)} placeholder="you@gmail.com" className="pl-9" />
                   </div>
                   {errors.email && <p className="text-destructive text-xs">{errors.email}</p>}
                 </div>

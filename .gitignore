@@ -12,6 +12,13 @@ dist
 dist-ssr
 *.local
 
+# Deployment build artifacts
+deploy_pkg/
+deploy.zip
+
+# Local/instance databases
+backend/instance/
+
 # Editor directories and files
 .vscode/*
 !.vscode/extensions.json

@@ -1,0 +1,42 @@
+flowchart TD
+    subgraph Client[Presentation Layer - React + TypeScript]
+        C1[Candidate Assessment UI]
+        C2[Recruiter Monitoring Dashboard]
+        C3[Administrator Console]
+    end
+
+    subgraph App[Application Layer - Flask REST API]
+        A1[Authentication & RBAC / MFA]
+        A2[Assessment & Session Orchestration]
+        A3[Risk-Scoring Engine]
+        A4[Notification Service]
+        A5[Audit & Reporting]
+    end
+
+    subgraph AI[AI Monitoring Layer]
+        M1[Face Recognition]
+        M2[Object Detection]
+        M3[Eye-Gaze Tracking]
+        M4[Head-Pose Estimation]
+        M5[Browser-Activity Monitor]
+    end
+
+    subgraph Data[Data Layer - PostgreSQL]
+        D1[(Users & Profiles)]
+        D2[(Assessments & Questions)]
+        D3[(Sessions & Answers)]
+        D4[(Integrity Events & Evidence)]
+        D5[(Notifications & Audit Logs)]
+    end
+
+    subgraph Ext[Integration Layer]
+        E1[Email Gateway / SMTP]
+        E2[SMS Gateway / Africa's Talking]
+    end
+
+    Client -->|HTTPS / REST| App
+    Client -->|Webcam & browser events| AI
+    AI -->|Integrity events| App
+    App --> Data
+    A3 --> A4
+    A4 --> Ext

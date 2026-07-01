@@ -1,16 +1,19 @@
 #!/usr/bin/env python
-"""Setup PostgreSQL database for SemanticGuard AI"""
+"""Setup PostgreSQL database for SemanticGuard AI (local development helper)."""
+import os
+
 import psycopg2
 from psycopg2 import sql
 
 try:
-    # Connect to default postgres database
+    # Connect to the default postgres database. Credentials come from the
+    # environment so no password is hardcoded in source control.
     conn = psycopg2.connect(
-        host='localhost',
-        port=5432,
-        user='postgres',
-        password='faisal',
-        database='postgres'
+        host=os.getenv("POSTGRES_HOST", "localhost"),
+        port=int(os.getenv("POSTGRES_PORT", "5432")),
+        user=os.getenv("POSTGRES_USER", "postgres"),
+        password=os.getenv("POSTGRES_PASSWORD", "postgres"),
+        database="postgres",
     )
     conn.autocommit = True
     cur = conn.cursor()

@@ -1,7 +1,20 @@
-import React, { useMemo, useRef, useState } from 'react';
-import { Play, RotateCcw, Code2, CheckCircle2, XCircle, Loader2, Terminal, Lock, Download } from 'lucide-react';
+import React, { useRef, useState } from 'react';
+import Editor, { type OnMount } from '@monaco-editor/react';
+import { Play, RotateCcw, Code2, CheckCircle2, XCircle, Loader2, Terminal, Lock, Download, Maximize2, Minimize2, Wand2 } from 'lucide-react';
 import type { CodingLanguage, CodingTestCase } from '@/types/types';
 import { isRunnable, isRuntimeReady, needsDownload, ensureRuntime, runTestCases, type RunResult } from '@/lib/codeRunner';
+import { useTheme } from '@/contexts/ThemeContext';
+
+export interface KeystrokeStats {
+  keystrokes: number;
+  chars: number;
+  backspaces: number;
+  pasteCount: number;
+  pastedChars: number;
+  durationMs: number;
+  avgIntervalMs: number;
+  codeLength: number;
+}
 
 interface CodeEditorProps {
   languages: CodingLanguage[];
@@ -10,36 +23,78 @@ interface CodeEditorProps {
   starterCodes?: Partial<Record<CodingLanguage, string>>;
   testCases?: CodingTestCase[];
   onChange: (code: string) => void;
+  /** Reports typing biometrics (used for AI-generated-code / paste detection). */
+  onTelemetry?: (stats: KeystrokeStats) => void;
 }
 
 const LANG_LABEL: Record<CodingLanguage, string> = {
   javascript: 'JavaScript',
-  typescript: 'TypeScript',
-  python: 'Python',
   java: 'Java',
-  r: 'R',
-  cpp: 'C++',
-  csharp: 'C#',
-  go: 'Go',
-  sql: 'SQL',
 };
 
-// Indentation unit per language. Python is whitespace-sensitive and its starter
-// code uses 4 spaces, so the editor must match to avoid IndentationError.
-const indentUnit = (lang: CodingLanguage): string => (lang === 'python' ? '    ' : '  ');
+// Map our language keys to Monaco's language identifiers.
+const MONACO_LANG: Record<CodingLanguage, string> = {
+  javascript: 'javascript',
+  java: 'java',
+};
 
 const callLabel = (tc: CodingTestCase, entry: string): string =>
   tc.display ?? `${entry}(${tc.args.map(a => JSON.stringify(a)).join(', ')})`;
 
 /**
  * In-browser code space for coding questions.
- * JavaScript runs natively; Python runs on Pyodide and R on WebR (both WASM,
- * loaded on first use). Languages without a browser runtime are captured for
- * grading after submission.
+ * JavaScript runs natively in the browser for instant feedback. Java has no
+ * browser runtime, so solutions are captured and compiled/graded server-side
+ * after submission.
  */
-export const CodeEditor: React.FC<CodeEditorProps> = ({ languages, entryPoint, value, starterCodes, testCases, onChange }) => {
-  const taRef = useRef<HTMLTextAreaElement | null>(null);
-  const gutterRef = useRef<HTMLDivElement | null>(null);
+export const CodeEditor: React.FC<CodeEditorProps> = ({ languages, entryPoint, value, starterCodes, testCases, onChange, onTelemetry }) => {
+  const { theme } = useTheme();
+  const editorRef = useRef<Parameters<OnMount>[0] | null>(null);
+  const [fullscreen, setFullscreen] = useState(false);
+  // ── Typing biometrics (per editor instance / question) ──
+  const telemetryRef = useRef({
+    keystrokes: 0,
+    chars: 0,
+    backspaces: 0,
+    pasteCount: 0,
+    pastedChars: 0,
+    firstTs: 0,
+    lastTs: 0,
+    intervalSum: 0,
+    intervalCount: 0,
+  });
+
+  const reportTelemetry = (codeLength: number) => {
+    if (!onTelemetry) return;
+    const t = telemetryRef.current;
+    onTelemetry({
+      keystrokes: t.keystrokes,
+      chars: t.chars,
+      backspaces: t.backspaces,
+      pasteCount: t.pasteCount,
+      pastedChars: t.pastedChars,
+      durationMs: t.firstTs ? Math.max(0, t.lastTs - t.firstTs) : 0,
+      avgIntervalMs: t.intervalCount ? Math.round(t.intervalSum / t.intervalCount) : 0,
+      codeLength,
+    });
+  };
+
+  const recordKey = (key: string) => {
+    const t = telemetryRef.current;
+    const now = Date.now();
+    if (t.firstTs === 0) t.firstTs = now;
+    if (t.lastTs !== 0) {
+      const delta = now - t.lastTs;
+      if (delta > 0 && delta < 5000) {
+        t.intervalSum += delta;
+        t.intervalCount += 1;
+      }
+    }
+    t.lastTs = now;
+    t.keystrokes += 1;
+    if (key === 'Backspace' || key === 'Delete') t.backspaces += 1;
+    else if (key.length === 1) t.chars += 1;
+  };
   const [lang, setLang] = useState<CodingLanguage>(languages[0]);
   const [codeByLang, setCodeByLang] = useState<Record<string, string>>(() => {
     const seed: Record<string, string> = {};
@@ -53,12 +108,30 @@ export const CodeEditor: React.FC<CodeEditorProps> = ({ languages, entryPoint, v
   const [consoleOut, setConsoleOut] = useState<string>('');
 
   const code = codeByLang[lang] ?? '';
-  const lines = useMemo(() => code.split('\n').length, [code]);
   const runnable = isRunnable(lang);
 
   const setCode = (next: string) => {
     setCodeByLang(m => ({ ...m, [lang]: next }));
     onChange(next);
+    reportTelemetry(next.length);
+  };
+
+  const handleMount: OnMount = (editor) => {
+    editorRef.current = editor;
+    // Keystroke telemetry (typing rhythm) feeds AI-generated-code detection.
+    editor.onKeyDown((e) => recordKey(e.browserEvent.key));
+    // Paste telemetry (copy-paste / AI-paste detection).
+    editor.onDidPaste((e) => {
+      const model = editor.getModel();
+      const pastedLen = model ? model.getValueInRange(e.range).length : 0;
+      const t = telemetryRef.current;
+      t.pasteCount += 1;
+      t.pastedChars += pastedLen;
+    });
+  };
+
+  const formatCode = () => {
+    editorRef.current?.getAction('editor.action.formatDocument')?.run();
   };
 
   const switchLang = (l: CodingLanguage) => {
@@ -66,47 +139,6 @@ export const CodeEditor: React.FC<CodeEditorProps> = ({ languages, entryPoint, v
     setResults({});
     setConsoleOut('');
     onChange(codeByLang[l] ?? starterCodes?.[l] ?? '');
-  };
-
-  const syncScroll = () => {
-    if (gutterRef.current && taRef.current) {
-      gutterRef.current.scrollTop = taRef.current.scrollTop;
-    }
-  };
-
-  const handleKeyDown = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
-    const ta = e.currentTarget;
-    const start = ta.selectionStart;
-    const end = ta.selectionEnd;
-    const unit = indentUnit(lang);
-
-    if (e.key === 'Tab') {
-      e.preventDefault();
-      const next = code.slice(0, start) + unit + code.slice(end);
-      setCode(next);
-      requestAnimationFrame(() => {
-        ta.selectionStart = ta.selectionEnd = start + unit.length;
-      });
-      return;
-    }
-
-    if (e.key === 'Enter') {
-      // Auto-indent: inherit the current line's leading whitespace, and add one
-      // extra level after a block opener (':' for Python, '{' otherwise).
-      const lineStart = code.lastIndexOf('\n', start - 1) + 1;
-      const currentLine = code.slice(lineStart, start);
-      const leading = currentLine.match(/^[ \t]*/)?.[0] ?? '';
-      const opensBlock = lang === 'python'
-        ? /:\s*$/.test(currentLine)
-        : /[{([]\s*$/.test(currentLine);
-      const insert = '\n' + leading + (opensBlock ? unit : '');
-      e.preventDefault();
-      const next = code.slice(0, start) + insert + code.slice(end);
-      setCode(next);
-      requestAnimationFrame(() => {
-        ta.selectionStart = ta.selectionEnd = start + insert.length;
-      });
-    }
   };
 
   const reset = () => {
@@ -174,7 +206,13 @@ export const CodeEditor: React.FC<CodeEditorProps> = ({ languages, entryPoint, v
   const hiddenCount = (testCases?.length ?? 0) - visibleTests.length;
 
   return (
-    <div className="rounded-md border border-border overflow-hidden bg-card">
+    <div
+      className={
+        fullscreen
+          ? 'fixed inset-0 z-50 flex flex-col bg-card'
+          : 'rounded-md border border-border overflow-hidden bg-card'
+      }
+    >
       {/* Toolbar */}
       <div className="flex items-center gap-2 px-3 py-2 border-b border-border bg-muted/40">
         <Code2 className="w-4 h-4 text-primary shrink-0" />
@@ -205,6 +243,23 @@ export const CodeEditor: React.FC<CodeEditorProps> = ({ languages, entryPoint, v
         <div className="ml-auto flex items-center gap-1.5">
           <button
             type="button"
+            onClick={formatCode}
+            disabled={running}
+            title="Format code"
+            className="inline-flex items-center gap-1 text-xs text-muted-foreground hover:text-foreground px-2 py-1 rounded hover:bg-muted transition-colors disabled:opacity-50"
+          >
+            <Wand2 className="w-3.5 h-3.5" /> <span className="hidden sm:inline">Format</span>
+          </button>
+          <button
+            type="button"
+            onClick={() => setFullscreen(f => !f)}
+            title={fullscreen ? 'Exit fullscreen' : 'Fullscreen'}
+            className="inline-flex items-center gap-1 text-xs text-muted-foreground hover:text-foreground px-2 py-1 rounded hover:bg-muted transition-colors"
+          >
+            {fullscreen ? <Minimize2 className="w-3.5 h-3.5" /> : <Maximize2 className="w-3.5 h-3.5" />}
+          </button>
+          <button
+            type="button"
             onClick={reset}
             disabled={running}
             className="inline-flex items-center gap-1 text-xs text-muted-foreground hover:text-foreground px-2 py-1 rounded hover:bg-muted transition-colors disabled:opacity-50"
@@ -223,26 +278,37 @@ export const CodeEditor: React.FC<CodeEditorProps> = ({ languages, entryPoint, v
         </div>
       </div>
 
-      {/* Editor: line-number gutter + textarea */}
-      <div className="flex font-mono text-[13px] leading-6 max-h-[420px]">
-        <div
-          ref={gutterRef}
-          aria-hidden
-          className="select-none text-right text-muted-foreground/60 bg-muted/30 py-3 px-2 overflow-hidden border-r border-border"
-        >
-          {Array.from({ length: lines }, (_, i) => (
-            <div key={i}>{i + 1}</div>
-          ))}
-        </div>
-        <textarea
-          ref={taRef}
+      {/* Monaco editor (VS Code engine): syntax highlighting, IntelliSense,
+          undo/redo, formatting, theming. Loads on demand. */}
+      <div className={fullscreen ? 'flex-1 min-h-0' : 'h-[340px]'}>
+        <Editor
+          path={`solution-${lang}`}
+          language={MONACO_LANG[lang]}
           value={code}
-          spellCheck={false}
-          onChange={e => setCode(e.target.value)}
-          onScroll={syncScroll}
-          onKeyDown={handleKeyDown}
-          placeholder="Write your solution here…"
-          className="flex-1 resize-y py-3 px-3 bg-background text-foreground outline-none min-h-[220px] max-h-[420px] whitespace-pre overflow-auto"
+          theme={theme === 'dark' ? 'vs-dark' : 'light'}
+          onChange={(v) => setCode(v ?? '')}
+          onMount={handleMount}
+          loading={
+            <div className="h-full flex items-center justify-center text-muted-foreground text-sm">
+              <Loader2 className="w-5 h-5 animate-spin mr-2" /> Loading editor…
+            </div>
+          }
+          options={{
+            fontSize: 13,
+            minimap: { enabled: false },
+            lineNumbers: 'on',
+            scrollBeyondLastLine: false,
+            automaticLayout: true,
+            tabSize: 2,
+            insertSpaces: true,
+            formatOnPaste: true,
+            wordWrap: 'off',
+            renderLineHighlight: 'line',
+            fixedOverflowWidgets: true,
+            smoothScrolling: true,
+            padding: { top: 10, bottom: 10 },
+            scrollbar: { alwaysConsumeMouseWheel: false },
+          }}
         />
       </div>
 

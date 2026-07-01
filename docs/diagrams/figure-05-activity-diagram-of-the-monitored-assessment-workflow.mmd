@@ -1,0 +1,23 @@
+flowchart TD
+    Start([Start]) --> Login[Candidate authenticates with MFA]
+    Login --> Verify{Identity verified?}
+    Verify -- No --> Deny[Deny entry and alert recruiter] --> End([End])
+    Verify -- Yes --> Begin[Begin assessment]
+    Begin --> Fork{{Continuous monitoring}}
+    Fork --> F1[Face / identity check]
+    Fork --> F2[Phone / object detection]
+    Fork --> F3[Gaze & head-pose tracking]
+    Fork --> F4[Browser-activity monitoring]
+    F1 --> Join{{Aggregate integrity events}}
+    F2 --> Join
+    F3 --> Join
+    F4 --> Join
+    Join --> Score[Update weighted risk score]
+    Score --> Check{Risk >= threshold?}
+    Check -- Yes --> Alert[Raise proportionate alert<br/>in-app / email / SMS]
+    Check -- No --> Continue[Continue assessment]
+    Alert --> Continue
+    Continue --> Done{Assessment submitted?}
+    Done -- No --> Fork
+    Done -- Yes --> Final[Compute final risk score<br/>and generate report]
+    Final --> End

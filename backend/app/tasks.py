@@ -40,3 +40,11 @@ def send_notification_email(self, user_id: str, subject: str, message: str) -> b
         return email_service.send_notification_email(user_id, subject, message)
     except Exception as exc:  # noqa: BLE001
         raise self.retry(exc=exc)
+
+
+@celery.task(name="email.send_credential", bind=True, max_retries=3, default_retry_delay=30)
+def send_credential_email(self, user_id: str, credential_ids: list[str]) -> bool:
+    try:
+        return email_service.send_credential_email(user_id, credential_ids)
+    except Exception as exc:  # noqa: BLE001
+        raise self.retry(exc=exc)

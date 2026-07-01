@@ -1,17 +1,18 @@
-import React from 'react';
+import React, { useState } from 'react';
 import { AppLayout } from '@/components/layouts/AppLayout';
 import { assessmentsApi, alertsApi, sessionsApi } from '@/lib/api';
 import { mapSession } from '@/lib/mappers';
 import { useAsync } from '@/lib/useApi';
 import { Button } from '@/components/ui/button';
 import { toast } from 'sonner';
-import { Download } from 'lucide-react';
+import { Download, Loader2 } from 'lucide-react';
 import { format, subMonths, isSameMonth } from 'date-fns';
 import {
   BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, Legend,
   LineChart, Line, AreaChart, Area,
   PieChart, Pie, Cell
 } from 'recharts';
+import { generateAnalyticsReport, type AnalyticsReportData } from '@/lib/reportPdf';
 
 const RISK_COLORS: Record<string, string> = { 'Low Risk': '#22c55e', 'Medium Risk': '#eab308', 'High Risk': '#f97316' };
 
@@ -63,6 +64,36 @@ const AnalyticsDashboard: React.FC = () => {
     color: RISK_COLORS[level === 'low' ? 'Low Risk' : level === 'medium' ? 'Medium Risk' : 'High Risk'],
   })).filter(d => d.value > 0);
 
+  const [downloading, setDownloading] = useState(false);
+  const handleExport = async () => {
+    setDownloading(true);
+    try {
+      const data: AnalyticsReportData = {
+        kpis: [
+          { label: 'Total Assessments Conducted', value: `${totalAssessments}` },
+          { label: 'Avg Integrity Score', value: `${avgIntegrity}` },
+          { label: 'Integrity Incidents', value: `${totalAlerts}` },
+          { label: 'Flagged Sessions', value: `${flaggedSessions}` },
+        ],
+        monthly: monthlyAssessmentStats.map(m => ({
+          month: m.month, assessments: m.assessments, incidents: m.incidents, candidates: m.candidates,
+        })),
+        riskDistribution: riskDistribution.map(r => ({ name: r.name, value: r.value })),
+        performance: performanceTrend.map(p => ({
+          month: p.month, avgScore: p.avgScore, avgIntegrity: p.avgIntegrity,
+        })),
+      };
+      const stamp = format(new Date(), 'yyyyMMdd-HHmm');
+      await generateAnalyticsReport(data, `SemanticGuard-Analytics-Report-${stamp}.pdf`);
+      toast.success('Analytics report downloaded.');
+    } catch (err) {
+      console.error(err);
+      toast.error('Failed to generate the analytics report.');
+    } finally {
+      setDownloading(false);
+    }
+  };
+
   return (
     <AppLayout>
       <div className="max-w-7xl space-y-6">
@@ -71,8 +102,10 @@ const AnalyticsDashboard: React.FC = () => {
             <h1 className="text-xl font-bold text-balance">Analytics Dashboard</h1>
             <p className="text-muted-foreground text-sm mt-0.5">Organization-wide recruitment integrity analytics</p>
           </div>
-          <Button size="sm" variant="outline" onClick={() => toast.success('Analytics report exported')}>
-            <Download className="w-4 h-4 mr-2" /> Export Report
+          <Button size="sm" onClick={handleExport} disabled={downloading}>
+            {downloading
+              ? <><Loader2 className="w-4 h-4 mr-2 animate-spin" /> Preparing…</>
+              : <><Download className="w-4 h-4 mr-2" /> Export Report</>}
           </Button>
         </div>
 

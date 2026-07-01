@@ -143,5 +143,20 @@ class EmailVerifySchema(Schema):
     token = fields.Str(required=True)
 
 
+class OtpVerifySchema(Schema):
+    class Meta:
+        unknown = EXCLUDE
+
+    email = fields.Email(required=True)
+    otp = fields.Str(required=True, validate=validate.Regexp(r"^\d{6}$", error="OTP must be 6 digits"))
+
+
+class OtpResendSchema(Schema):
+    class Meta:
+        unknown = EXCLUDE
+
+    email = fields.Email(required=True)
+
+
 user_schema = UserSchema()
 users_schema = UserSchema(many=True)

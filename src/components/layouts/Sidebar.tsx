@@ -8,7 +8,7 @@ import {
   LayoutDashboard, Users, BookOpen, Monitor, Shield, BarChart3,
   ClipboardList, Settings, LogOut, ChevronLeft, ChevronRight,
   FileText, PlusCircle, List, Eye, Bell, AlertTriangle, User,
-  UserCheck, History, Camera
+  UserCheck, History, Camera, Award
 } from 'lucide-react';
 
 interface NavItem { label: string; path: string; icon: React.ElementType }
@@ -18,6 +18,7 @@ const navByRole: Record<UserRole, NavItem[]> = {
     { label: 'Dashboard',          path: '/candidate/dashboard',  icon: LayoutDashboard },
     { label: 'Take Assessment',    path: '/candidate/assessment', icon: BookOpen },
     { label: 'Assessment History', path: '/candidate/history',    icon: History },
+    { label: 'Certificates',       path: '/candidate/certificates', icon: Award },
     { label: 'Profile',            path: '/candidate/profile',    icon: User },
   ],
   recruiter: [

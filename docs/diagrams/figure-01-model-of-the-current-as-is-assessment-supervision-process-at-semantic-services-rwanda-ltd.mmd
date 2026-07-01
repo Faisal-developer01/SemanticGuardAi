@@ -1,0 +1,20 @@
+flowchart TD
+    A([Candidate scheduled for assessment]) --> B[Staff performs one-time identity check<br/>photo and ID document]
+    B --> C{Identity accepted?}
+    C -- No --> D[Candidate refused / rescheduled]
+    C -- Yes --> E[Assessment begins]
+    E --> F[Supervisor observes many webcam feeds<br/>attention divided / intermittent]
+    E --> G[Session recorded for later review]
+    F --> H{Overt suspicious<br/>behaviour seen?}
+    H -- No --> I[Assessment continues unmonitored<br/>subtle misconduct may go undetected]
+    H -- Yes --> J[Supervisor writes informal note<br/>no standard rubric]
+    I --> K([Assessment ends])
+    J --> K
+    G --> K
+    K --> L[Recording reviewed only if<br/>misconduct suspected]
+    L --> M{Misconduct confirmed?}
+    M -- Uncertain --> N[Subjective judgment<br/>inconsistent across supervisors]
+    M -- Yes --> O[Result flagged / queried / invalidated]
+    N --> P[Ad hoc email or call to candidate / client<br/>weak, non-timestamped evidence]
+    O --> P
+    P --> Q([Outcome recorded manually])

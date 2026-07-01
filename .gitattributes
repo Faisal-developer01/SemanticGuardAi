@@ -1,0 +1,4 @@
+# Keep shell scripts LF so they run on Linux (App Service / CI runners)
+*.sh text eol=lf
+docker-entrypoint.sh text eol=lf
+startup.sh text eol=lf

@@ -1,0 +1,47 @@
+{
+  "theme": "base",
+  "themeVariables": {
+    "background": "#ffffff",
+    "primaryColor": "#ffffff",
+    "primaryBorderColor": "#000000",
+    "primaryTextColor": "#000000",
+    "secondaryColor": "#ffffff",
+    "secondaryBorderColor": "#000000",
+    "secondaryTextColor": "#000000",
+    "tertiaryColor": "#ffffff",
+    "tertiaryBorderColor": "#000000",
+    "tertiaryTextColor": "#000000",
+    "lineColor": "#000000",
+    "textColor": "#000000",
+    "mainBkg": "#ffffff",
+    "nodeBorder": "#000000",
+    "clusterBkg": "#ffffff",
+    "clusterBorder": "#000000",
+    "edgeLabelBackground": "#ffffff",
+    "labelTextColor": "#000000",
+    "titleColor": "#000000",
+    "actorBkg": "#ffffff",
+    "actorBorder": "#000000",
+    "actorTextColor": "#000000",
+    "activationBkgColor": "#ffffff",
+    "activationBorderColor": "#000000",
+    "signalColor": "#000000",
+    "signalTextColor": "#000000",
+    "noteBkgColor": "#ffffff",
+    "noteTextColor": "#000000",
+    "noteBorderColor": "#000000",
+    "fontFamily": "Times New Roman, serif"
+  },
+  "themeCSS": "\n        svg { background: #ffffff !important; }\n        text, tspan, .label, .label span, .nodeLabel, .edgeLabel, .actor > text {\n            fill: #000000 !important;\n            color: #000000 !important;\n        }\n        .node rect, .node circle, .node ellipse, .node polygon, .node path,\n        .cluster rect, .actor, .entityBox, .classBox, .er.entityBox {\n            fill: #ffffff !important;\n            stroke: #000000 !important;\n        }\n        .edgePath .path, .flowchart-link, .messageLine0, .messageLine1,\n        .relation, .loopLine, .classGroup line, .er.relationshipLine {\n            stroke: #000000 !important;\n        }\n        marker path, marker polygon {\n            fill: #000000 !important;\n            stroke: #000000 !important;\n        }\n        .note, .loopText, .edgeLabel rect, .labelBkg {\n            fill: #ffffff !important;\n            stroke: #000000 !important;\n        }\n    ",
+  "flowchart": {
+    "htmlLabels": false,
+    "curve": "linear"
+  },
+  "sequence": {
+    "mirrorActors": false,
+    "showSequenceNumbers": false
+  },
+  "er": {
+    "layoutDirection": "TB"
+  }
+}

@@ -1,0 +1,21 @@
+flowchart TD
+    User([Candidate / Recruiter / Admin Browser])
+    User -->|HTTPS| FD[Azure Front Door / Application Gateway<br/>TLS termination + WAF]
+
+    subgraph Azure[Microsoft Azure]
+        FD --> SWA[Static Web App / App Service<br/>React client]
+        FD --> API[App Service / Container Apps<br/>Flask REST API]
+        API --> Workers[Container Apps<br/>Celery AI Workers]
+        API --> DB[(Azure Database for PostgreSQL)]
+        Workers --> DB
+        API --> Redis[(Azure Cache for Redis)]
+        Workers --> Redis
+        Workers --> Blob[(Azure Blob Storage<br/>evidence & media)]
+        API --> Blob
+        API --> KV[Azure Key Vault<br/>secrets & keys]
+        API --> Insights[Application Insights / Monitor]
+        Workers --> Insights
+    end
+
+    API -->|SMS| AT[Africa's Talking Gateway]
+    API -->|Email| SMTP[Email / SMTP Service]

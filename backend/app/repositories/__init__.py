@@ -12,6 +12,7 @@ from app.models import (
     AssessmentSession,
     AuditLog,
     CandidateProfile,
+    Credential,
     Evidence,
     IntegrityEvent,
     Notification,
@@ -175,6 +176,23 @@ class AuditLogRepository(BaseRepository[AuditLog]):
     search_fields = ("action", "resource", "user_name", "details")
 
 
+class CredentialRepository(BaseRepository[Credential]):
+    model = Credential
+    search_fields = ("number", "candidate_name", "title", "position")
+
+    def for_candidate(self, candidate_id):
+        return self.base_query().filter(Credential.candidate_id == candidate_id)
+
+    def get_by_number(self, number: str) -> Credential | None:
+        return self.find_one(number=number)
+
+    def get_by_token(self, token: str) -> Credential | None:
+        return self.find_one(verification_token=token)
+
+    def find_issued(self, session_id, credential_type) -> Credential | None:
+        return self.find_one(session_id=session_id, type=credential_type)
+
+
 class SystemSettingRepository(BaseRepository[SystemSetting]):
     model = SystemSetting
 
@@ -223,5 +241,6 @@ alerts = AlertRepository()
 evidence = EvidenceRepository()
 notifications = NotificationRepository()
 audit_logs = AuditLogRepository()
+credentials = CredentialRepository()
 system_settings = SystemSettingRepository()
 token_blocklist = TokenBlocklistRepository()

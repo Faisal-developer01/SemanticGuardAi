@@ -8,9 +8,10 @@ from app.models.enums import (
     AlertType,
     AssessmentStatus,
     CodingLanguage,
+    QuestionDifficulty,
     QuestionType,
 )
-from app.schemas.common import CamelCaseSchema
+from app.schemas.common import CamelCaseSchema, UTCDateTime
 
 
 # ─── Assessment ──────────────────────────────────────────────────────────────
@@ -22,8 +23,8 @@ class AssessmentSchema(CamelCaseSchema):
     position = fields.Str(allow_none=True)
     recruiter_id = fields.Str(dump_only=True)
     duration_minutes = fields.Int(load_default=60, validate=validate.Range(min=1, max=600))
-    start_time = fields.DateTime(allow_none=True)
-    end_time = fields.DateTime(allow_none=True)
+    start_time = UTCDateTime(allow_none=True)
+    end_time = UTCDateTime(allow_none=True)
     status = fields.Function(lambda o: o.status.value if o.status else None, dump_only=True)
     risk_threshold = fields.Float(load_default=60.0)
     pass_mark = fields.Float(load_default=50.0)
@@ -35,7 +36,7 @@ class AssessmentSchema(CamelCaseSchema):
     monitor_audio_detection = fields.Bool(load_default=False)
     monitor_suspicious_movement = fields.Bool(load_default=True)
     total_questions = fields.Int(dump_only=True)
-    created_at = fields.DateTime(dump_only=True)
+    created_at = UTCDateTime(dump_only=True)
 
 
 class AssessmentStatusSchema(Schema):
@@ -63,7 +64,13 @@ class QuestionSchema(CamelCaseSchema):
     type = fields.Str(required=True, validate=validate.OneOf([t.value for t in QuestionType]))
     marks = fields.Float(load_default=1.0)
     order = fields.Int(load_default=0)
-    options = fields.List(fields.Str(), allow_none=True)
+    difficulty = fields.Str(
+        load_default="medium", validate=validate.OneOf([d.value for d in QuestionDifficulty])
+    )
+    required = fields.Bool(load_default=True)
+    # Normalized options: emitted from the question_options table (falling back
+    # to legacy JSON options) and accepted as a list of objects on write.
+    options = fields.Method("dump_options", deserialize="load_options", allow_none=True)
     # correct_answer is load-only so it is never leaked to candidates
     correct_answer = fields.Str(allow_none=True, load_only=True)
     language = fields.Str(allow_none=True, validate=validate.OneOf([c.value for c in CodingLanguage]))
@@ -73,6 +80,40 @@ class QuestionSchema(CamelCaseSchema):
     starter_codes = fields.Dict(allow_none=True)
     test_cases = fields.Nested(TestCaseSchema, many=True, allow_none=True)
 
+    def dump_options(self, obj):
+        rows = getattr(obj, "option_rows", None)
+        if rows:
+            return [
+                {
+                    "id": str(o.id),
+                    "text": o.text,
+                    "isCorrect": bool(o.is_correct),
+                    "explanation": o.explanation,
+                    "order": o.order,
+                }
+                for o in rows
+            ]
+        legacy = getattr(obj, "options", None)
+        if legacy:
+            return [{"text": str(s)} for s in legacy]
+        return None
+
+    def load_options(self, value):
+        if not isinstance(value, list):
+            return []
+        parsed = []
+        for i, o in enumerate(value):
+            if isinstance(o, str):
+                parsed.append({"text": o, "is_correct": False, "explanation": None, "order": i})
+            elif isinstance(o, dict):
+                parsed.append({
+                    "text": o.get("text", ""),
+                    "is_correct": bool(o.get("isCorrect", o.get("is_correct", False))),
+                    "explanation": o.get("explanation"),
+                    "order": o.get("order", i),
+                })
+        return parsed
+
 
 class QuestionPublicSchema(QuestionSchema):
     """Variant served to candidates — strips answers & hidden test cases."""
@@ -81,8 +122,14 @@ class QuestionPublicSchema(QuestionSchema):
 
     def dump(self, obj, **kwargs):  # type: ignore[override]
         data = super().dump(obj, **kwargs)
-        if isinstance(data, dict) and data.get("testCases"):
-            data["testCases"] = [tc for tc in data["testCases"] if not tc.get("hidden")]
+        if isinstance(data, dict):
+            if data.get("testCases"):
+                data["testCases"] = [tc for tc in data["testCases"] if not tc.get("hidden")]
+            if data.get("options"):
+                # Never reveal which option is correct (or its explanation) to candidates.
+                data["options"] = [
+                    {"id": o.get("id"), "text": o.get("text")} for o in data["options"]
+                ]
         return data
 
 
@@ -95,19 +142,33 @@ class AnswerSubmitSchema(Schema):
     question_id = fields.Str(required=True, data_key="questionId")
     response = fields.Str(allow_none=True)
     selected_language = fields.Str(allow_none=True, data_key="selectedLanguage")
+    keystroke_stats = fields.Dict(load_default=None, data_key="keystrokeStats")
 
 
 class SessionSchema(CamelCaseSchema):
     id = fields.Str(dump_only=True)
     assessment_id = fields.Str(dump_only=True)
+    assessment_title = fields.Function(
+        lambda o: getattr(o.assessment, "title", None) if getattr(o, "assessment", None) else None,
+        dump_only=True,
+    )
     candidate_id = fields.Str(dump_only=True)
-    started_at = fields.DateTime(dump_only=True, allow_none=True)
-    submitted_at = fields.DateTime(dump_only=True, allow_none=True)
+    candidate_name = fields.Function(
+        lambda o: getattr(o.candidate, "full_name", None) if getattr(o, "candidate", None) else None,
+        dump_only=True,
+    )
+    candidate_email = fields.Function(
+        lambda o: getattr(o.candidate, "email", None) if getattr(o, "candidate", None) else None,
+        dump_only=True,
+    )
+    started_at = UTCDateTime(dump_only=True, allow_none=True)
+    submitted_at = UTCDateTime(dump_only=True, allow_none=True)
     status = fields.Function(lambda o: o.status.value if o.status else None, dump_only=True)
     score = fields.Float(dump_only=True, allow_none=True)
     max_score = fields.Float(dump_only=True)
     percentage = fields.Float(dump_only=True, allow_none=True)
     passed = fields.Bool(dump_only=True, allow_none=True)
+    grading_status = fields.Str(dump_only=True, allow_none=True)
     integrity_score = fields.Float(dump_only=True)
     risk_score = fields.Float(dump_only=True)
     risk_level = fields.Function(lambda o: o.risk_level.value if o.risk_level else None, dump_only=True)
@@ -115,7 +176,11 @@ class SessionSchema(CamelCaseSchema):
     looking_away_count = fields.Int(dump_only=True)
     face_not_detected_count = fields.Int(dump_only=True)
     live_status = fields.Dict(dump_only=True, allow_none=True)
-    created_at = fields.DateTime(dump_only=True)
+    monitoring_enabled = fields.Bool(data_key="monitoringEnabled")
+    device_fingerprint = fields.Str(dump_only=True, allow_none=True)
+    device_info = fields.Dict(dump_only=True, allow_none=True)
+    ip_address = fields.Str(dump_only=True, allow_none=True)
+    created_at = UTCDateTime(dump_only=True)
 
 
 class SessionStartSchema(Schema):
@@ -123,6 +188,8 @@ class SessionStartSchema(Schema):
         unknown = EXCLUDE
 
     assessment_id = fields.Str(required=True, data_key="assessmentId")
+    device_fingerprint = fields.Str(load_default=None, data_key="deviceFingerprint")
+    device_info = fields.Dict(load_default=None, data_key="deviceInfo")
 
 
 # ─── Integrity events / alerts / evidence ────────────────────────────────────
@@ -134,7 +201,7 @@ class IntegrityEventSchema(Schema):
     type = fields.Str(required=True, validate=validate.OneOf([t.value for t in AlertType]))
     severity = fields.Str(load_default="low", validate=validate.OneOf([s.value for s in AlertSeverity]))
     confidence = fields.Float(load_default=0.0)
-    occurred_at = fields.DateTime(load_default=None, data_key="occurredAt")
+    occurred_at = UTCDateTime(load_default=None, data_key="occurredAt")
     payload = fields.Dict(load_default=None)
 
 
@@ -147,9 +214,9 @@ class AlertSchema(CamelCaseSchema):
     severity = fields.Function(lambda o: o.severity.value if o.severity else None, dump_only=True)
     description = fields.Str(allow_none=True)
     risk_score = fields.Float(dump_only=True)
-    occurred_at = fields.DateTime(dump_only=True)
+    occurred_at = UTCDateTime(dump_only=True)
     reviewed = fields.Bool(dump_only=True)
-    reviewed_at = fields.DateTime(dump_only=True, allow_none=True)
+    reviewed_at = UTCDateTime(dump_only=True, allow_none=True)
     resolution_note = fields.Str(allow_none=True)
 
 
@@ -168,8 +235,8 @@ class EvidenceSchema(CamelCaseSchema):
     url = fields.Str(dump_only=True, allow_none=True)
     content_type = fields.Str(dump_only=True, allow_none=True)
     size_bytes = fields.Int(dump_only=True, allow_none=True)
-    captured_at = fields.DateTime(dump_only=True, allow_none=True)
-    created_at = fields.DateTime(dump_only=True)
+    captured_at = UTCDateTime(dump_only=True, allow_none=True)
+    created_at = UTCDateTime(dump_only=True)
 
 
 # ─── Notifications & audit ───────────────────────────────────────────────────
@@ -181,7 +248,7 @@ class NotificationSchema(CamelCaseSchema):
     type = fields.Function(lambda o: o.type.value if o.type else None, dump_only=True)
     read = fields.Bool(dump_only=True)
     link = fields.Str(allow_none=True)
-    created_at = fields.DateTime(dump_only=True)
+    created_at = UTCDateTime(dump_only=True)
 
 
 class AuditLogSchema(CamelCaseSchema):
@@ -196,4 +263,4 @@ class AuditLogSchema(CamelCaseSchema):
     status = fields.Function(lambda o: o.status.value if o.status else None, dump_only=True)
     ip_address = fields.Str(dump_only=True, allow_none=True)
     details = fields.Str(dump_only=True, allow_none=True)
-    created_at = fields.DateTime(dump_only=True)
+    created_at = UTCDateTime(dump_only=True)

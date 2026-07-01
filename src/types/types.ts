@@ -14,7 +14,14 @@ export type AlertType =
   | 'audio_detected'
   | 'face_not_detected'
   | 'identity_mismatch'
-  | 'browser_unfocused';
+  | 'browser_unfocused'
+  | 'object_detected'
+  // Secure Browser Lockdown
+  | 'devtools_open'
+  | 'keyboard_shortcut'
+  | 'clipboard_attempt'
+  | 'multiple_tabs';
+
 
 export type AssessmentStatus = 'upcoming' | 'active' | 'completed' | 'cancelled';
 
@@ -76,7 +83,8 @@ export interface Assessment {
 
 export type QuestionType = 'multiple_choice' | 'true_false' | 'short_answer' | 'coding';
 
-export type CodingLanguage = 'javascript' | 'typescript' | 'python' | 'java' | 'r' | 'cpp' | 'csharp' | 'go' | 'sql';
+// Coding assessments support JavaScript and Java only.
+export type CodingLanguage = 'javascript' | 'java';
 
 export interface CodingTestCase {
   id: string;
@@ -86,15 +94,26 @@ export interface CodingTestCase {
   hidden?: boolean;
 }
 
+export type QuestionDifficulty = 'easy' | 'medium' | 'hard';
+
+export interface QuestionOption {
+  id?: string;
+  text: string;
+  isCorrect?: boolean;   // present for recruiters/admins; stripped for candidates
+  explanation?: string;
+}
+
 export interface Question {
   id: string;
   assessmentId: string;
   text: string;
   type: QuestionType;
-  options?: string[];
+  options?: QuestionOption[];
   correctAnswer?: string | number;
   marks: number;
   order: number;
+  difficulty?: QuestionDifficulty;
+  required?: boolean;
   // Coding-question fields (used when type === 'coding')
   language?: CodingLanguage;                              // single allowed language (legacy)
   languages?: CodingLanguage[];                           // languages the candidate may choose from
@@ -106,6 +125,7 @@ export interface Question {
 
 export interface AIAlert {
   id: string;
+  sessionId: string;
   assessmentId: string;
   assessmentTitle: string;
   candidateId: string;
@@ -124,6 +144,7 @@ export interface AssessmentSession {
   assessmentTitle: string;
   candidateId: string;
   candidateName: string;
+  candidateEmail?: string;
   startTime: string;
   endTime?: string;
   status: 'in_progress' | 'completed' | 'abandoned';
@@ -137,7 +158,9 @@ export interface AssessmentSession {
   tabSwitches: number;
   lookingAwayCount: number;
   faceNotDetectedCount: number;
+  monitoringEnabled?: boolean;
 }
+
 
 export interface AIMonitoringStatus {
   faceDetected: boolean;
@@ -152,8 +175,6 @@ export interface AIMonitoringStatus {
   tabSwitches: number;
   riskScore: number;
   riskLevel: RiskLevel;
-  /** JPEG data-URL snapshot from the candidate webcam (live proctoring feed). */
-  cameraFrame?: string;
 }
 
 /** A candidate currently under live proctoring (recruiter/admin monitoring view). */
