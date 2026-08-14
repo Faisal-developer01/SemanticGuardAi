@@ -34,7 +34,8 @@ def upgrade():
         sa.Column('body', sa.Text(), nullable=True),
         sa.Column('issued_at', sa.DateTime(timezone=True), nullable=False),
         sa.Column('file_path', sa.String(length=400), nullable=True),
-        sa.Column('revoked', sa.Boolean(), nullable=False, server_default=sa.text('0')),
+        sa.Column('revoked', sa.Boolean(), nullable=False, server_default=sa.text('false')),
+
         sa.Column('revoked_reason', sa.String(length=200), nullable=True),
         sa.Column('id', app.models.base.GUID(), nullable=False),
         sa.Column('created_at', sa.DateTime(timezone=True), server_default=sa.text('(CURRENT_TIMESTAMP)'), nullable=False),

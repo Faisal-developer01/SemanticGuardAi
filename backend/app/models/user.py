@@ -3,7 +3,7 @@ from __future__ import annotations
 
 from datetime import datetime
 
-from sqlalchemy import Boolean, DateTime, Enum, ForeignKey, Integer, String
+from sqlalchemy import Boolean, DateTime, Enum, ForeignKey, Integer, String, Text
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.models.base import GUID, BaseModel
@@ -98,8 +98,8 @@ class CandidateProfile(BaseModel):
     passed_assessments: Mapped[int] = mapped_column(Integer, default=0, nullable=False)
 
     # Face embedding (base64-encoded float32 vector) for identity verification.
-    face_embedding: Mapped[str | None] = mapped_column(String)
-    reference_photo_url: Mapped[str | None] = mapped_column(String(512))
+    face_embedding: Mapped[str | None] = mapped_column(Text)
+    reference_photo_url: Mapped[str | None] = mapped_column(Text)
 
 
 class RecruiterProfile(BaseModel):

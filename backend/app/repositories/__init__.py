@@ -72,16 +72,36 @@ class AssessmentRepository(BaseRepository[Assessment]):
     def for_recruiter(self, recruiter_id):
         return self.base_query().filter(Assessment.recruiter_id == recruiter_id)
 
+    def title_exists_for_recruiter(self, recruiter_id, title: str) -> bool:
+        from sqlalchemy import func as sa_func
+        return self.session.query(
+            self.session.query(Assessment)
+            .filter(
+                Assessment.recruiter_id == recruiter_id,
+                sa_func.lower(Assessment.title) == title.lower().strip(),
+            )
+            .exists()
+        ).scalar()
+
 
 class QuestionRepository(BaseRepository[Question]):
     model = Question
     search_fields = ("text",)
 
     def for_assessment(self, assessment_id) -> list[Question]:
+        """Fetch questions for an assessment with all related data eagerly loaded."""
+        from sqlalchemy.orm import selectinload
+        
         return list(
             self.session.execute(
-                select(Question).filter_by(assessment_id=assessment_id).order_by(Question.order)
-            ).scalars().all()
+                select(Question)
+                    .filter_by(assessment_id=assessment_id)
+                    .order_by(Question.order)
+                    .options(
+                        selectinload(Question.option_rows),
+                        selectinload(Question.test_cases),
+                    )
+            ).unique().scalars().all()
         )
 
     def next_order(self, assessment_id) -> int:

@@ -73,6 +73,12 @@ def _ensure_owner(user, assessment):
 
 
 def create_assessment(user, data: dict):
+    from app.errors import ConflictError
+
+    title = data.get("title", "")
+    if assessments.title_exists_for_recruiter(user.id, title):
+        raise ConflictError(f'An assessment titled "{title}" already exists. Please choose a different title.')
+
     assessment = assessments.create(recruiter_id=user.id, **data)
     if user.recruiter_profile:
         user.recruiter_profile.total_assessments_created += 1

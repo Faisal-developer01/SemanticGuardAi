@@ -2,7 +2,8 @@ import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { useNavigate, useParams, Link } from 'react-router-dom';
 import { AppLayout } from '@/components/layouts/AppLayout';
 import { StatusDot, RiskBadge } from '@/components/shared/StatusBadges';
-import { CodeEditor, type KeystrokeStats } from '@/components/shared/CodeEditor';
+import { QuestionRenderer } from '@/components/candidate/QuestionRenderer';
+import type { KeystrokeStats } from '@/components/shared/CodeEditor';
 import { assessmentsApi, sessionsApi, type ApiSession } from '@/lib/api';
 import { mapAssessment, mapQuestion } from '@/lib/mappers';
 import { assessmentAvailability, normalizeUtc } from '@/lib/utils';
@@ -387,17 +388,32 @@ const AssessmentScreen: React.FC = () => {
       }
     };
 
-    // Switching to another window/app also fires blur before visibilitychange
-    // in some browsers — treat it as the same violation.
+    // Switching to another window/app fires blur. We debounce with a grace
+    // period so brief interactions with browser-native UI (e.g. dragging the
+    // screen-sharing notification bar) don't incorrectly terminate the session.
+    let blurTimer: ReturnType<typeof setTimeout> | null = null;
+    const BLUR_GRACE_MS = 800;
+
     const onBlur = () => {
-      if (monitoringEnabledRef.current) terminate('Window focus lost (switched away)');
+      if (!monitoringEnabledRef.current) return;
+      blurTimer = setTimeout(() => {
+        // Only terminate if the page is still hidden/unfocused after the grace period.
+        if (!document.hasFocus()) terminate('Window focus lost (switched away)');
+      }, BLUR_GRACE_MS);
+    };
+
+    const onFocus = () => {
+      if (blurTimer !== null) { clearTimeout(blurTimer); blurTimer = null; }
     };
 
     document.addEventListener('visibilitychange', onVisibility);
     window.addEventListener('blur', onBlur);
+    window.addEventListener('focus', onFocus);
     return () => {
       document.removeEventListener('visibilitychange', onVisibility);
       window.removeEventListener('blur', onBlur);
+      window.removeEventListener('focus', onFocus);
+      if (blurTimer !== null) clearTimeout(blurTimer);
     };
     // stopAudioMonitoring / stopFaceMonitoring are stable useCallbacks captured in the closure.
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -727,6 +743,30 @@ const AssessmentScreen: React.FC = () => {
   const answered = Object.keys(answers).length;
   const pct = questions.length > 0 ? Math.round((answered / questions.length) * 100) : 0;
   const q = questions[currentQ];
+
+  // Infer the effective question type from both the `type` field and available data.
+  // This logic is now in the QuestionRenderer component.
+  // eslint-disable-next-line @typescript-eslint/no-unused-vars
+  const effectiveType: string | undefined = (() => {
+    if (!q) return undefined;
+    const t = (q.type ?? '').toLowerCase().replace(/\s+/g, '_');
+    // Direct match
+    if (['coding', 'short_answer', 'true_false', 'multiple_choice'].includes(t)) return t;
+    // Fuzzy: "shortAnswer" → "short_answer", "trueFalse" → "true_false", etc.
+    if (/short.?answer/i.test(t)) return 'short_answer';
+    if (/true.?false/i.test(t)) return 'true_false';
+    if (/multi/i.test(t)) return 'multiple_choice';
+    if (/cod/i.test(t)) return 'coding';
+    // Infer from data shape
+    if (q.testCases && q.testCases.length > 0) return 'coding';
+    if (q.entryPoint || q.languages?.length) return 'coding';
+    if (q.options && q.options.length > 0) {
+      if (q.options.length === 2 && q.options.every(o => /^(true|false)$/i.test(o.text))) return 'true_false';
+      return 'multiple_choice';
+    }
+    // Default: if the question has no options and no coding data, treat as short answer
+    return 'short_answer';
+  })();
 
   // ─── Loading / selection guards ─────────────────────────────────────────────
 
@@ -1092,7 +1132,7 @@ const AssessmentScreen: React.FC = () => {
               {fmt(timeLeft)}
             </div>
             <RiskBadge level={aiStatus.riskLevel} score={aiStatus.riskScore} />
-            <Button size="sm" variant="destructive" onClick={handleSubmit}>
+            <Button size="sm" variant="destructive" onClick={handleSubmit} className="hidden sm:inline-flex">
               <Send className="w-3.5 h-3.5 mr-1.5" /> Submit
             </Button>
           </div>
@@ -1107,49 +1147,18 @@ const AssessmentScreen: React.FC = () => {
                 <span className="text-xs text-muted-foreground">{q?.marks} mark{q?.marks !== 1 ? 's' : ''}</span>
               </div>
               <p className="text-sm md:text-base font-medium text-foreground mb-5 leading-relaxed text-pretty">{q?.text}</p>
-              {q?.type === 'coding' ? (
-                <CodeEditor
-                  key={q.id}
-                  languages={q.languages ?? (q.language ? [q.language] : ['javascript'])}
-                  entryPoint={q.entryPoint ?? ''}
-                  starterCodes={q.starterCodes ?? (q.language && q.starterCode ? { [q.language]: q.starterCode } : undefined)}
-                  testCases={q.testCases}
-                  value={(answers[q.id] as string) ?? ''}
-                  onChange={code => recordAnswer(q, code)}
-                  onTelemetry={stats => { codeTelemetryRef.current[q.id] = stats; }}
+              {q && (
+                <QuestionRenderer
+                  question={q}
+                  answer={answers[q.id]}
+                  onChange={(value) => recordAnswer(q, value)}
+                  onTelemetry={(stats) => { codeTelemetryRef.current[q.id] = stats; }}
                 />
-              ) : q?.type === 'short_answer' ? (
-                <textarea
-                  className="w-full min-h-32 p-3 rounded-md border border-input bg-background text-foreground text-sm focus:outline-none focus:ring-2 focus:ring-ring resize-y"
-                  placeholder="Type your answer here…"
-                  value={answers[q.id] as string || ''}
-                  onChange={e => recordAnswer(q, e.target.value)}
-                />
-              ) : q?.type === 'true_false' ? (
-                <div className="space-y-2">
-                  {['True', 'False'].map(val => (
-                    <label key={val} className={`flex items-center gap-3 p-3 rounded-md border cursor-pointer transition-colors min-h-12 ${answers[q.id] === val ? 'border-primary bg-primary/5' : 'border-border hover:bg-muted/50'}`}>
-                      <input type="radio" name={`q-${q.id}`} checked={answers[q.id] === val}
-                        onChange={() => recordAnswer(q, val)} className="shrink-0" />
-                      <span className="text-sm text-foreground">{val}</span>
-                    </label>
-                  ))}
-                </div>
-              ) : (
-                <div className="space-y-2">
-                  {q?.options?.map((opt, i) => (
-                    <label key={opt.id ?? i} className={`flex items-center gap-3 p-3 rounded-md border cursor-pointer transition-colors min-h-12 ${answers[q.id] === i ? 'border-primary bg-primary/5' : 'border-border hover:bg-muted/50'}`}>
-                      <input type="radio" name={`q-${q.id}`} checked={answers[q.id] === i}
-                        onChange={() => recordAnswer(q, i)} className="shrink-0" />
-                      <span className="text-sm text-foreground">{opt.text}</span>
-                    </label>
-                  ))}
-                </div>
               )}
             </div>
 
-            {/* Navigation */}
-            <div className="flex items-center justify-between">
+            {/* Navigation — hidden on mobile; the sticky bottom bar handles it there */}
+            <div className="hidden lg:flex items-center justify-between">
               <Button variant="outline" disabled={currentQ === 0} onClick={() => setCurrentQ(c => c - 1)}>
                 <ChevronLeft className="w-4 h-4 mr-1" /> Previous
               </Button>
@@ -1258,22 +1267,34 @@ const AssessmentScreen: React.FC = () => {
         </div>
 
         {/* Mobile-only sticky action bar: keeps navigation and Submit reachable on phones */}
-        <div className="lg:hidden fixed inset-x-0 bottom-0 z-40 flex items-center gap-2 border-t border-border bg-card/95 backdrop-blur supports-[backdrop-filter]:bg-card/80 px-3 py-2.5 pb-[calc(0.625rem+env(safe-area-inset-bottom))] shadow-[0_-2px_10px_rgba(0,0,0,0.08)]">
-          <Button variant="outline" size="sm" className="flex-1" disabled={currentQ === 0} onClick={() => setCurrentQ(c => c - 1)}>
-            <ChevronLeft className="w-4 h-4 mr-1" /> Prev
-          </Button>
-          <Button
-            variant="outline"
-            size="sm"
-            className="flex-1"
-            disabled={currentQ === questions.length - 1}
-            onClick={() => setCurrentQ(c => c + 1)}
-          >
-            Next <ChevronRight className="w-4 h-4 ml-1" />
-          </Button>
-          <Button size="sm" variant="destructive" className="flex-1" onClick={handleSubmit}>
-            <Send className="w-3.5 h-3.5 mr-1.5" /> Submit
-          </Button>
+        <div className="lg:hidden fixed inset-x-0 bottom-0 z-40 border-t border-border bg-card/95 backdrop-blur supports-[backdrop-filter]:bg-card/80 px-3 pt-2 pb-[calc(0.5rem+env(safe-area-inset-bottom))] shadow-[0_-2px_10px_rgba(0,0,0,0.08)] space-y-2">
+          {/* Question dots — compact scrollable row */}
+          <div className="flex flex-wrap gap-1 justify-center">
+            {questions.map((_, i) => (
+              <button key={i} onClick={() => setCurrentQ(i)}
+                className={`w-6 h-6 rounded text-[11px] font-medium transition-colors ${i === currentQ ? 'bg-primary text-primary-foreground' : answers[questions[i].id] !== undefined ? 'bg-green-500/20 text-green-600 dark:text-green-400 border border-green-500/30' : 'bg-muted text-muted-foreground border border-border'}`}>
+                {i + 1}
+              </button>
+            ))}
+          </div>
+          {/* Action buttons */}
+          <div className="flex items-center gap-2">
+            <Button variant="outline" size="sm" className="flex-1" disabled={currentQ === 0} onClick={() => setCurrentQ(c => c - 1)}>
+              <ChevronLeft className="w-4 h-4 mr-1" /> Prev
+            </Button>
+            <Button
+              variant="outline"
+              size="sm"
+              className="flex-1"
+              disabled={currentQ === questions.length - 1}
+              onClick={() => setCurrentQ(c => c + 1)}
+            >
+              Next <ChevronRight className="w-4 h-4 ml-1" />
+            </Button>
+            <Button size="sm" variant="destructive" className="flex-1" onClick={handleSubmit}>
+              <Send className="w-3.5 h-3.5 mr-1.5" /> Submit
+            </Button>
+          </div>
         </div>
       </div>
     </AppLayout>

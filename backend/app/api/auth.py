@@ -24,6 +24,8 @@ from app.schemas import (
 )
 from app.services import auth_service
 from app.services.rbac import current_user
+from flask import current_app
+from app.services import sendgrid_service
 
 bp = Blueprint("auth", __name__)
 
@@ -90,6 +92,29 @@ def resend_otp():
     data = parse(OtpResendSchema())
     auth_service.resend_otp(data["email"])
     return ok({"message": "If the account exists and is unverified, a new code has been sent."})
+
+
+@bp.get("/dev/otp")
+def dev_otp():
+    """Development-only: return the last cached OTP for an email when debug mode is active.
+
+    This endpoint is intentionally only available in debug mode so local frontends
+    can fetch the OTP when SendGrid is not configured.
+    """
+    if not current_app.debug:
+        return ok({"error": "Not available"}, 403)
+    # use request args directly to avoid schema parsing here
+    from flask import request
+
+    email = request.args.get("email")
+    if not email:
+        return ok({"error": "email parameter required"}, 400)
+    otp = None
+    try:
+        otp = sendgrid_service.get_dev_otp(email)
+    except Exception:
+        otp = None
+    return ok({"otp": otp})
 
 
 @bp.post("/change-password")

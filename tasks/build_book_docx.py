@@ -5,6 +5,7 @@ from __future__ import annotations
 import html
 import re
 from pathlib import Path
+from urllib.parse import unquote
 
 from docx import Document
 from docx.enum.section import WD_SECTION
@@ -381,7 +382,7 @@ def build_document() -> None:
             next_line = lines[index + 1].strip() if index + 1 < len(lines) else ""
             image_match = IMAGE_RE.match(next_line)
             if label == "Figure" and image_match:
-                image_path = (SRC.parent / image_match.group(2)).resolve()
+                image_path = (SRC.parent / unquote(image_match.group(2))).resolve()
                 add_image(doc, image_path)
                 add_caption(doc, label, number, title)
                 index += 2
@@ -393,7 +394,7 @@ def build_document() -> None:
         image_match = IMAGE_RE.match(stripped)
         if image_match:
             flush_list()
-            image_path = (SRC.parent / image_match.group(2)).resolve()
+            image_path = (SRC.parent / unquote(image_match.group(2))).resolve()
             add_image(doc, image_path)
             index += 1
             continue

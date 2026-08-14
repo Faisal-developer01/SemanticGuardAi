@@ -6,8 +6,8 @@
   "scripts": {
     "dev": "vite",
     "dev:frontend": "vite",
-    "dev:backend": "cd backend && python wsgi.py",
-    "dev:stack": "concurrently \"npm run dev:frontend\" \"cd backend && python wsgi.py\"",
+    "dev:backend": "node scripts/dev-backend.cjs",
+    "dev:stack": "concurrently --names \"FRONTEND,BACKEND\" --prefix-colors \"cyan,magenta\" \"npm:dev:frontend\" \"npm:dev:backend\"",
     "dev:config": "vite --config vite.config.dev.ts",
     "build": "tsc -b && vite build",
     "check": "tsc -p tsconfig.check.json --noEmit",

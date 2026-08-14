@@ -198,10 +198,25 @@ export const authApi = {
     phone?: string;
     department?: string;
     position?: string;
+    facePhoto?: string;
   }) {
     return request<{ user: ApiUser; message: string }>('/auth/register', {
       method: 'POST',
       body: payload,
+    });
+  },
+
+  verifyOtp(email: string, otp: string) {
+    return request<{ user: ApiUser; message: string }>('/auth/verify-otp', {
+      method: 'POST',
+      body: { email, otp },
+    });
+  },
+
+  resendOtp(email: string) {
+    return request<{ message: string }>('/auth/resend-otp', {
+      method: 'POST',
+      body: { email },
     });
   },
 

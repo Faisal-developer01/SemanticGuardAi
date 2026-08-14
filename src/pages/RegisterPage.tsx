@@ -41,6 +41,7 @@ const RegisterPage: React.FC = () => {
   const [showPass, setShowPass] = useState(false);
   const [errors, setErrors]     = useState<Record<string, string>>({});
   const [cameraOn, setCameraOn] = useState(false);
+  const [capturedPhoto, setCapturedPhoto] = useState<string | null>(null);
 
   const videoRef          = useRef<HTMLVideoElement | null>(null);
   const camStreamRef      = useRef<MediaStream | null>(null);
@@ -122,6 +123,12 @@ const RegisterPage: React.FC = () => {
       });
 
       if (found) {
+        // Capture a JPEG snapshot of the current video frame
+        const canvas = document.createElement('canvas');
+        canvas.width = video.videoWidth || 320;
+        canvas.height = video.videoHeight || 240;
+        canvas.getContext('2d')!.drawImage(video, 0, 0, canvas.width, canvas.height);
+        setCapturedPhoto(canvas.toDataURL('image/jpeg', 0.85));
         setFaceStatus('captured');
         toast.success('Face captured — identity registered.');
         stopCamera();
@@ -152,9 +159,10 @@ const RegisterPage: React.FC = () => {
         role: form.role as any,
         department: form.department,
         position: form.role === 'recruiter' ? 'Recruiter' : 'Candidate',
+        facePhoto: capturedPhoto ?? undefined,
       });
-      toast.success('Registration successful! Please login.');
-      navigate('/login');
+      toast.success('Registration successful! Enter the verification code sent to your email.');
+      navigate(`/verify-email?email=${encodeURIComponent(form.email)}`);
     } catch (err: any) {
       toast.error(err.message || 'Registration failed. Please try again.');
     }

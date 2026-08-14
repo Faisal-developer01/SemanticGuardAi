@@ -91,7 +91,7 @@ class LoginSchema(Schema):
 
 
 class RegisterSchema(UserCreateSchema):
-    pass
+    face_photo = fields.Str(load_default=None, data_key="facePhoto")
 
 
 class RefreshSchema(Schema):

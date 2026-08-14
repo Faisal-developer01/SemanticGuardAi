@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react';
-import { Link } from 'react-router-dom';
+import { Link, useNavigate } from 'react-router-dom';
 import { Menu, Sun, Moon, Bell, Search } from 'lucide-react';
 import { useTheme } from '@/contexts/ThemeContext';
 import { useAuth } from '@/contexts/AuthContext';
@@ -32,6 +32,8 @@ interface TopNavProps { onMenuClick: () => void }
 export const TopNav: React.FC<TopNavProps> = ({ onMenuClick }) => {
   const { theme, toggleTheme } = useTheme();
   const { user, logout, isAuthenticated } = useAuth();
+  const navigate = useNavigate();
+  const handleSignOut = () => { logout(); navigate('/login'); };
   const [recent, setRecent] = useState<ApiNotification[]>([]);
   const [unread, setUnread] = useState(0);
 
@@ -175,7 +177,7 @@ export const TopNav: React.FC<TopNavProps> = ({ onMenuClick }) => {
             </DropdownMenuItem>
           )}
           <DropdownMenuSeparator />
-          <DropdownMenuItem onClick={logout} className="text-destructive focus:text-destructive text-sm">
+          <DropdownMenuItem onClick={handleSignOut} className="text-destructive focus:text-destructive text-sm">
             Sign Out
           </DropdownMenuItem>
         </DropdownMenuContent>

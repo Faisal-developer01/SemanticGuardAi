@@ -16,19 +16,24 @@ depends_on = None
 
 
 def upgrade():
+    # PostgreSQL requires the enum type to exist before the column can reference it
+    bind = op.get_bind()
+    if bind.dialect.name == 'postgresql':
+        bind.execute(sa.text("CREATE TYPE question_difficulty AS ENUM ('easy', 'medium', 'hard')"))
+
     with op.batch_alter_table('questions', schema=None) as batch_op:
         batch_op.add_column(sa.Column(
             'difficulty',
-            sa.Enum('easy', 'medium', 'hard', name='question_difficulty'),
+            sa.Enum('easy', 'medium', 'hard', name='question_difficulty', create_type=False),
             server_default='medium', nullable=False,
         ))
-        batch_op.add_column(sa.Column('required', sa.Boolean(), server_default='1', nullable=False))
+        batch_op.add_column(sa.Column('required', sa.Boolean(), server_default='true', nullable=False))
 
     op.create_table(
         'question_options',
         sa.Column('question_id', app.models.base.GUID(), nullable=False),
         sa.Column('text', sa.Text(), nullable=False),
-        sa.Column('is_correct', sa.Boolean(), nullable=False, server_default='0'),
+        sa.Column('is_correct', sa.Boolean(), nullable=False, server_default='false'),
         sa.Column('explanation', sa.Text(), nullable=True),
         sa.Column('order', sa.Integer(), nullable=False, server_default='0'),
         sa.Column('id', app.models.base.GUID(), nullable=False),

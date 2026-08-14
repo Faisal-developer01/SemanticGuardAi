@@ -23,7 +23,13 @@ interface ScreenRecorderControls {
   stop: () => void;
 }
 
-const MIME_CANDIDATES = ['video/webm;codecs=vp9', 'video/webm;codecs=vp8', 'video/webm'];
+const MIME_CANDIDATES = [
+  'video/webm;codecs=vp9,opus',
+  'video/webm;codecs=vp8,opus',
+  'video/webm;codecs=vp9',
+  'video/webm;codecs=vp8',
+  'video/webm',
+];
 
 function pickMimeType(): string {
   for (const m of MIME_CANDIDATES) {
@@ -113,7 +119,8 @@ export function useScreenRecorder(opts: UseScreenRecorderOptions): ScreenRecorde
     try {
       const stream = await navigator.mediaDevices.getDisplayMedia({
         video: { frameRate: 8 },
-        audio: false,
+        // Captures system/tab audio when the user grants permission.
+        audio: true,
       });
       streamRef.current = stream;
       mimeRef.current = pickMimeType();

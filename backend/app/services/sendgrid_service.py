@@ -18,6 +18,11 @@ import threading
 
 from flask import current_app
 
+# Development-only in-memory store for plaintext OTPs when SendGrid is not
+# configured. This makes it easy to surface the OTP to local frontends for
+# testing without sending real email. Never used in production.
+_DEV_OTP_STORE: dict[str, str] = {}
+
 # The official SDK is optional at import time so the app still boots without it.
 try:  # pragma: no cover - import guard
     from sendgrid import SendGridAPIClient
@@ -89,9 +94,28 @@ def send_otp_email(user_id: str, otp: str) -> bool:
         "ttl_minutes": ttl,
     }
     sent = send_template_email(user.email, template_id, dynamic_data)
-    if not sent and current_app.debug:
+    # Dev convenience: log and cache the OTP when SendGrid isn't available so
+    # local frontends can retrieve it for testing. Never expose in production.
+    if current_app.debug:
         current_app.logger.warning("[DEV] Registration OTP for %s: %s", user.email, otp)
+        try:
+            _DEV_OTP_STORE[user.email] = otp
+        except Exception:
+            current_app.logger.debug("Failed to cache dev OTP for %s", user.email)
     return sent
+
+
+def get_dev_otp(email: str) -> str | None:
+    """Return the cached dev OTP for an email, or None if not present."""
+    return _DEV_OTP_STORE.get(email)
+
+
+def clear_dev_otp(email: str) -> None:
+    """Clear the cached dev OTP for an email (call after successful verify)."""
+    try:
+        _DEV_OTP_STORE.pop(email, None)
+    except Exception:
+        current_app.logger.debug("Failed to clear dev OTP for %s", email)
 
 
 def deliver_otp(user_id: str, otp: str) -> None:

@@ -7,6 +7,7 @@ import NotificationsPage from './pages/NotificationsPage';
 import LandingPage from './pages/LandingPage';
 import ProfilePage from './pages/ProfilePage';
 import VerifyCredential from './pages/VerifyCredential';
+import VerifyEmailPage from './pages/VerifyEmailPage';
 
 // Candidate pages
 import CandidateDashboard from './pages/candidate/CandidateDashboard';
@@ -52,6 +53,7 @@ export const routes: RouteConfig[] = [
   // Auth
   { name: 'Login', path: '/login', element: <LoginPage />, public: true },
   { name: 'Register', path: '/register', element: <RegisterPage />, public: true },
+  { name: 'Verify Email', path: '/verify-email', element: <VerifyEmailPage />, public: true },
 
   // Public credential verification (QR-code landing)
   { name: 'Verify Credential', path: '/verify/:token', element: <VerifyCredential />, public: true },

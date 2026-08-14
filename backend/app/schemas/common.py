@@ -36,6 +36,19 @@ class UTCDateTime(fields.DateTime):
         return dt
 
 
+class EnumValueField(fields.Str):
+    """String field that serializes SQLAlchemy ``Enum`` members by their
+    ``.value`` (e.g. ``"multiple_choice"``) instead of ``str(member)`` which
+    yields the ``"QuestionType.multiple_choice"`` repr. Loading behaves like a
+    normal string field so ``validate.OneOf`` on the enum values still applies.
+    """
+
+    def _serialize(self, value, attr, obj, **kwargs):
+        if value is not None:
+            value = getattr(value, "value", value)
+        return super()._serialize(value, attr, obj, **kwargs)
+
+
 class CamelCaseSchema(Schema):
     """Serializes snake_case attributes to camelCase keys (frontend-friendly)
     and accepts both forms on input."""

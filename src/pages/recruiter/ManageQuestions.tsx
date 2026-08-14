@@ -9,7 +9,7 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { toast } from 'sonner';
-import { PlusCircle, Edit2, Trash2, X, Check, Search, Loader2, Plus, Lock } from 'lucide-react';
+import { PlusCircle, Edit2, Trash2, X, Check, Search, Loader2, Plus, Lock, AlertTriangle } from 'lucide-react';
 import type { CodingLanguage, Question, QuestionDifficulty } from '@/types/types';
 
 const TYPE_LABELS: Record<string, string> = {
@@ -78,9 +78,24 @@ const ManageQuestions: React.FC = () => {
   const [showAdd, setShowAdd] = useState(false);
   const [saving, setSaving] = useState(false);
   const [newQ, setNewQ] = useState<NewQuestionForm>(DEFAULT_NEW_Q);
+  const [showEditAssessment, setShowEditAssessment] = useState(false);
+  const [editAssessmentTitle, setEditAssessmentTitle] = useState('');
+  const [editAssessmentDesc, setEditAssessmentDesc] = useState('');
+  const [editAssessmentPos, setEditAssessmentPos] = useState('');
+  const [savingAssessment, setSavingAssessment] = useState(false);
+  const [confirmDelete, setConfirmDelete] = useState(false);
+  const [deletingAssessment, setDeletingAssessment] = useState(false);
 
   const { data: assessmentsData } = useAsync(() => assessmentsApi.list({ perPage: 100 }), []);
-  const myAssessments = (assessmentsData?.items ?? []).map(a => mapAssessment(a));
+  const rawAssessments = (assessmentsData?.items ?? []).map(a => mapAssessment(a));
+  // Deduplicate by title (case-insensitive) – keep the first (oldest) match
+  const seen = new Set<string>();
+  const myAssessments = rawAssessments.filter(a => {
+    const key = a.title.toLowerCase();
+    if (seen.has(key)) return false;
+    seen.add(key);
+    return true;
+  });
 
   useEffect(() => {
     if (!assessmentId && myAssessments.length) setAssessmentId(myAssessments[0].id);
@@ -92,6 +107,8 @@ const ManageQuestions: React.FC = () => {
     [assessmentId],
   );
   const allQuestions: Question[] = (questionsData ?? []).map(mapQuestion);
+  // Normalize type for robust matching (handles camelCase, etc.)
+  const normalizeType = (t: string) => t.toLowerCase().replace(/\s+/g, '_');
   const questions = allQuestions.filter(q => q.text.toLowerCase().includes(search.toLowerCase()));
   const totalMarks = allQuestions.reduce((a, q) => a + q.marks, 0);
 
@@ -188,6 +205,57 @@ const ManageQuestions: React.FC = () => {
     }
   };
 
+  const currentAssessment = myAssessments.find(a => a.id === assessmentId) ?? null;
+
+  const openEditAssessment = () => {
+    if (!currentAssessment) return;
+    // Pre-populate from the raw API item for description/position
+    const raw = (assessmentsData?.items ?? []).find((a: any) => a.id === assessmentId);
+    setEditAssessmentTitle(currentAssessment.title);
+    setEditAssessmentDesc(raw?.description ?? '');
+    setEditAssessmentPos(currentAssessment.position ?? '');
+    setShowEditAssessment(true);
+    setConfirmDelete(false);
+  };
+
+  const saveAssessmentEdit = async () => {
+    if (!assessmentId || !editAssessmentTitle.trim()) {
+      toast.error('Assessment title is required');
+      return;
+    }
+    setSavingAssessment(true);
+    try {
+      await assessmentsApi.update(assessmentId, {
+        title: editAssessmentTitle.trim(),
+        description: editAssessmentDesc.trim() || undefined,
+        position: editAssessmentPos.trim() || undefined,
+      } as any);
+      toast.success('Assessment updated');
+      setShowEditAssessment(false);
+      window.location.reload();
+    } catch (err) {
+      const msg = err instanceof ApiError ? err.message : 'Could not update assessment';
+      toast.error(msg);
+    } finally {
+      setSavingAssessment(false);
+    }
+  };
+
+  const deleteAssessment = async () => {
+    if (!assessmentId) return;
+    setDeletingAssessment(true);
+    try {
+      await assessmentsApi.remove(assessmentId);
+      toast.success('Assessment deleted');
+      window.location.reload();
+    } catch (err) {
+      const msg = err instanceof ApiError ? err.message : 'Could not delete assessment';
+      toast.error(msg);
+      setDeletingAssessment(false);
+      setConfirmDelete(false);
+    }
+  };
+
   const saveEdit = async (q: Question) => {
     try {
       await questionsApi.update(q.id, { text: editText });
@@ -228,13 +296,33 @@ const ManageQuestions: React.FC = () => {
         <div className="flex flex-col sm:flex-row gap-3">
           <div className="space-y-1 flex-1">
             <Label className="text-xs text-muted-foreground">Select Assessment</Label>
-            <select
-              value={assessmentId}
-              onChange={e => setAssessmentId(e.target.value)}
-              className="w-full h-10 px-3 rounded-md border border-input bg-background text-foreground text-sm focus:outline-none focus:ring-2 focus:ring-ring"
-            >
-              {myAssessments.map(e => <option key={e.id} value={e.id}>{e.title}</option>)}
-            </select>
+            <div className="flex gap-2">
+              <select
+                value={assessmentId}
+                onChange={e => { setAssessmentId(e.target.value); setShowEditAssessment(false); setConfirmDelete(false); }}
+                className="flex-1 h-10 px-3 rounded-md border border-input bg-background text-foreground text-sm focus:outline-none focus:ring-2 focus:ring-ring"
+              >
+                {myAssessments.map(e => <option key={e.id} value={e.id}>{e.title}</option>)}
+              </select>
+              {assessmentId && (
+                <>
+                  <button
+                    title="Edit assessment"
+                    onClick={openEditAssessment}
+                    className="h-10 w-10 shrink-0 flex items-center justify-center rounded-md border border-input bg-background text-muted-foreground hover:text-foreground hover:bg-muted transition-colors"
+                  >
+                    <Edit2 className="w-4 h-4" />
+                  </button>
+                  <button
+                    title="Delete assessment"
+                    onClick={() => { setConfirmDelete(true); setShowEditAssessment(false); }}
+                    className="h-10 w-10 shrink-0 flex items-center justify-center rounded-md border border-destructive/40 bg-background text-muted-foreground hover:text-destructive hover:bg-destructive/10 transition-colors"
+                  >
+                    <Trash2 className="w-4 h-4" />
+                  </button>
+                </>
+              )}
+            </div>
           </div>
           <div className="space-y-1 flex-1">
             <Label className="text-xs text-muted-foreground">Search</Label>
@@ -245,13 +333,71 @@ const ManageQuestions: React.FC = () => {
           </div>
         </div>
 
+        {showEditAssessment && currentAssessment && (
+          <div className="bg-card border border-primary/30 rounded-md p-4 space-y-3">
+            <div className="flex items-center justify-between">
+              <h3 className="text-sm font-semibold">Edit Assessment</h3>
+              <button onClick={() => setShowEditAssessment(false)} className="text-muted-foreground hover:text-foreground"><X className="w-4 h-4" /></button>
+            </div>
+            <div className="space-y-1">
+              <Label className="text-xs text-muted-foreground">Title</Label>
+              <Input
+                value={editAssessmentTitle}
+                onChange={e => setEditAssessmentTitle(e.target.value)}
+                placeholder="Assessment title"
+                className="h-9 text-sm"
+              />
+            </div>
+            <div className="space-y-1">
+              <Label className="text-xs text-muted-foreground">Position / Role</Label>
+              <Input
+                value={editAssessmentPos}
+                onChange={e => setEditAssessmentPos(e.target.value)}
+                placeholder="e.g. Senior Software Engineer"
+                className="h-9 text-sm"
+              />
+            </div>
+            <div className="space-y-1">
+              <Label className="text-xs text-muted-foreground">Description</Label>
+              <textarea
+                value={editAssessmentDesc}
+                onChange={e => setEditAssessmentDesc(e.target.value)}
+                placeholder="Brief description (optional)"
+                className="w-full p-3 text-sm rounded border border-input bg-background text-foreground focus:outline-none focus:ring-2 focus:ring-ring resize-none min-h-[72px]"
+              />
+            </div>
+            <div className="flex gap-2">
+              <Button size="sm" onClick={saveAssessmentEdit} disabled={!editAssessmentTitle.trim() || savingAssessment}>
+                {savingAssessment ? <Loader2 className="w-4 h-4 mr-1 animate-spin" /> : <Check className="w-4 h-4 mr-1" />} Save Changes
+              </Button>
+              <Button size="sm" variant="outline" onClick={() => setShowEditAssessment(false)}>Cancel</Button>
+            </div>
+          </div>
+        )}
+
+        {confirmDelete && currentAssessment && (
+          <div className="bg-destructive/10 border border-destructive/40 rounded-md p-4 flex flex-col sm:flex-row sm:items-center gap-3">
+            <AlertTriangle className="w-5 h-5 text-destructive shrink-0" />
+            <p className="text-sm text-foreground flex-1">
+              Delete <span className="font-semibold">"{currentAssessment.title}"</span>? This will permanently remove the assessment and all its questions.
+            </p>
+            <div className="flex gap-2 shrink-0">
+              <Button size="sm" variant="destructive" onClick={deleteAssessment} disabled={deletingAssessment}>
+                {deletingAssessment ? <Loader2 className="w-4 h-4 mr-1 animate-spin" /> : <Trash2 className="w-4 h-4 mr-1" />} Delete
+              </Button>
+              <Button size="sm" variant="outline" onClick={() => setConfirmDelete(false)}>Cancel</Button>
+            </div>
+          </div>
+        )}
+
         <div className="flex gap-4 flex-wrap">
           {[
             { label: 'Total Questions', value: allQuestions.length },
             { label: 'Total Marks', value: totalMarks },
-            { label: 'Multiple Choice', value: allQuestions.filter(q => q.type === 'multiple_choice').length },
-            { label: 'Short Answer', value: allQuestions.filter(q => q.type === 'short_answer').length },
-            { label: 'Coding', value: allQuestions.filter(q => q.type === 'coding').length },
+            { label: 'Multiple Choice', value: allQuestions.filter(q => normalizeType(q.type) === 'multiple_choice').length },
+            { label: 'True / False', value: allQuestions.filter(q => normalizeType(q.type) === 'true_false').length },
+            { label: 'Short Answer', value: allQuestions.filter(q => normalizeType(q.type) === 'short_answer').length },
+            { label: 'Coding', value: allQuestions.filter(q => normalizeType(q.type) === 'coding').length },
           ].map(({ label, value }) => (
             <div key={label} className="bg-card border border-border rounded px-4 py-2 text-center">
               <p className="text-lg font-bold font-mono text-foreground">{value}</p>

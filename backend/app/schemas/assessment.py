@@ -11,7 +11,7 @@ from app.models.enums import (
     QuestionDifficulty,
     QuestionType,
 )
-from app.schemas.common import CamelCaseSchema, UTCDateTime
+from app.schemas.common import CamelCaseSchema, EnumValueField, UTCDateTime
 
 
 # ─── Assessment ──────────────────────────────────────────────────────────────
@@ -61,10 +61,10 @@ class QuestionSchema(CamelCaseSchema):
     id = fields.Str(dump_only=True)
     assessment_id = fields.Str(dump_only=True)
     text = fields.Str(required=True, validate=validate.Length(min=1))
-    type = fields.Str(required=True, validate=validate.OneOf([t.value for t in QuestionType]))
+    type = EnumValueField(required=True, validate=validate.OneOf([t.value for t in QuestionType]))
     marks = fields.Float(load_default=1.0)
     order = fields.Int(load_default=0)
-    difficulty = fields.Str(
+    difficulty = EnumValueField(
         load_default="medium", validate=validate.OneOf([d.value for d in QuestionDifficulty])
     )
     required = fields.Bool(load_default=True)
@@ -73,7 +73,7 @@ class QuestionSchema(CamelCaseSchema):
     options = fields.Method("dump_options", deserialize="load_options", allow_none=True)
     # correct_answer is load-only so it is never leaked to candidates
     correct_answer = fields.Str(allow_none=True, load_only=True)
-    language = fields.Str(allow_none=True, validate=validate.OneOf([c.value for c in CodingLanguage]))
+    language = EnumValueField(allow_none=True, validate=validate.OneOf([c.value for c in CodingLanguage]))
     languages = fields.List(fields.Str(), allow_none=True)
     entry_point = fields.Str(allow_none=True)
     starter_code = fields.Str(allow_none=True)

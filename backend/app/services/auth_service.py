@@ -88,6 +88,7 @@ def register(data: dict) -> tuple[User, str]:
             candidate_code=_generate_code("CND"),
             department=data.get("department"),
             position=data.get("position"),
+            reference_photo_url=data.get("face_photo"),
             commit=False,
         )
     elif role_enum == UserRole.recruiter:
@@ -337,6 +338,15 @@ def _verify_email_otp(user: User, code: str) -> bool:
     user.email_otp_hash = None
     user.email_otp_expires_at = None
     users.session.commit()
+    # Clear any cached dev OTP so local frontends cannot retrieve it after
+    # successful verification. This is a no-op in production.
+    try:
+        from app.services import sendgrid_service
+
+        if hasattr(sendgrid_service, "clear_dev_otp"):
+            sendgrid_service.clear_dev_otp(user.email)
+    except Exception:
+        current_app = None  # silence linter; ignore failures
     return True
 
 
