@@ -62,7 +62,7 @@ export const Sidebar: React.FC<SidebarProps> = ({ role, isOpen, onClose }) => {
   const navItems = navByRole[role];
   const RoleIcon = roleIcons[role];
 
-  const handleLogout = () => { logout(); navigate('/login'); };
+  const handleLogout = () => { onClose(); logout(); navigate('/login'); };
 
   return (
     <>
@@ -73,7 +73,7 @@ export const Sidebar: React.FC<SidebarProps> = ({ role, isOpen, onClose }) => {
 
       {/* Deep Navy sidebar */}
       <aside className={cn(
-        'fixed top-0 left-0 h-full z-50 flex flex-col transition-all duration-200',
+        'fixed top-0 left-0 h-[100dvh] z-50 flex flex-col transition-all duration-200',
         'bg-sidebar border-r border-sidebar-border',
         collapsed ? 'w-14' : 'w-60',
         'lg:sticky lg:top-0 lg:h-screen lg:translate-x-0',
@@ -125,7 +125,7 @@ export const Sidebar: React.FC<SidebarProps> = ({ role, isOpen, onClose }) => {
         )}
 
         {/* Nav items — Sky Blue active state */}
-        <nav className="flex-1 overflow-y-auto px-2 pb-2">
+        <nav className="flex-1 min-h-0 overflow-y-auto px-2 pb-2">
           {navItems.map(({ label, path, icon: Icon }) => (
             <NavLink
               key={path}

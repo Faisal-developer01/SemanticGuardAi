@@ -10,7 +10,7 @@ from urllib.parse import unquote
 from docx import Document
 from docx.enum.section import WD_SECTION
 from docx.enum.table import WD_TABLE_ALIGNMENT, WD_CELL_VERTICAL_ALIGNMENT
-from docx.enum.text import WD_ALIGN_PARAGRAPH, WD_BREAK, WD_LINE_SPACING
+from docx.enum.text import WD_ALIGN_PARAGRAPH, WD_BREAK, WD_LINE_SPACING, WD_TAB_ALIGNMENT
 from docx.oxml import OxmlElement
 from docx.oxml.ns import qn
 from docx.shared import Inches, Pt, RGBColor
@@ -282,6 +282,23 @@ def add_list_items(doc: Document, items: list[tuple[str, str, str]]) -> None:
         add_inline(paragraph, text)
 
 
+def add_abbreviations(doc: Document, rows: list[list[str]]) -> None:
+    """Render the abbreviations as an unbordered two-column list."""
+    for row_index, row in enumerate(rows):
+        abbreviation = row[0] if len(row) > 0 else ""
+        full_form = row[1] if len(row) > 1 else ""
+        paragraph = doc.add_paragraph()
+        paragraph.alignment = WD_ALIGN_PARAGRAPH.LEFT
+        paragraph.paragraph_format.line_spacing_rule = WD_LINE_SPACING.ONE_POINT_FIVE
+        paragraph.paragraph_format.tab_stops.add_tab_stop(Inches(2.0), WD_TAB_ALIGNMENT.LEFT)
+        is_header = row_index == 0
+        abbreviation_run = paragraph.add_run(f"{abbreviation}\t")
+        set_run_font(abbreviation_run, bold=is_header)
+        full_form_run = paragraph.add_run(full_form)
+        set_run_font(full_form_run, bold=is_header)
+    doc.add_paragraph()
+
+
 def build_document() -> None:
     lines = SRC.read_text(encoding="utf-8").splitlines()
     doc = Document()
@@ -290,6 +307,8 @@ def build_document() -> None:
 
     in_comment = False
     in_center_block = False
+    in_abbrev = False
+    front_matter_section_started = False
     body_section_started = False
     pending_page_break = False
     list_items: list[tuple[str, str, str]] = []
@@ -349,7 +368,20 @@ def build_document() -> None:
             skip_static_list = False
             level = len(heading_match.group(1))
             title = clean_text(heading_match.group(2))
-            if title == "CHAPTER ONE" and not body_section_started:
+            in_abbrev = title == "LIST OF ABBREVIATIONS"
+            if in_center_block:
+                cover = doc.add_paragraph()
+                cover.alignment = WD_ALIGN_PARAGRAPH.CENTER
+                run = cover.add_run(title.upper() if level == 1 else title)
+                set_run_font(run, size=16 if level == 1 else 14, bold=True)
+                index += 1
+                continue
+            if title == "ABSTRACT" and not front_matter_section_started:
+                section = doc.add_section(WD_SECTION.NEW_PAGE)
+                configure_section(section, page_format="lowerRoman", start=1)
+                front_matter_section_started = True
+                pending_page_break = False
+            elif title == "CHAPTER 1" and not body_section_started:
                 section = doc.add_section(WD_SECTION.NEW_PAGE)
                 configure_section(section, page_format="decimal", start=1)
                 body_section_started = True
@@ -402,7 +434,10 @@ def build_document() -> None:
         if stripped.startswith("|"):
             flush_list()
             rows, index = parse_table(lines, index)
-            add_table(doc, rows)
+            if in_abbrev:
+                add_abbreviations(doc, rows)
+            else:
+                add_table(doc, rows)
             continue
 
         number_match = NUMBER_RE.match(raw_line)

@@ -113,6 +113,8 @@ const LandingNav: React.FC = () => {
   useEffect(() => {
     let lastY = window.scrollY;
     const onScroll = () => {
+      // On mobile the header stays fixed/visible; only auto-hide on md+ screens.
+      if (window.innerWidth < 768) { setHidden(false); lastY = window.scrollY; return; }
       const y = window.scrollY;
       // Always show near the top; otherwise hide on scroll down, show on scroll up
       if (y < 80 || y < lastY) setHidden(false);
@@ -302,7 +304,7 @@ const HeroSection: React.FC = () => {
           className="text-muted-foreground text-lg md:text-xl max-w-2xl mx-auto mb-10 leading-relaxed text-pretty"
         >
           Real-time AI monitoring with facial recognition, eye-gaze tracking, object detection, and head-pose estimation.
-          94.2% accuracy. Zero compromise on hiring integrity.
+        Zero compromise on hiring integrity.
         </motion.p>
 
         {/* CTAs */}

@@ -53,6 +53,26 @@ June 2026
 
 <div style="page-break-after: always;"></div>
 
+# ABSTRACT
+
+**TITLE:** SemanticGuard AI: An AI-Powered Candidate Assessment Integrity and Fraud Detection System
+
+**Name of Researcher:** SHINGIRO Faisal
+
+**Faculty Advisor:** …………………………………
+
+**Date Completed:** June 2026
+
+The migration of recruitment assessment from supervised, physical examination centres to remote and computer-based settings has advanced faster than the capacity of traditional human proctoring to safeguard it. At Semantic Services Rwanda Ltd, a technology-driven recruitment and candidate-assessment organization, online competence tests are increasingly used to screen large numbers of applicants. However, a single human supervisor cannot reliably observe many candidates simultaneously, nor detect the brief and subtle behaviours — a glance at a concealed phone, a moment of off-screen attention, or the silent opening of another browser tab — through which assessment fraud commonly occurs. This has created substantial challenges, including undetected impersonation and collusion, inconsistent and subjective judgments of suspicious behaviour, weak and non-defensible evidence, delayed intervention, and an erosion of trust in the fairness of selection outcomes.
+
+This project designed and developed **SemanticGuard AI**, an intelligent, web-based assessment integrity platform that consolidates five complementary artificial-intelligence monitoring modules — continuous face recognition and identity verification, mobile-phone and object detection, eye-gaze tracking, head-pose estimation, and browser-activity monitoring — and fuses their outputs through a weighted risk-scoring engine into a single, transparent integrity risk score (0–100) for each candidate. The platform was implemented as a multi-role web application, with the user interface developed in **React** and **TypeScript**, a backend built on **Flask (Python)** that exposes a secure REST application programming interface, and **PostgreSQL** for relational data storage. Security was enforced through JSON Web Token authentication, role-based access control, multi-factor authentication, encryption, and comprehensive audit logging, while a proportionate, multi-channel notification subsystem delivers in-dashboard alerts, email, and SMS through the Africa's Talking gateway so that recruiters are reached promptly even when away from the monitoring console.
+
+The system was developed following the **Agile (Scrum)** methodology over an iterative, multi-phase plan, and validated through a layered testing strategy comprising unit, integration, system, performance, and security testing, complemented by quantitative evaluation of the artificial-intelligence modules using Precision, Recall, F1-score, and confusion matrices, and by user acceptance testing with stakeholders from Semantic Services Rwanda Ltd. The resulting platform increases the proportion of fraudulent behaviour that is detected, reduces the manual burden on evaluators, delivers real-time alerts for timely intervention, and produces detailed, timestamped evidence and audit reports suitable for formal hiring-integrity reviews. By combining multi-signal detection with transparency, proportionality, and a human-in-the-loop design that augments rather than replaces human judgment, SemanticGuard AI offers an accurate, affordable, and trustworthy means of protecting the integrity and fairness of online recruitment assessment.
+
+**Keywords:** assessment integrity, online proctoring, computer vision, face recognition, object detection, gaze tracking, risk scoring, fraud detection, recruitment technology.
+
+<div style="page-break-after: always;"></div>
+
 # DECLARATION
 
 I, **SHINGIRO Faisal**, Student ID Number …………, a student at the Adventist University of Central Africa in the Faculty of Information Technology, Department of Software Engineering, declare that this research project entitled *"SemanticGuard AI: An AI-Powered Candidate Assessment Integrity and Fraud Detection System"* is my own original work. I prepared it myself based on my own knowledge, study, and practical experience. This work has never been submitted to any university or college before, either in part or in full, for the award of any academic qualification. All sources of information consulted during this study have been duly acknowledged in the text and in the list of references.
@@ -109,165 +129,153 @@ SHINGIRO Faisal
 
 <div style="page-break-after: always;"></div>
 
-# ABSTRACT
-
-**TITLE:** SemanticGuard AI: An AI-Powered Candidate Assessment Integrity and Fraud Detection System
-
-**Name of Researcher:** SHINGIRO Faisal
-
-**Faculty Advisor:** …………………………………
-
-**Date Completed:** June 2026
-
-The migration of recruitment assessment from supervised, physical examination centres to remote and computer-based settings has advanced faster than the capacity of traditional human proctoring to safeguard it. At Semantic Services Rwanda Ltd, a technology-driven recruitment and candidate-assessment organization, online competence tests are increasingly used to screen large numbers of applicants. However, a single human supervisor cannot reliably observe many candidates simultaneously, nor detect the brief and subtle behaviours — a glance at a concealed phone, a moment of off-screen attention, or the silent opening of another browser tab — through which assessment fraud commonly occurs. This has created substantial challenges, including undetected impersonation and collusion, inconsistent and subjective judgments of suspicious behaviour, weak and non-defensible evidence, delayed intervention, and an erosion of trust in the fairness of selection outcomes.
-
-This project designed and developed **SemanticGuard AI**, an intelligent, web-based assessment integrity platform that consolidates five complementary artificial-intelligence monitoring modules — continuous face recognition and identity verification, mobile-phone and object detection, eye-gaze tracking, head-pose estimation, and browser-activity monitoring — and fuses their outputs through a weighted risk-scoring engine into a single, transparent integrity risk score (0–100) for each candidate. The platform was implemented as a multi-role web application, with the user interface developed in **React** and **TypeScript**, a backend built on **Flask (Python)** that exposes a secure REST application programming interface, and **PostgreSQL** for relational data storage. Security was enforced through JSON Web Token authentication, role-based access control, multi-factor authentication, encryption, and comprehensive audit logging, while a proportionate, multi-channel notification subsystem delivers in-dashboard alerts, email, and SMS through the Africa's Talking gateway so that recruiters are reached promptly even when away from the monitoring console.
-
-The system was developed following the **Agile (Scrum)** methodology over an iterative, multi-phase plan, and validated through a layered testing strategy comprising unit, integration, system, performance, and security testing, complemented by quantitative evaluation of the artificial-intelligence modules using Precision, Recall, F1-score, and confusion matrices, and by user acceptance testing with stakeholders from Semantic Services Rwanda Ltd. The resulting platform increases the proportion of fraudulent behaviour that is detected, reduces the manual burden on evaluators, delivers real-time alerts for timely intervention, and produces detailed, timestamped evidence and audit reports suitable for formal hiring-integrity reviews. By combining multi-signal detection with transparency, proportionality, and a human-in-the-loop design that augments rather than replaces human judgment, SemanticGuard AI offers an accurate, affordable, and trustworthy means of protecting the integrity and fairness of online recruitment assessment.
-
-**Keywords:** assessment integrity, online proctoring, computer vision, face recognition, object detection, gaze tracking, risk scoring, fraud detection, recruitment technology.
-
-<div style="page-break-after: always;"></div>
-
 # TABLE OF CONTENTS
 
-DECLARATION ............................................................................................. i
+ABSTRACT ................................................................................................. i
 
-APPROVAL ................................................................................................. ii
+DECLARATION ............................................................................................. ii
 
-DEDICATION ............................................................................................. iii
+APPROVAL ............................................................................................... iii
 
-ACKNOWLEDGEMENTS ....................................................................................... iv
+DEDICATION .............................................................................................. iv
 
-ABSTRACT ................................................................................................. v
+ACKNOWLEDGEMENTS ........................................................................................ v
 
 TABLE OF CONTENTS ...................................................................................... vi
 
-LIST OF TABLES ........................................................................................ viii
+LIST OF TABLES ......................................................................................... vii
 
-LIST OF FIGURES ........................................................................................ ix
+LIST OF FIGURES ....................................................................................... viii
 
-LIST OF ACRONYMS AND ABBREVIATIONS ...................................................................... x
+LIST OF ABBREVIATIONS ................................................................................... ix
 
-**CHAPTER ONE: GENERAL INTRODUCTION** ...................................................................... 1
+**CHAPTER 1: GENERAL INTRODUCTION** ...................................................................... 1
 
-1.1 Introduction
+Introduction
 
-1.2 Background of the Study
+Background of the Study
 
-1.3 Statement of the Problem
+Statement of the Problem
 
-1.4 Choice and Motivation
+Choice and Motivation
 
-1.5 Objectives of the Study
+Objectives of the Study
 
-&nbsp;&nbsp;&nbsp;&nbsp;1.5.1 General Objective
+&nbsp;&nbsp;&nbsp;&nbsp;General Objective
 
-&nbsp;&nbsp;&nbsp;&nbsp;1.5.2 Specific Objectives
+&nbsp;&nbsp;&nbsp;&nbsp;Specific Objectives
 
-1.6 Scope of the Project
+Scope of the Project
 
-1.7 Methodology and Techniques
+Methodology and Techniques
 
-&nbsp;&nbsp;&nbsp;&nbsp;1.7.1 Documentation
+&nbsp;&nbsp;&nbsp;&nbsp;Documentation
 
-&nbsp;&nbsp;&nbsp;&nbsp;1.7.2 Interview Questions and Responses
+&nbsp;&nbsp;&nbsp;&nbsp;Interview Questions and Responses
 
-&nbsp;&nbsp;&nbsp;&nbsp;1.7.3 Observation
+&nbsp;&nbsp;&nbsp;&nbsp;Observation
 
-1.8 Expected Results
+Expected Results
 
-1.9 Organization of Work
+Organization of Work
 
-**CHAPTER TWO: ANALYSIS OF THE CURRENT SYSTEM** ............................................................. 12
+**CHAPTER 2: ANALYSIS OF THE CURRENT SYSTEM** ............................................................. 12
 
-2.1 Introduction
+Introduction
 
-2.2 Description of the Current System Environment
+Description of the Current System Environment
 
-&nbsp;&nbsp;&nbsp;&nbsp;2.2.1 Historical Background
+&nbsp;&nbsp;&nbsp;&nbsp;Historical Background
 
-&nbsp;&nbsp;&nbsp;&nbsp;2.2.2 Vision
+&nbsp;&nbsp;&nbsp;&nbsp;Vision
 
-&nbsp;&nbsp;&nbsp;&nbsp;2.2.3 Mission
+&nbsp;&nbsp;&nbsp;&nbsp;Mission
 
-2.3 Description of the Current System
+Description of the Current System
 
-2.4 Analysis of the Current System
+Analysis of the Current System
 
-2.5 Modeling of the Current System
+Modeling of the Current System
 
-2.6 Problems of the Current System
+Problems of the Current System
 
-2.7 Proposed Solution
+Proposed Solution
 
-2.8 System Requirements
+System Requirements
 
-&nbsp;&nbsp;&nbsp;&nbsp;2.8.1 Functional Requirements
+&nbsp;&nbsp;&nbsp;&nbsp;Functional Requirements
 
-&nbsp;&nbsp;&nbsp;&nbsp;2.8.2 Non-Functional Requirements
+&nbsp;&nbsp;&nbsp;&nbsp;Non-Functional Requirements
 
-**CHAPTER THREE: REQUIREMENTS ANALYSIS AND DESIGN OF THE NEW SYSTEM** ........................... 24
+**CHAPTER 3: REQUIREMENTS ANALYSIS AND DESIGN OF THE NEW SYSTEM** ........................... 24
 
-3.1 Introduction
+Introduction
 
-3.2 Unified Modeling Language (UML)
+Unified Modeling Language (UML)
 
-3.3 Design of the New System – Diagrams
+Design of the New System – Diagrams
 
-&nbsp;&nbsp;&nbsp;&nbsp;3.3.1 Use-Case Diagram
+&nbsp;&nbsp;&nbsp;&nbsp;Use-Case Diagram
 
-&nbsp;&nbsp;&nbsp;&nbsp;3.3.2 Class Diagram
+&nbsp;&nbsp;&nbsp;&nbsp;Class Diagram
 
-&nbsp;&nbsp;&nbsp;&nbsp;3.3.3 Sequence Diagram
+&nbsp;&nbsp;&nbsp;&nbsp;Sequence Diagram
 
-&nbsp;&nbsp;&nbsp;&nbsp;3.3.4 Activity Diagram
+&nbsp;&nbsp;&nbsp;&nbsp;Activity Diagram
 
-3.4 Database Diagram (Entity–Relationship Diagram)
+Database Diagram (Entity–Relationship Diagram)
 
-3.5 Data Dictionary
+Data Dictionary
 
-3.6 System Architecture Design
+System Architecture Design
 
-**CHAPTER FOUR: IMPLEMENTATION OF THE NEW SYSTEM** ........................................................ 40
+**CHAPTER 4: IMPLEMENTATION OF THE NEW SYSTEM** ........................................................ 40
 
-4.1 Introduction
+Introduction
 
-4.2 Technologies Used
+Technologies Used
 
-&nbsp;&nbsp;&nbsp;&nbsp;4.2.1 Front End
+&nbsp;&nbsp;&nbsp;&nbsp;Front End
 
-&nbsp;&nbsp;&nbsp;&nbsp;4.2.2 Back End
+&nbsp;&nbsp;&nbsp;&nbsp;Back End
 
-&nbsp;&nbsp;&nbsp;&nbsp;4.2.3 Artificial Intelligence and Computer Vision
+&nbsp;&nbsp;&nbsp;&nbsp;Artificial Intelligence and Computer Vision
 
-4.3 Presentation of the New System
+&nbsp;&nbsp;&nbsp;&nbsp;Implementation of the New High-Value Integrity Features
 
-4.4 Software Testing
+Presentation of the New System
 
-&nbsp;&nbsp;&nbsp;&nbsp;4.4.1 Unit Testing
+Software Testing
 
-&nbsp;&nbsp;&nbsp;&nbsp;4.4.2 Integration Testing
+&nbsp;&nbsp;&nbsp;&nbsp;Unit Testing
 
-&nbsp;&nbsp;&nbsp;&nbsp;4.4.3 System Testing
+&nbsp;&nbsp;&nbsp;&nbsp;Integration Testing
 
-&nbsp;&nbsp;&nbsp;&nbsp;4.4.4 Performance Testing
+&nbsp;&nbsp;&nbsp;&nbsp;System Testing
 
-&nbsp;&nbsp;&nbsp;&nbsp;4.4.5 Security Testing
+&nbsp;&nbsp;&nbsp;&nbsp;Performance Testing
 
-&nbsp;&nbsp;&nbsp;&nbsp;4.4.6 Validation of AI Results
+&nbsp;&nbsp;&nbsp;&nbsp;Security Testing
 
-4.5 Hardware and Software Requirements
+&nbsp;&nbsp;&nbsp;&nbsp;Validation of AI Results
 
-4.6 Deployment Architecture
+Hardware and Software Requirements
 
-**CHAPTER FIVE: CONCLUSIONS AND RECOMMENDATIONS** .................................................. 56
+Deployment Architecture
 
-5.1 Conclusions
+**CHAPTER 5: CONCLUSIONS AND RECOMMENDATIONS** .................................................. 56
 
-5.2 Recommendations
+Conclusions
+
+Recommendations
 
 **REFERENCES** ............................................................................................................. 60
+
+&nbsp;&nbsp;&nbsp;&nbsp;Books
+
+&nbsp;&nbsp;&nbsp;&nbsp;Journals
+
+&nbsp;&nbsp;&nbsp;&nbsp;Websites
 
 **APPENDICES** ............................................................................................................. 63
 
@@ -369,7 +377,7 @@ Figure 18: Azure Deployment Architecture of SemanticGuard AI
 
 <div style="page-break-after: always;"></div>
 
-# LIST OF ACRONYMS AND ABBREVIATIONS
+# LIST OF ABBREVIATIONS
 
 | Abbreviation | Full Form |
 |---|---|
@@ -398,11 +406,11 @@ Figure 18: Azure Deployment Architecture of SemanticGuard AI
 
 <div style="page-break-after: always;"></div>
 
-# CHAPTER ONE
+# CHAPTER 1
 
 # GENERAL INTRODUCTION
 
-## 1.1 Introduction
+## Introduction
 
 Semantic Services Rwanda Ltd is a technology-oriented recruitment and candidate-assessment organization that supports employers in identifying competent talent through structured, skills-based testing. As the Rwandan and regional subsidiary of tfSemanticServices GmbH of Germany, the company aligns its operations with a broader mission of artificial intelligence, digital transformation, and the modernization of human-capital services. In pursuit of efficiency and scale, the organization has progressively moved its competence assessments from supervised, paper-based examinations to remote, computer-based tests that candidates complete from their own devices and locations.
 
@@ -412,7 +420,7 @@ The shift to remote testing, while improving reach and convenience, has weakened
 
 **SemanticGuard AI** is a web-based assessment integrity and fraud detection platform developed to address these challenges. The system applies artificial intelligence and computer vision to continuously monitor candidates during online assessments, observing several independent channels of potential misconduct at once and consolidating its observations into a single, transparent integrity risk score for each candidate. Beyond real-time detection, the platform enforces a secure, locked-down testing environment, randomizes the questions presented to each candidate, records the full session for later replay, extends its scrutiny to voice, device identity, and the originality of submitted program code, and presents its reasoning through an explainability dashboard that supports a structured human review of every flagged case. Rather than replacing the human evaluator, the platform augments human judgment: it surfaces objective, timestamped evidence and proportionate alerts that allow recruiters to intervene promptly and to justify their decisions. In doing so, SemanticGuard AI represents a meaningful step in the digital transformation of recruitment services in Rwanda, reconciling the scalability of remote assessment with the integrity that fair selection demands.
 
-## 1.2 Background of the Study
+## Background of the Study
 
 The rapid advancement of information technology has fundamentally reshaped how organizations recruit, evaluate, and select talent. Across the world, employers and assessment providers have embraced online testing as a means of reaching larger and more geographically dispersed pools of applicants while reducing the cost and logistical burden of in-person examinations. In Rwanda, where national strategies such as the Smart Rwanda Master Plan and the National Strategy for Transformation actively promote digital service delivery, this transition reflects a broader movement towards a knowledge-based, technology-driven economy.
 
@@ -422,7 +430,7 @@ Despite the convenience of remote testing, many providers continue to depend on 
 
 This challenge is clearly evident at Semantic Services Rwanda Ltd. As the organization expands its assessment portfolio and administers tests to increasing numbers of candidates across diverse locations and devices, the complexity of safeguarding integrity grows accordingly. Without an intelligent, centralized monitoring capability, it becomes difficult to detect coordinated or subtle cheating, to compare candidates on an equal footing, and to produce the defensible evidence required when an outcome is questioned. The absence of such a system therefore undermines both the efficiency and the fairness that the organization seeks to deliver, and it is precisely this gap that motivates the present study.
 
-## 1.3 Statement of the Problem
+## Statement of the Problem
 
 Organizations that administer online competence assessments increasingly operate in competitive environments in which the credibility and fairness of their testing directly determine their reputation and commercial value. However, many such organizations lack an effective and intelligent mechanism to verify that a candidate completing a remote assessment is genuinely the registered applicant, working unaided, and free from unauthorized assistance. The supervision methods currently in use were not designed for the realities of remote, device-based testing, and they leave significant avenues of misconduct unmonitored.
 
@@ -432,7 +440,7 @@ The impact of this problem is considerable. Undetected fraud allows under-qualif
 
 The root cause of these difficulties is the absence of a centralized, intelligent, and transparent monitoring system capable of observing multiple channels of candidate behaviour simultaneously, fusing them into an objective measure of risk, and producing defensible evidence in real time. The lack of artificial-intelligence-based tools further prevents objective, consistent evaluation of integrity and the proactive detection of fraud. Addressing this problem is essential if Semantic Services Rwanda Ltd is to protect the fairness of its assessments, strengthen the confidence of its clients, and scale its operations without compromising integrity.
 
-## 1.4 Choice and Motivation
+## Choice and Motivation
 
 The motivation for this study arose from direct, practical exposure to the operational challenges of remote assessment supervision observed within Semantic Services Rwanda Ltd during an academic engagement. The manual and largely reactive methods currently used to supervise online tests revealed clear weaknesses in identity verification, real-time monitoring, evidence collection, and the consistency of integrity judgments. These observed challenges demonstrated an urgent need for a structured, intelligent, and automated solution, and they shaped the choice of this project.
 
@@ -442,13 +450,13 @@ The motivation for this study arose from direct, practical exposure to the opera
 
 **To the Researcher:** this study provided invaluable hands-on experience in designing and building an enterprise-grade system that integrates artificial-intelligence components with a secure, multi-role web application. It strengthened the researcher's problem-solving and project-management skills and produced a portfolio-level system directly applicable to recruitment organizations, examination bodies, and educational institutions confronting the same integrity challenges.
 
-## 1.5 Objectives of the Study
+## Objectives of the Study
 
-### 1.5.1 General Objective
+### General Objective
 
 The general objective of this study is to design and develop **SemanticGuard AI**, a comprehensive, AI-powered candidate assessment integrity and fraud detection system that continuously monitors candidates during remote online assessments at Semantic Services Rwanda Ltd, consolidates multiple independent signals of misconduct into a single transparent risk score, and delivers real-time alerts and defensible evidence that enable fair, timely, and accountable recruitment decisions.
 
-### 1.5.2 Specific Objectives
+### Specific Objectives
 
 1. To design a secure, multi-role web platform that authenticates recruiters and administrators and enables candidates to undertake monitored online assessments with verified identity.
 2. To implement continuous face recognition and identity verification, reinforced by continuous liveness detection, that confirms the registered candidate is genuinely present and detects impersonation, absence, or presentation (photograph, video, or mask) spoofing attempts during an assessment.
@@ -488,7 +496,7 @@ Table 1 maps the specific objectives to the detection and system modules that re
 | Human adjudication of flagged sessions | Recruiter Review Workflow |
 | Security, accountability, and defensible evidence | JWT, MFA, Encryption, Audit Logging, and Reporting |
 
-## 1.6 Scope of the Project
+## Scope of the Project
 
 The scope of this study encompasses the full design, development, testing, and deployment of SemanticGuard AI as an integrity-monitoring and fraud-detection platform for the remote online assessments administered by Semantic Services Rwanda Ltd. The system covers the complete monitored-assessment lifecycle, from candidate identity verification at the start of a test, through continuous multi-channel monitoring within a locked-down testing environment during the test, to the consolidation of evidence, the calculation of an integrity risk score, the escalation of alerts, the human review of flagged sessions, and the generation of integrity reports after the test.
 
@@ -498,17 +506,17 @@ The study does not extend to the authoring or grading of the academic or technic
 
 This research contributes to the field by delivering an intelligent, centralized, and transparent integrity platform that fundamentally changes how remote assessment misconduct is detected and evidenced. The system offers substantial improvements over existing supervision methods, including markedly increased detection of fraudulent behaviour, consistent and objective risk evaluation, real-time alerting for timely intervention, and the systematic production of defensible evidence. Its successful implementation represents a meaningful advancement for Semantic Services Rwanda Ltd, establishing a scalable, data-driven foundation that strengthens the fairness, credibility, and efficiency of online candidate assessment.
 
-## 1.7 Methodology and Techniques
+## Methodology and Techniques
 
 This study employed appropriate research methods to identify and analyze the weaknesses of the current assessment-supervision process at Semantic Services Rwanda Ltd, and to design and develop SemanticGuard AI using modern information-technology solutions. These methods were selected to ensure accurate data collection, reliable analysis, and a practical, well-grounded system design. The development of the software itself followed the Agile (Scrum) methodology, organizing the work into iterative increments that allowed requirements to be refined and validated progressively. The following data-collection methods and techniques were applied in conducting this research.
 
-### 1.7.1 Documentation
+### Documentation
 
 Documentation is a research method involving the systematic collection, review, and analysis of existing records, reports, and written materials relevant to the study. It enables the researcher to understand background information, identify operational challenges, and gather evidence in support of the research objectives.
 
 In this study, documentation review was used to examine the existing assessment and supervision materials of Semantic Services Rwanda Ltd, including test-administration guidelines, candidate-instruction templates, incident records of suspected misconduct, and the notification messages currently sent to candidates. The review also considered national digital-transformation frameworks, such as the Smart Rwanda Master Plan and the National Strategy for Transformation, in order to align the system's objectives with national priorities. In addition, academic publications and international best practices on online proctoring, computer-vision-based monitoring, biometric identity verification, and fairness in automated decision-making were studied to inform the design and functionality of the platform.
 
-### 1.7.2 Interview Questions and Responses
+### Interview Questions and Responses
 
 Interviews are a qualitative research method involving structured or semi-structured discussions with key stakeholders to obtain detailed insight into their experiences, perceptions, and operational challenges. This method provides practical data that complement findings from documentation and observation.
 
@@ -546,7 +554,7 @@ In this study, interviews were conducted with assessment administrators, recruit
 
 **Response:** "I would trust it to flag and gather evidence, but I would want to see how it reaches its conclusions. If it shows me exactly what it detected and when, with a clear breakdown of the score, I would trust it. The final decision should still rest with us, but the system would save a great deal of time and reduce human error and bias."
 
-### 1.7.3 Observation
+### Observation
 
 Direct observation sessions were carried out at Semantic Services Rwanda Ltd over a period during which several remote assessment cycles were administered. The researcher observed the full supervision workflow, from candidate identity checks at the start of a test, through live monitoring, to the handling of suspected incidents afterwards. The following findings were documented through direct observation.
 
@@ -562,7 +570,7 @@ Direct observation sessions were carried out at Semantic Services Rwanda Ltd ove
 
 These observations confirmed, in practical terms, the limitations identified through documentation and interviews, and they directly informed the functional and non-functional requirements of SemanticGuard AI.
 
-## 1.8 Expected Results
+## Expected Results
 
 At the conclusion of this study, the SemanticGuard AI platform is expected to deliver a functional, intelligent, and transparent assessment-integrity solution that addresses the weaknesses of the current process. Specifically, the project is expected to achieve the following outcomes:
 
@@ -577,7 +585,7 @@ At the conclusion of this study, the SemanticGuard AI platform is expected to de
 
 Collectively, these results are expected to strengthen the credibility of the assessments administered by Semantic Services Rwanda Ltd and to provide a scalable foundation for protecting integrity as the organization's testing volumes grow.
 
-## 1.9 Organization of Work
+## Organization of Work
 
 This report is organized into five chapters that together present the study from problem definition through to conclusions and recommendations.
 
@@ -595,11 +603,11 @@ The report concludes with a list of **References** and a set of **Appendices**, 
 
 <div style="page-break-after: always;"></div>
 
-# CHAPTER TWO
+# CHAPTER 2
 
 # ANALYSIS OF THE CURRENT SYSTEM
 
-## 2.1 Introduction
+## Introduction
 
 This chapter presents a detailed and systematic analysis of the operational environment in which the proposed SemanticGuard AI platform is to be deployed. Its purpose is to establish a clear understanding of the institutional, procedural, and technological context of the remote assessment-supervision process at Semantic Services Rwanda Ltd, which forms the foundation upon which the new system is designed. A rigorous analysis of what exists today is essential, because the value of any information system is measured by how effectively it resolves the concrete weaknesses of the situation it replaces.
 
@@ -609,23 +617,23 @@ Following the institutional overview, the chapter provides a comprehensive exami
 
 Particular attention is given to evaluating the strengths and weaknesses of the current approach. While the existing process exhibits certain organizational strengths, such as defined administrative roles and an established testing routine, it also reveals significant operational limitations, including reliance on manual observation, the absence of continuous identity assurance, an inability to detect subtle misconduct, inconsistent judgments, and a lack of defensible evidence and real-time visibility. By documenting these strengths and limitations, the chapter establishes a clear benchmark against which SemanticGuard AI will be measured, ensuring that the system is built on evidence drawn directly from operational reality rather than on assumption. The chapter therefore serves as the essential bridge between the identification of the problem and the design of the solution, and it concludes by specifying the functional and non-functional requirements of the proposed system.
 
-## 2.2 Description of the Current System Environment
+## Description of the Current System Environment
 
-### 2.2.1 Historical Background
+### Historical Background
 
 Semantic Services Rwanda Ltd was established as the Rwandan operation of tfSemanticServices GmbH of Germany, with the mandate of delivering technology-driven recruitment and candidate-assessment services to employers in Rwanda and the wider region. The organization specializes in structured, skills-based testing, helping clients to identify competent talent objectively rather than relying solely on curricula vitae and unstructured interviews. As demand for fair, evidence-based hiring has grown, the organization has progressively migrated its assessments from supervised, paper-based examinations conducted at fixed venues towards remote, computer-based tests that candidates complete from their own devices.
 
 This transition has substantially extended the organization's reach and reduced the cost and logistics of testing, but it has also outpaced the supervision practices originally designed for the physical examination hall. The methods used to safeguard integrity — chiefly live human observation through webcams and the retention of recordings for later review — have remained largely unchanged even as the testing environment has become remote and far less controllable. This growing gap between modern, scalable assessment delivery and traditional, manual supervision is the central concern that this study addresses.
 
-### 2.2.2 Vision
+### Vision
 
 The vision of Semantic Services Rwanda Ltd is to become a leading and trusted provider of intelligent, technology-driven assessment services in the region, setting a benchmark for fairness, transparency, and integrity in candidate evaluation. By embracing artificial intelligence and digital transformation, the organization aspires to create assessment processes in which every selection outcome is credible, defensible, and determined solely by a candidate's genuine ability.
 
-### 2.2.3 Mission
+### Mission
 
 The mission of Semantic Services Rwanda Ltd is to equip employers with accurate, objective, and trustworthy assessment of candidate competence, and to safeguard the fairness of that assessment through innovation and the responsible application of technology. Through data-driven evaluation and a commitment to integrity, the organization seeks to ensure that opportunity is allocated on the basis of merit, while strengthening client confidence in the results it delivers.
 
-## 2.3 Description of the Current System
+## Description of the Current System
 
 The existing assessment-supervision process at Semantic Services Rwanda Ltd is conducted through a combination of manual webcam observation, after-the-fact recording review, and informal record-keeping that has remained largely unchanged despite the shift to remote testing. When a candidate is scheduled to sit an assessment, the process begins with a one-time identity check: a member of staff inspects a photograph and an identity document at the start of the session to confirm, at that single moment, that the correct candidate is present. Once the assessment is under way, however, there is no mechanism to confirm that the same individual remains in front of the camera throughout the test.
 
@@ -635,7 +643,7 @@ When a supervisor believes that a candidate has behaved suspiciously, the observ
 
 Finally, the outcome of any integrity concern is handled manually. The supervisor's notes and, where necessary, a replayed recording form the basis of a decision about whether to flag, query, or invalidate a candidate's result. Communication with the candidate and with the client is conducted on an ad hoc basis, through individual emails or calls, without an integrated channel for proportionate, timely notification. The evidence retained to justify a decision is descriptive and imprecise, lacking the timestamped, objective record that would allow it to withstand a formal challenge.
 
-## 2.4 Analysis of the Current System
+## Analysis of the Current System
 
 The analysis of the current system was conducted using the evidence gathered through documentation review, interviews, and direct observation, as described in Chapter One. This evidence revealed that, while the existing process is organized around clear administrative roles and an established testing routine, it suffers from fundamental limitations that arise directly from its reliance on manual, single-moment, and reactive methods of supervision.
 
@@ -645,7 +653,7 @@ However, the analysis exposed substantial **weaknesses** that undermine the inte
 
 Taken together, these findings demonstrate that the current system is reactive rather than proactive, subjective rather than objective, and fragmented rather than consolidated. They confirm that incremental adjustments to manual supervision cannot close the integrity gap created by remote testing, and that an intelligent, centralized, and transparent monitoring system is required. This conclusion directly informs the requirements specified later in this chapter and the design presented in Chapter Three.
 
-## 2.5 Modeling of the Current System
+## Modeling of the Current System
 
 To represent the existing process clearly, the current (as-is) assessment-supervision workflow at Semantic Services Rwanda Ltd is modeled in Figure 1. The model traces the flow of a single assessment from the candidate's one-time identity check, through the intermittent manual supervision of the test, to the informal handling of any suspected misconduct and the ad hoc communication of the outcome. The diagram makes visible the points at which the process depends on manual effort and human attention, and the points at which integrity signals are lost because no mechanism exists to capture them.
 
@@ -653,7 +661,7 @@ To represent the existing process clearly, the current (as-is) assessment-superv
 
 ![Figure 1: Model of the Current (As-Is) Assessment Supervision Process at Semantic Services Rwanda Ltd](images/figure-01-model-of-the-current-as-is-assessment-supervision-process-at-semantic-services-rwanda-ltd.png)
 
-## 2.6 Problems of the Current System
+## Problems of the Current System
 
 The detailed analysis and modeling of the current system reveal a set of interrelated problems that collectively compromise the integrity, fairness, and efficiency of remote assessment at Semantic Services Rwanda Ltd. These problems are summarized below.
 
@@ -683,7 +691,7 @@ The detailed analysis and modeling of the current system reveal a set of interre
 
 13. **No session reconstruction, code-originality checking, or structured review.** There is no chronological recording of on-screen activity that a reviewer could replay to audit a session; for technical assessments there is no means of establishing whether submitted code was copied or generated by an artificial-intelligence tool; and when a concern is raised there is neither a transparent explanation of why a session is suspect nor a structured workflow through which it can be adjudicated.
 
-## 2.7 Proposed Solution
+## Proposed Solution
 
 In response to the problems identified above, this study proposes the development of **SemanticGuard AI**, an intelligent, web-based assessment-integrity and fraud-detection platform that replaces intermittent, subjective, and reactive supervision with continuous, objective, and proactive monitoring. Rather than depending on a human observer to watch many candidates at once, the proposed system applies artificial intelligence and computer vision to monitor every candidate continuously and simultaneously across several independent channels.
 
@@ -691,11 +699,11 @@ The proposed solution introduces continuous face recognition and identity verifi
 
 To resolve the lack of timely intervention, the system escalates detected risk in real time through a proportionate, multi-channel notification subsystem delivering in-dashboard alerts, email, and SMS. To address the weakness of existing evidence, it records detailed, timestamped observations, captures a continuous screen recording that can be replayed as a full session reconstruction, and generates defensible integrity reports suitable for formal review. To ensure that risk judgments are transparent and accountable, an AI explainability dashboard sets out how each score was derived, and a structured recruiter review workflow allows flagged sessions to be examined and confirmed, dismissed, or escalated by a human evaluator. Throughout, the platform enforces strong security and accountability and is designed to give management real-time visibility into the integrity of ongoing assessments. In this way, SemanticGuard AI maps directly onto the problems of the current system, transforming a manual and fragmented process into an intelligent, centralized, and transparent one.
 
-## 2.8 System Requirements
+## System Requirements
 
 The requirements of the proposed system were derived directly from the evidence gathered during the analysis of the current system and were validated with stakeholders at Semantic Services Rwanda Ltd. They are presented as functional requirements, which specify what the system must do, and non-functional requirements, which specify the qualities the system must exhibit.
 
-### 2.8.1 Functional Requirements
+### Functional Requirements
 
 The functional requirements of SemanticGuard AI are summarized in Table 2.
 
@@ -725,7 +733,7 @@ The functional requirements of SemanticGuard AI are summarized in Table 2.
 | FR-20 | The system shall provide an explainability dashboard that presents the breakdown of each candidate's integrity risk score. |
 | FR-21 | The system shall provide a structured review workflow enabling recruiters to examine flagged sessions and confirm, dismiss, or escalate them. |
 
-### 2.8.2 Non-Functional Requirements
+### Non-Functional Requirements
 
 The non-functional requirements of SemanticGuard AI are summarized in Table 3.
 
@@ -746,11 +754,11 @@ The non-functional requirements of SemanticGuard AI are summarized in Table 3.
 
 <div style="page-break-after: always;"></div>
 
-# CHAPTER THREE
+# CHAPTER 3
 
 # REQUIREMENTS ANALYSIS AND DESIGN OF THE NEW SYSTEM
 
-## 3.1 Introduction
+## Introduction
 
 This chapter presents the comprehensive requirements analysis and system design of SemanticGuard AI. Building upon the weaknesses and operational gaps identified in Chapter Two, it translates the institutional problems of remote assessment supervision at Semantic Services Rwanda Ltd into structured technical specifications and architectural solutions. While the preceding chapter established the justification for an intelligent integrity-monitoring system, the present chapter provides the engineering blueprint that makes such a system technically feasible.
 
@@ -758,13 +766,13 @@ The development of a modern, AI-driven integrity platform demands a disciplined 
 
 The design is presented through a sequence of complementary views. The use-case diagram captures the functional interactions between actors and the system; the class diagram models its static structure; the sequence and activity diagrams describe its dynamic behaviour; the entity–relationship diagram and data dictionary define its persistent data; and the system architecture diagram describes how the components are organized and deployed. Together, these views provide a precise and unambiguous specification that guides implementation, communicates the design to stakeholders, and forms part of the permanent documentation of the system.
 
-## 3.2 Unified Modeling Language (UML)
+## Unified Modeling Language (UML)
 
 The Unified Modeling Language is the internationally standardized notation for modeling software systems. It provides a family of diagram types, each suited to capturing a particular aspect of a system's structure or behaviour, that together yield a complete and unambiguous specification of how the system is designed to work. In this project, UML serves three purposes: it guides development by providing a precise blueprint for implementation; it communicates the design to stakeholders who may not be technical specialists; and it forms part of the permanent documentation of the delivered system. The subsections that follow present the use-case, class, sequence, and activity models of SemanticGuard AI.
 
-## 3.3 Design of the New System – Diagrams
+## Design of the New System – Diagrams
 
-### 3.3.1 Use-Case Diagram
+### Use-Case Diagram
 
 A use-case diagram is a UML behavioural diagram that depicts the interactions between a system and its external environment, capturing the essential functional requirements of the system. It represents the system as a boundary that contains a set of use cases — the discrete tasks the system performs — and connects those use cases, through associations, to the external actors who initiate or participate in them. The principal elements of the notation are the **actor**, representing a role played by a user or external system; the **use case**, representing a unit of system functionality; the **association**, representing an interaction between an actor and a use case; and the **system boundary**, representing the scope of the modeled system.
 
@@ -824,7 +832,7 @@ The detailed behaviour of the principal use cases is documented in Tables 4 to 7
 | Normal Flow | 1. Administrator opens "User Management". 2. Views the list of users. 3. Selects a user. 4. Modifies the role (Candidate, Recruiter, Administrator) or status. 5. Saves the change. 6. System confirms the update. |
 | Alternative Flow | If the administrator attempts to deactivate their own account, the system prevents the action. |
 
-### 3.3.2 Class Diagram
+### Class Diagram
 
 A class diagram is a fundamental component of object-oriented software modeling. It provides a visual representation of the building blocks of an application, capturing both the static data structure and the behavioural responsibilities of the system's components. Each class is typically depicted as a rectangle divided into three compartments — the class name, its attributes (the data it holds), and its operations (the behaviour it performs) — while the lines connecting classes express their relationships, which may include association, aggregation, composition, and inheritance. A well-constructed class diagram reduces redundancy, clarifies responsibilities, and ensures consistent data relationships throughout development. Figure 3 presents the class diagram of SemanticGuard AI.
 
@@ -857,7 +865,7 @@ The key classes of the system, their principal attributes, and their responsibil
 | RiskScoringEngine | weights | Fuses integrity events into a transparent risk score and produces the explainability breakdown presented to recruiters. |
 | AuditLog | id, action, actorId, timestamp | Records user and system actions for accountability. |
 
-### 3.3.3 Sequence Diagram
+### Sequence Diagram
 
 A sequence diagram is a UML interaction diagram that depicts the objects participating in a scenario as vertical lifelines and the messages exchanged between them as horizontal arrows ordered in time from top to bottom. It is particularly suited to illustrating the dynamic collaboration of components during a specific scenario. Figure 4 presents the sequence diagram for the core scenario of SemanticGuard AI: the candidate assessment workflow, in which the candidate is verified, monitored continuously across the identity, liveness, object, gaze, head-pose, voice, browser, and device channels, and a risk score is produced, explained, and escalated.
 
@@ -865,7 +873,7 @@ A sequence diagram is a UML interaction diagram that depicts the objects partici
 
 ![Figure 4: Sequence Diagram of the Candidate Assessment Workflow](images/Sequence%20Diagram%20of%20the%20Candidate%20Assessment%20Workflow.png)
 
-### 3.3.4 Activity Diagram
+### Activity Diagram
 
 An activity diagram is a UML behavioural diagram that models the flow of control from one activity to another, including decision points, parallel activities, and the start and end of a process. It is well suited to representing workflows. Figure 5 presents the activity diagram of the monitored assessment workflow, showing the parallel operation of the detection modules and the convergence of their signals into a single risk decision.
 
@@ -873,7 +881,7 @@ An activity diagram is a UML behavioural diagram that models the flow of control
 
 ![Figure 5: Activity Diagram of the Monitored Assessment Workflow](images/Activity%20Diagram%20of%20the%20Monitored%20Assessment%20Workflow.png)
 
-## 3.4 Database Diagram (Entity–Relationship Diagram)
+## Database Diagram (Entity–Relationship Diagram)
 
 The persistent data of SemanticGuard AI is organized into a normalized relational schema implemented in PostgreSQL. The entity–relationship diagram (ERD) models the entities, their attributes, and the relationships between them. The central entities are the **User**, with its specialized **CandidateProfile** and **RecruiterProfile**; the **Assessment**, its **Questions**, and their **QuestionOptions**; the **AssessmentSession**, which links a candidate to an assessment and accumulates **Answers** (including their **CodeAnalysis** results), **IntegrityEvents**, **Alerts**, **Evidence**, a **DeviceFingerprint**, a **SessionRecording**, and a **ReviewDecision**; and the supporting **Notification** and **AuditLog** entities that provide communication and accountability. Figure 6 presents the entity–relationship diagram.
 
@@ -881,7 +889,7 @@ The persistent data of SemanticGuard AI is organized into a normalized relationa
 
 ![Figure 6: Entity–Relationship Diagram of SemanticGuard AI](images/Entity-Relationship%20Diagram%20of%20SemanticGuard%20AI.png)
 
-## 3.5 Data Dictionary
+## Data Dictionary
 
 The data dictionary defines the structure of the principal database tables, specifying for each column its data type, key role, and meaning. Tables 9 to 12 present the data dictionary for the core entities of SemanticGuard AI.
 
@@ -962,7 +970,7 @@ The risk-scoring engine fuses integrity events into a single score by applying a
 | High | 60 – 79 | In-dashboard notification and email alert. |
 | Critical | 80 – 100 | In-dashboard notification, email, and SMS alert. |
 
-## 3.6 System Architecture Design
+## System Architecture Design
 
 SemanticGuard AI is designed as a layered, modular web application that cleanly separates presentation, application logic, artificial-intelligence processing, and data persistence. This separation supports the non-functional requirements of scalability, maintainability, and security established in Chapter Two, by allowing each layer — and, within the AI layer, each detection module — to evolve independently.
 
@@ -976,21 +984,21 @@ The architecture follows a client–server, service-oriented design in which the
 
 <div style="page-break-after: always;"></div>
 
-# CHAPTER FOUR
+# CHAPTER 4
 
 # IMPLEMENTATION OF THE NEW SYSTEM
 
-## 4.1 Introduction
+## Introduction
 
 This chapter documents the implementation of SemanticGuard AI, translating the design presented in Chapter Three into a functional, production-ready platform. The transition from the manual, reactive supervision process analyzed in Chapter Two to this intelligent digital solution represents a significant technological advancement in how assessment integrity is protected at Semantic Services Rwanda Ltd.
 
 The implementation followed the iterative Agile (Scrum) process introduced earlier, in which the foundational architecture — authentication, the database schema, and the basic assessment workflow — was established first, and the artificial-intelligence detection modules, the secure lockdown and question randomization, the liveness, voice, device-fingerprinting, screen-recording, coding-plagiarism, explainability, and recruiter-review capabilities, the risk-scoring engine, and the recruiter dashboard were progressively added and refined. This chapter describes the technology stack employed and the rationale for each choice; presents the principal interfaces of the implemented system; details the multi-layered testing strategy and the quantitative validation of the artificial-intelligence modules; and specifies the hardware and software requirements for operating the platform. Finally, it presents the deployment architecture through which the system is hosted on Microsoft Azure.
 
-## 4.2 Technologies Used
+## Technologies Used
 
 To build a robust, secure, and responsive integrity-monitoring platform, a modern technology stack was selected with an emphasis on real-time performance, the availability of mature computer-vision libraries, security, and maintainability. The technologies are presented by layer in the subsections that follow and summarized in Tables 15 to 17.
 
-### 4.2.1 Front End
+### Front End
 
 The front end is a single-page web application that delivers distinct, role-appropriate interfaces for candidates, recruiters, and administrators, and captures the candidate's webcam stream and browser activity during an assessment.
 
@@ -1018,7 +1026,7 @@ The front end is a single-page web application that delivers distinct, role-appr
 - The **Monaco Editor** provided a professional in-browser coding environment for technical assessments and was instrumented to capture paste and keystroke behaviour used by the coding-plagiarism module.
 - A **device-fingerprinting library** derived a stable identifier from browser and hardware characteristics, enabling the platform to bind a session to a device and detect device changes.
 
-### 4.2.2 Back End
+### Back End
 
 The back end exposes a secure REST API, enforces authentication and authorization, orchestrates the assessment workflow, hosts the risk-scoring engine, and persists all data.
 
@@ -1041,7 +1049,7 @@ The back end exposes a secure REST API, enforces authentication and authorizatio
 - **Celery** with a **Redis** broker was used to perform heavier monitoring and notification work asynchronously, keeping the API responsive while integrity events were processed and alerts dispatched.
 - **JSON Web Tokens**, multi-factor authentication, role-based access control, encryption, and comprehensive audit logging together formed the security layer, satisfying the non-functional security requirements specified in Chapter Two.
 
-### 4.2.3 Artificial Intelligence and Computer Vision
+### Artificial Intelligence and Computer Vision
 
 The artificial-intelligence layer realizes the detection modules that continuously monitor each candidate across the visual, audio, behavioural, and device channels, together with the coding-plagiarism analyzer for programming submissions. The technologies used are summarized in Table 17.
 
@@ -1069,7 +1077,7 @@ The artificial-intelligence layer realizes the detection modules that continuous
 - The **screen-recording subsystem** stores a continuous recording of each session to support full replay during recruiter review.
 - The outputs of all modules are consolidated into integrity events and fused by the **risk-scoring engine** into a single, explainable risk score, as described in Chapter Three.
 
-### 4.2.4 Implementation of the New High-Value Integrity Features
+### Implementation of the New High-Value Integrity Features
 
 Beyond the core detection modules, SemanticGuard AI was extended with a set of enterprise-grade integrity features that deepen its coverage of the assessment lifecycle. Table 21 summarizes, for each feature, how it was developed, how it was integrated into the platform, and how it was tested.
 
@@ -1088,7 +1096,7 @@ Beyond the core detection modules, SemanticGuard AI was extended with a set of e
 | Recruiter Review Workflow | Flagged sessions enter a review queue; recruiters confirm, dismiss, or escalate a session, and the decision and grading status are persisted. | Exercised the confirm, dismiss, and escalate paths and confirmed the session state and grading status updated accordingly. |
 | Question Randomization | The backend shuffles the selection and ordering of questions and answer options per session, using the normalized options table, so that no two candidates receive an identical paper. | Started multiple sessions of the same assessment and confirmed that ordering differed while the correctness mapping remained intact. |
 
-## 4.3 Presentation of the New System
+## Presentation of the New System
 
 This section presents the principal interfaces of the implemented SemanticGuard AI platform. Each interface is described in terms of the role it serves and the functionality it provides. The corresponding screenshots, captured from the running system, are presented as Figures 8 to 17 and are sourced from the project's image repository.
 
@@ -1152,11 +1160,11 @@ The analytics dashboard aggregates integrity outcomes across assessments, provid
 
 The review interface presents each flagged session together with the AI alert panel and the explainability breakdown of its risk score, and allows the recruiter to replay the recorded session, examine the timestamped evidence, and confirm, dismiss, or escalate the case, ensuring that the final integrity decision rests with a human evaluator.
 
-## 4.4 Software Testing
+## Software Testing
 
 The platform was validated through a multi-layered testing strategy designed to confirm that each component behaves correctly in isolation, that components work together as intended, that the system as a whole satisfies its requirements, and that the artificial-intelligence modules detect misconduct accurately. The strategy comprised unit, integration, system, performance, and security testing, complemented by a quantitative evaluation of the detection modules and by user acceptance testing.
 
-### 4.4.1 Unit Testing
+### Unit Testing
 
 Unit testing verified the correctness of individual functions and components in isolation, including authentication logic, the risk-scoring computation, and the data-access layer. The backend unit tests were written using the pytest framework. Representative unit test cases and their outcomes are summarized in Table 18.
 
@@ -1174,7 +1182,7 @@ Unit testing verified the correctness of individual functions and components in 
 | UT-08 | Randomize question and option order per session | Distinct ordering produced; correctness preserved | Passed |
 | UT-09 | Classify a live face versus a static photograph | Spoof rejected; live accepted | Passed |
 
-### 4.4.2 Integration Testing
+### Integration Testing
 
 Integration testing verified that the components of the system operate correctly together, in particular the flow from the capture of a webcam frame, through detection and the creation of an integrity event, to the update of the risk score and the dispatch of a notification. Representative integration test cases are summarized in Table 19.
 
@@ -1193,19 +1201,19 @@ Integration testing verified that the components of the system operate correctly
 | IT-09 | Recruiter review decision updates the session and grading status | Decision persisted; status updated | Passed |
 | IT-10 | AI-generated code submission is flagged in the integrity report | Plagiarism / AI verdict recorded | Passed |
 
-### 4.4.3 System Testing
+### System Testing
 
 System testing evaluated the complete, integrated platform against the functional requirements specified in Chapter Two, exercising the full monitored-assessment lifecycle from candidate enrolment and identity verification, through continuous monitoring and alerting, to the generation of the integrity report. The system met its functional requirements across the tested scenarios.
 
-### 4.4.4 Performance Testing
+### Performance Testing
 
 Performance testing assessed the responsiveness of the platform under realistic monitoring load, confirming that integrity events were processed and that alerts were raised with sufficiently low latency for intervention to remain timely during an assessment, and that the asynchronous processing of monitoring workloads kept the REST API responsive.
 
-### 4.4.5 Security Testing
+### Security Testing
 
 Security testing verified the effectiveness of the platform's protective controls, including the correct enforcement of JSON Web Token authentication and multi-factor authentication, the application of role-based access control across all endpoints, the protection of data in transit, and the integrity of the audit log. The tests confirmed that protected resources could not be accessed without appropriate authentication and authorization.
 
-### 4.4.6 Validation of AI Results
+### Validation of AI Results
 
 The accuracy of the artificial-intelligence detection modules was evaluated quantitatively using the standard classification metrics of Precision, Recall, and F1-score, supported by confusion matrices, on labelled samples of honest and simulated-fraud behaviour. Precision measures the proportion of flagged events that were genuine, Recall measures the proportion of genuine misconduct that was detected, and the F1-score is their harmonic mean. Illustrative results are summarized in Table 20.
 
@@ -1224,27 +1232,27 @@ The accuracy of the artificial-intelligence detection modules was evaluated quan
 
 The values reported in Table 20 are illustrative of the level of accuracy achieved during validation and demonstrate that the modules detect the majority of genuine misconduct while maintaining a low rate of false alarms. The browser-activity monitor, which observes deterministic events, achieves the highest accuracy, whereas the attention-based modules, which infer behaviour from continuous signals, are intentionally tuned to tolerate brief, natural movements in order to avoid penalizing honest candidates.
 
-## 4.5 Hardware and Software Requirements
+## Hardware and Software Requirements
 
 This section specifies the hardware and software required to operate SemanticGuard AI on both the client and server sides.
 
-### 4.5.1 Client-Side Software Requirements
+### Client-Side Software Requirements
 
 The client side requires a modern web browser (such as Google Chrome, Microsoft Edge, or Mozilla Firefox) with support for the camera-, microphone-, and screen-capture APIs, and permission granted for camera, microphone, and screen access during an assessment. A Chromium-based browser is recommended for full secure-lockdown support. No specialized software installation is required.
 
-### 4.5.2 Client-Side Hardware Requirements
+### Client-Side Hardware Requirements
 
 The client side requires a computer with a functioning webcam and microphone, a stable internet connection, and a contemporary processor and memory sufficient to run a modern browser and stream video — typically a dual-core processor, 4 GB of memory, and an integrated camera.
 
-### 4.5.3 Server-Side Software Requirements
+### Server-Side Software Requirements
 
 The server side requires a Linux host running the Python runtime, the Flask application served through a production WSGI server behind an Nginx reverse proxy, a PostgreSQL database, and a Redis instance for the Celery task queue. The components are containerized with Docker for consistent deployment.
 
-### 4.5.4 Server-Side Hardware Requirements
+### Server-Side Hardware Requirements
 
 The server side requires a host with sufficient processing capacity to run the artificial-intelligence detection workloads — a multi-core processor, at least 8 GB of memory (with more recommended when many sessions are monitored concurrently), and adequate storage for the database and the captured evidence. The architecture supports horizontal scaling of the AI worker and application tiers as monitoring demand grows.
 
-## 4.6 Deployment Architecture
+## Deployment Architecture
 
 SemanticGuard AI is deployed on Microsoft Azure using a containerized architecture that separates the web client, the application API, the asynchronous AI workers, and the managed data services. This arrangement provides scalability, reliability, and security, allowing the computationally intensive monitoring workloads to scale independently of the web and API tiers. Figure 18 presents the Azure deployment architecture.
 
@@ -1256,11 +1264,11 @@ In this deployment, **Azure Front Door** (or an Application Gateway) terminates 
 
 <div style="page-break-after: always;"></div>
 
-# CHAPTER FIVE
+# CHAPTER 5
 
 # CONCLUSIONS AND RECOMMENDATIONS
 
-## 5.1 Conclusions
+## Conclusions
 
 This study set out to address a pressing and increasingly common problem in modern recruitment: the inability of traditional, manual supervision to safeguard the integrity of remote, computer-based assessments. Through the design and development of SemanticGuard AI, an AI-powered candidate assessment integrity and fraud detection system, the study has demonstrated that the weaknesses of the existing supervision process at Semantic Services Rwanda Ltd can be effectively addressed by an intelligent, centralized, and transparent platform that augments, rather than replaces, human judgment.
 
@@ -1268,7 +1276,7 @@ The general objective of the study — to design and develop a comprehensive sys
 
 The system demonstrates that artificial intelligence and computer vision can be applied effectively to assessment integrity in the Rwandan context, improving the detection of fraud, increasing consistency and fairness, and reducing the manual burden on evaluators, while preserving human oversight of every consequential decision. The layered, modular architecture and the use of mature, industry-standard technologies ensure that the platform is maintainable, scalable, and capable of accommodating the growing testing volumes of Semantic Services Rwanda Ltd. By combining multi-signal detection with transparency, proportionality, and a human-in-the-loop design, SemanticGuard AI provides an accurate, affordable, and trustworthy means of protecting the integrity and fairness of online recruitment assessment, and it aligns directly with the organization's mission of artificial intelligence and digital transformation, as well as with Rwanda's national strategy for innovation and a knowledge-based economy.
 
-## 5.2 Recommendations
+## Recommendations
 
 While the study achieved its objectives, the experience of designing, building, and validating the system revealed several opportunities for future enhancement. Based on the findings and the limitations of the present work, the following recommendations are offered.
 

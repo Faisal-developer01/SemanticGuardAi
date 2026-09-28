@@ -22,7 +22,7 @@ const ROLE_REDIRECTS: Record<UserRole, string> = {
 const FEATURES = [
   'Face Recognition & Live Verification',
   'Real-time AI Behavioral Analysis',
-  'YOLO Phone Detection (97% accuracy)',
+  'YOLO Phone Detection',
   'Comprehensive Audit Trails',
 ];
 
@@ -104,9 +104,9 @@ const BrandPanel: React.FC = () => {
             <span className="w-1.5 h-1.5 rounded-full animate-pulse" style={{ background: 'hsl(211,73%,59%)' }} />
             <span className="text-xs font-mono" style={{ color: 'rgba(74,144,226,0.70)' }}>AI SCANNING</span>
           </div>
-          <div className="absolute bottom-2 right-3 text-xs font-mono" style={{ color: 'rgba(255,255,255,0.25)' }}>
+          {/* <div className="absolute bottom-2 right-3 text-xs font-mono" style={{ color: 'rgba(255,255,255,0.25)' }}>
             94.2% accuracy
-          </div>
+          </div> */}
         </div>
 
         <h1 className="text-3xl font-bold text-white leading-tight mb-4 text-balance">

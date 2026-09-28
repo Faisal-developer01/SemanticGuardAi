@@ -161,8 +161,8 @@ const RegisterPage: React.FC = () => {
         position: form.role === 'recruiter' ? 'Recruiter' : 'Candidate',
         facePhoto: capturedPhoto ?? undefined,
       });
-      toast.success('Registration successful! Enter the verification code sent to your email.');
-      navigate(`/verify-email?email=${encodeURIComponent(form.email)}`);
+      toast.success('Registration successful! You can now log in.');
+      navigate('/login');
     } catch (err: any) {
       toast.error(err.message || 'Registration failed. Please try again.');
     }
