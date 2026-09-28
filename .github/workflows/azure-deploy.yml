@@ -5,18 +5,13 @@ name: Deploy to Azure App Service
 # installs Python deps from requirements.txt server-side; startup.sh runs
 # database migrations and launches gunicorn (wsgi:app).
 #
-# Authenticates to Azure via OIDC federated credentials using repository
-# secrets AZURE_CLIENT_ID, AZURE_TENANT_ID and AZURE_SUBSCRIPTION_ID. The
-# app registration must have a federated credential trusting this repo.
+# Authenticates using the repository secret AZURE_WEBAPP_PUBLISH_PROFILE
+# (App Service -> Overview -> Download publish profile).
 
 on:
   push:
     branches: [main]
   workflow_dispatch:
-
-permissions:
-  id-token: write
-  contents: read
 
 jobs:
   build-and-deploy:
@@ -50,15 +45,9 @@ jobs:
           cp startup.sh package/startup.sh
           cp requirements.txt package/requirements.txt
 
-      - name: Azure login (OIDC)
-        uses: azure/login@v2
-        with:
-          client-id: ${{ secrets.AZURE_CLIENT_ID }}
-          tenant-id: ${{ secrets.AZURE_TENANT_ID }}
-          subscription-id: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
-
       - name: Deploy to Azure App Service
         uses: azure/webapps-deploy@v3
         with:
           app-name: semanticguardai-rw
+          publish-profile: ${{ secrets.AZURE_WEBAPP_PUBLISH_PROFILE }}
           package: package
