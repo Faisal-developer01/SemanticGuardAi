@@ -38,7 +38,10 @@ export function getSocket(): Socket {
     socket = io({
       path: '/socket.io',
       autoConnect: false,
-      transports: ['websocket', 'polling'],
+      // Connect via long-polling first (always works through App Service), then
+      // transparently upgrade to WebSocket when the platform allows it. Trying
+      // WebSocket first hangs when App Service WebSockets are disabled.
+      transports: ['polling', 'websocket'],
       auth: (cb: (data: { token: string }) => void) => cb({ token: getAccessToken() ?? '' }),
     });
   }
