@@ -7,6 +7,7 @@ from __future__ import annotations
 
 import os
 from datetime import timedelta
+from urllib.parse import urlsplit
 
 from dotenv import load_dotenv
 from sqlalchemy.pool import StaticPool
@@ -29,7 +30,17 @@ class BaseConfig:
     APP_NAME = os.getenv("APP_NAME", "SemanticGuard AI")
     API_PREFIX = os.getenv("API_PREFIX", "/api/v1")
     SECRET_KEY = os.getenv("SECRET_KEY", "dev-secret-change-me")
-    FRONTEND_ORIGIN = os.getenv("FRONTEND_ORIGIN", "http://localhost:5173")
+    FRONTEND_ORIGIN = os.getenv("FRONTEND_ORIGIN") or (
+        f"https://{os.environ['WEBSITE_HOSTNAME']}"
+        if os.getenv("WEBSITE_HOSTNAME")
+        else "http://localhost:5173"
+    )
+    FRONTEND_ORIGINS = list(dict.fromkeys(
+        origin for origin in (
+            FRONTEND_ORIGIN,
+            f"https://{os.environ['WEBSITE_HOSTNAME']}" if os.getenv("WEBSITE_HOSTNAME") else None,
+        ) if origin
+    ))
 
     # Database
     SQLALCHEMY_DATABASE_URI = os.getenv(
@@ -160,6 +171,11 @@ class ProductionConfig(BaseConfig):
     SESSION_COOKIE_HTTPONLY = True
     SESSION_COOKIE_SAMESITE = "Lax"
     PREFERRED_URL_SCHEME = "https"
+    SOCKETIO_ASYNC_MODE = "eventlet"
+    FRONTEND_ORIGINS = [
+        origin for origin in BaseConfig.FRONTEND_ORIGINS
+        if urlsplit(origin).hostname not in {"localhost", "127.0.0.1", "::1"}
+    ]
 
 
 _CONFIG_MAP = {

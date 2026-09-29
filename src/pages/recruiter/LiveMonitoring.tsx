@@ -150,7 +150,7 @@ const LiveMonitoring: React.FC = () => {
   };
 
   const { data: initial } = useAsync(() => sessionsApi.live(), []);
-  const { sessions, connected } = useMonitoringFeed(initial ?? EMPTY, { onAlert: handleRealtimeAlert });
+  const { sessions, connected, connectionState } = useMonitoringFeed(initial ?? EMPTY, { onAlert: handleRealtimeAlert });
   const candidates = sessions.map(mapLiveSession);
   const flaggedCount = candidates.filter(s => s.isFlagged).length;
 
@@ -169,7 +169,9 @@ const LiveMonitoring: React.FC = () => {
           <div className="flex items-center gap-3 flex-wrap">
             <div className={cn('flex items-center gap-1.5 rounded px-2 py-1 border', connected ? 'bg-green-500/10 border-green-500/20' : 'bg-muted border-border')}>
               <span className={cn('w-2 h-2 rounded-full', connected ? 'bg-green-500 ai-active' : 'bg-muted-foreground')} />
-              <span className={cn('text-xs font-medium', connected ? 'text-green-600 dark:text-green-400' : 'text-muted-foreground')}>{connected ? 'Live feed connected' : 'Connecting…'}</span>
+              <span className={cn('text-xs font-medium', connected ? 'text-green-600 dark:text-green-400' : connectionState === 'error' ? 'text-destructive' : 'text-muted-foreground')}>
+                {connectionState === 'connected' ? 'Connected' : connectionState === 'connecting' ? 'Connecting…' : connectionState === 'error' ? 'Connection error' : 'Disconnected'}
+              </span>
             </div>
             <span className="text-xs text-muted-foreground">{candidates.length} candidates</span>
             <div className="flex rounded-md border border-border overflow-hidden">

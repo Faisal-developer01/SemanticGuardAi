@@ -16,6 +16,7 @@ while still giving recruiters a true push feed.
 """
 from __future__ import annotations
 
+import logging
 from typing import Any
 
 from flask import request, session as flask_session
@@ -26,6 +27,7 @@ from app.extensions import socketio
 from app.models.enums import SessionStatus, UserRole
 
 MONITOR_ROOM = "monitor"
+logger = logging.getLogger(__name__)
 
 
 def _assessment_room(assessment_id: str) -> str:
@@ -34,6 +36,10 @@ def _assessment_room(assessment_id: str) -> str:
 
 def _user_room(user_id: str) -> str:
     return f"user:{user_id}"
+
+
+def _session_room(session_id: str) -> str:
+    return f"session:{session_id}"
 
 
 # ─── payload builders ────────────────────────────────────────────────────────
@@ -81,24 +87,55 @@ def _alert_payload(alert) -> dict[str, Any] | None:
 
 # ─── server -> monitors fan-out ──────────────────────────────────────────────
 
-def _emit_to_monitors(event: str, payload: dict[str, Any], assessment_id: str | None) -> None:
+def _emit_to_monitors(
+    event: str,
+    payload: dict[str, Any],
+    assessment_id: str | None,
+    session_id: str | None = None,
+) -> None:
     socketio.emit(event, payload, room=MONITOR_ROOM)
     if assessment_id:
         socketio.emit(event, payload, room=_assessment_room(assessment_id))
+    if session_id:
+        socketio.emit(event, payload, room=_session_room(session_id))
 
 
 def broadcast_event(session, alert=None) -> None:
     """Push a session snapshot (and optional alert) to all monitors."""
     session_payload = live_session_payload(session)
-    _emit_to_monitors("session_update", session_payload, str(session.assessment_id))
+    session_id = str(session.id)
+    assessment_id = str(session.assessment_id)
+    _emit_to_monitors("session_update", session_payload, assessment_id, session_id)
     alert_payload = _alert_payload(alert)
     if alert_payload:
-        _emit_to_monitors("alert", alert_payload, str(session.assessment_id))
+        _emit_to_monitors("alert", alert_payload, assessment_id, session_id)
 
 
 def broadcast_status(session) -> None:
     """Push a live-status heartbeat snapshot to all monitors."""
-    _emit_to_monitors("session_update", live_session_payload(session), str(session.assessment_id))
+    _emit_to_monitors(
+        "session_update",
+        live_session_payload(session),
+        str(session.assessment_id),
+        str(session.id),
+    )
+
+
+def broadcast_candidate_started(session) -> None:
+    """Publish the database-backed live snapshot after a session starts."""
+    payload = live_session_payload(session)
+    _emit_to_monitors(
+        "candidate_started",
+        payload,
+        str(session.assessment_id),
+        str(session.id),
+    )
+    logger.info(
+        "[Socket] candidate_started emitted session_id=%s candidate_id=%s assessment_id=%s",
+        session.id,
+        session.candidate_id,
+        session.assessment_id,
+    )
 
 
 def notify_user(user_id: str, payload: dict[str, Any]) -> None:
@@ -129,6 +166,7 @@ def _authenticate(auth: dict | None) -> dict | None:
 def handle_connect(auth=None):
     claims = _authenticate(auth)
     if not claims:
+        logger.warning("[Socket] rejected unauthenticated client sid=%s", request.sid)
         return False  # reject unauthenticated connections
     user_id = claims.get("sub")
     role = claims.get("role")
@@ -145,6 +183,7 @@ def handle_connect(auth=None):
                 {"userId": str(user_id), "status": "online"},
                 room=MONITOR_ROOM,
             )
+    logger.info("[Socket] client connected sid=%s user_id=%s role=%s", request.sid, user_id, role)
     return True
 
 
@@ -159,7 +198,44 @@ def handle_join_monitoring(data=None):
     assessment_id = (data or {}).get("assessmentId") if isinstance(data, dict) else None
     if assessment_id:
         join_room(_assessment_room(str(assessment_id)))
+    logger.info(
+        "[Socket] recruiter joined monitoring room user_id=%s assessment_id=%s",
+        flask_session.get("user_id"),
+        assessment_id,
+    )
     emit("monitoring_joined", {"ok": True})
+
+
+@socketio.on("join_session")
+def handle_join_session(data=None):
+    """Allow a candidate to join only their own active assessment session room."""
+    if not isinstance(data, dict) or flask_session.get("role") != UserRole.candidate.value:
+        emit("session_join_denied", {"ok": False})
+        return
+    session_id = data.get("sessionId")
+    user_id = flask_session.get("user_id")
+    if not session_id or not user_id:
+        emit("session_join_denied", {"ok": False})
+        return
+
+    from app.repositories import sessions as session_repo
+
+    session = session_repo.base_query().filter_by(
+        id=session_id,
+        candidate_id=user_id,
+    ).first()
+    if not session or session.status != SessionStatus.in_progress:
+        emit("session_join_denied", {"ok": False})
+        return
+
+    join_room(_session_room(str(session.id)))
+    logger.info(
+        "[Socket] candidate joined session user_id=%s session_id=%s assessment_id=%s",
+        user_id,
+        session.id,
+        session.assessment_id,
+    )
+    emit("session_joined", {"ok": True, "sessionId": str(session.id)})
 
 
 @socketio.on("leave_monitoring")
@@ -200,6 +276,10 @@ def handle_webrtc_request(data=None):
     candidate_id = data.get("candidateId")
     if not candidate_id:
         return
+    logger.info(
+        "[WebRTC] signaling event received event=webrtc_request session_id=%s",
+        data.get("sessionId"),
+    )
     socketio.emit(
         "webrtc_request",
         {
@@ -224,6 +304,7 @@ def handle_webrtc_offer(data=None):
     sdp = data.get("sdp")
     if not viewer_id or not sdp:
         return
+    logger.info("[WebRTC] signaling event received event=webrtc_offer viewer_id=%s", viewer_id)
     socketio.emit(
         "webrtc_offer",
         {
@@ -248,6 +329,7 @@ def handle_webrtc_answer(data=None):
     sdp = data.get("sdp")
     if not candidate_id or not sdp:
         return
+    logger.info("[WebRTC] signaling event received event=webrtc_answer candidate_id=%s", candidate_id)
     socketio.emit(
         "webrtc_answer",
         {"viewerId": str(viewer_id), "candidateId": str(candidate_id), "sdp": sdp},
@@ -267,6 +349,11 @@ def handle_webrtc_ice(data=None):
     candidate = data.get("candidate")
     if not target_id or candidate is None:
         return
+    logger.info(
+        "[WebRTC] signaling event received event=webrtc_ice from_id=%s target_id=%s",
+        from_id,
+        target_id,
+    )
     socketio.emit(
         "webrtc_ice",
         {"fromId": str(from_id), "candidate": candidate},
@@ -285,6 +372,7 @@ def handle_webrtc_stop(data=None):
     target_id = data.get("targetId")
     if not target_id:
         return
+    logger.info("[WebRTC] signaling event received event=webrtc_stop from_id=%s target_id=%s", from_id, target_id)
     socketio.emit(
         "webrtc_stop",
         {"fromId": str(from_id)},

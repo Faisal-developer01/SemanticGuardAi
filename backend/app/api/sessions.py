@@ -1,7 +1,7 @@
 """Assessment session API: start, answer, submit, monitoring events."""
 from __future__ import annotations
 
-from flask import Blueprint, request
+from flask import Blueprint, current_app, request
 from flask_jwt_extended import jwt_required
 
 from app.api.helpers import body, created, ok, paginated, pagination_args, parse, query_param
@@ -33,6 +33,12 @@ def start_session():
         device_fingerprint=data.get("device_fingerprint"),
         device_info=data.get("device_info"),
     )
+    try:
+        from app.realtime import broadcast_candidate_started
+
+        broadcast_candidate_started(session)
+    except Exception:
+        current_app.logger.exception("[Socket] failed to emit candidate_started")
     return created(_session_schema.dump(session))
 
 

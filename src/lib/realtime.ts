@@ -35,7 +35,15 @@ export const ICE_SERVERS: RTCIceServer[] = (() => {
 
 export function getSocket(): Socket {
   if (!socket) {
-    socket = io({
+    const env = import.meta.env as Record<string, string | undefined>;
+    const apiBaseUrl = env.VITE_API_BASE_URL;
+    const configuredUrl = env.VITE_SOCKET_URL ?? (
+      apiBaseUrl?.startsWith('http') ? new URL(apiBaseUrl).origin : window.location.origin
+    );
+    const configuredHostname = new URL(configuredUrl, window.location.origin).hostname;
+    const isLoopback = ['localhost', '127.0.0.1', '[::1]', '::1'].includes(configuredHostname);
+    const socketUrl = import.meta.env.PROD && isLoopback ? window.location.origin : configuredUrl;
+    socket = io(socketUrl, {
       path: '/socket.io',
       autoConnect: false,
       // Connect via long-polling first (always works through App Service), then
@@ -44,8 +52,26 @@ export function getSocket(): Socket {
       transports: ['polling', 'websocket'],
       auth: (cb: (data: { token: string }) => void) => cb({ token: getAccessToken() ?? '' }),
     });
+    socket.on('connect', () => {
+      console.info('[Socket] connected', { connected: socket?.connected ?? false, id: socket?.id });
+    });
+    socket.on('connect_error', (error) => {
+      console.error('[Socket] connection error', error.message);
+    });
+    socket.on('disconnect', (reason) => {
+      console.warn('[Socket] disconnected', { reason, connected: socket?.connected ?? false, id: socket?.id });
+    });
   }
   return socket;
+}
+
+export function connectSocket(): Socket {
+  const s = getSocket();
+  if (!s.connected && !s.active) {
+    console.info('[Socket] connecting', { connected: s.connected });
+    s.connect();
+  }
+  return s;
 }
 
 
@@ -55,6 +81,7 @@ export interface MonitoringFeed {
   /** Most-recent alerts first (capped). */
   alerts: ApiAlert[];
   connected: boolean;
+  connectionState: 'connecting' | 'connected' | 'disconnected' | 'error';
 }
 
 /**
@@ -68,28 +95,39 @@ export function useMonitoringFeed(
   const [sessions, setSessions] = useState<ApiLiveSession[]>(initial);
   const [alerts, setAlerts] = useState<ApiAlert[]>([]);
   const [connected, setConnected] = useState(false);
+  const [connectionState, setConnectionState] = useState<MonitoringFeed['connectionState']>('connecting');
 
-  // Keep latest initial snapshot without re-subscribing the socket.
-  const initialRef = useRef(initial);
-  initialRef.current = initial;
   const onAlertRef = useRef(options?.onAlert);
   onAlertRef.current = options?.onAlert;
   const assessmentId = options?.assessmentId;
 
   // Re-hydrate when a fresh REST snapshot arrives.
   useEffect(() => {
-    setSessions(initial);
+    setSessions((current) => {
+      const next = current.slice();
+      for (const session of initial) {
+        const index = next.findIndex((item) => item.sessionId === session.sessionId);
+        if (index === -1) next.push(session);
+        else next[index] = { ...next[index], ...session };
+      }
+      return next;
+    });
   }, [initial]);
 
   useEffect(() => {
-    const s = getSocket();
+    const s = connectSocket();
 
     const handleConnect = () => {
       setConnected(true);
+      setConnectionState('connected');
       s.emit('join_monitoring', assessmentId ? { assessmentId } : {});
     };
-    const handleDisconnect = () => setConnected(false);
-    const handleUpdate = (payload: ApiLiveSession) => {
+    const handleDisconnect = () => {
+      setConnected(false);
+      setConnectionState('disconnected');
+    };
+    const handleConnectError = () => setConnectionState('error');
+    const mergeSession = (payload: ApiLiveSession) => {
       setSessions((prev) => {
         const idx = prev.findIndex((x) => x.sessionId === payload.sessionId);
         if (idx === -1) return [payload, ...prev];
@@ -98,6 +136,16 @@ export function useMonitoringFeed(
         return next;
       });
     };
+    const handleUpdate = (payload: ApiLiveSession) => mergeSession(payload);
+    const handleCandidateStarted = (payload: ApiLiveSession) => {
+      console.info('[Socket] candidate_started received', {
+        candidateId: payload.candidateId,
+        sessionId: payload.sessionId,
+        assessmentId: payload.assessmentId,
+        status: payload.status,
+      });
+      mergeSession(payload);
+    };
     const handleAlert = (payload: ApiAlert) => {
       setAlerts((prev) => [payload, ...prev].slice(0, 50));
       onAlertRef.current?.(payload);
@@ -105,22 +153,26 @@ export function useMonitoringFeed(
 
     s.on('connect', handleConnect);
     s.on('disconnect', handleDisconnect);
+    s.on('connect_error', handleConnectError);
     s.on('session_update', handleUpdate);
+    s.on('candidate_started', handleCandidateStarted);
     s.on('alert', handleAlert);
 
     if (s.connected) handleConnect();
-    else s.connect();
+    else setConnectionState('connecting');
 
     return () => {
       s.emit('leave_monitoring', assessmentId ? { assessmentId } : {});
       s.off('connect', handleConnect);
       s.off('disconnect', handleDisconnect);
+      s.off('connect_error', handleConnectError);
       s.off('session_update', handleUpdate);
+      s.off('candidate_started', handleCandidateStarted);
       s.off('alert', handleAlert);
     };
   }, [assessmentId]);
 
-  return { sessions, alerts, connected };
+  return { sessions, alerts, connected, connectionState };
 }
 
 /** Tear down the shared socket (e.g. on logout). */
@@ -152,8 +204,7 @@ export function useCandidateWebRTC(opts: {
 
   useEffect(() => {
     if (!enabled || !sessionId) return;
-    const s = getSocket();
-    if (!s.connected) s.connect();
+    const s = connectSocket();
 
     // One peer connection per viewer, keyed by the viewer's user id.
     const peers = new Map<string, RTCPeerConnection>();
@@ -184,6 +235,7 @@ export function useCandidateWebRTC(opts: {
 
       pc.onicecandidate = (ev) => {
         if (ev.candidate) {
+          console.info('[WebRTC] ICE candidate sent', { viewerId });
           s.emit('webrtc_ice', { targetId: viewerId, candidate: ev.candidate.toJSON() });
         }
       };
@@ -204,6 +256,7 @@ export function useCandidateWebRTC(opts: {
       const viewerId = data?.viewerId;
       const pc = viewerId ? peers.get(viewerId) : undefined;
       if (!pc || !data?.sdp) return;
+      console.info('[WebRTC] answer received', { viewerId });
       try {
         await pc.setRemoteDescription(new RTCSessionDescription(data.sdp));
         const queued = pending.get(viewerId!) ?? [];
@@ -216,6 +269,7 @@ export function useCandidateWebRTC(opts: {
       const fromId = data?.fromId;
       const pc = fromId ? peers.get(fromId) : undefined;
       if (!fromId || !data?.candidate) return;
+      console.info('[WebRTC] ICE candidate received', { viewerId: fromId });
       if (!pc || !pc.remoteDescription) {
         const arr = pending.get(fromId) ?? [];
         arr.push(data.candidate);
@@ -268,8 +322,7 @@ export function useWebRTCViewer(opts: {
 
   useEffect(() => {
     if (!enabled || !candidateId) return;
-    const s = getSocket();
-    if (!s.connected) s.connect();
+    const s = connectSocket();
 
     let pc: RTCPeerConnection | null = null;
     let disposed = false;
@@ -292,14 +345,19 @@ export function useWebRTCViewer(opts: {
 
     const handleOffer = async (data: { candidateId?: string; sdp?: RTCSessionDescriptionInit }) => {
       if (disposed || data?.candidateId !== candidateId || !data?.sdp) return;
+      console.info('[WebRTC] offer received', { candidateId });
       teardown();
       pc = new RTCPeerConnection({ iceServers: ICE_SERVERS });
 
       pc.ontrack = (ev) => {
-        if (ev.streams[0]) setStream(ev.streams[0]);
+        if (ev.streams[0]) {
+          console.info('[WebRTC] stream received', { candidateId });
+          setStream(ev.streams[0]);
+        }
       };
       pc.onicecandidate = (ev) => {
         if (ev.candidate) {
+          console.info('[WebRTC] ICE candidate sent', { candidateId });
           s.emit('webrtc_ice', { targetId: candidateId, candidate: ev.candidate.toJSON() });
         }
       };
@@ -327,6 +385,7 @@ export function useWebRTCViewer(opts: {
 
     const handleIce = async (data: { fromId?: string; candidate?: RTCIceCandidateInit }) => {
       if (data?.fromId !== candidateId || !data?.candidate) return;
+      console.info('[WebRTC] ICE candidate received', { candidateId });
       if (!pc || !pc.remoteDescription) {
         pending.push(data.candidate);
         return;
@@ -384,7 +443,7 @@ export function useUserNotifications(
       setConnected(false);
       return;
     }
-    const s = getSocket();
+    const s = connectSocket();
     const onConnect = () => setConnected(true);
     const onDisconnect = () => setConnected(false);
     const onNotification = (n: ApiNotification) => handlerRef.current(n);
@@ -394,7 +453,6 @@ export function useUserNotifications(
     s.on('notification', onNotification);
 
     if (s.connected) setConnected(true);
-    else s.connect();
 
     return () => {
       s.off('connect', onConnect);

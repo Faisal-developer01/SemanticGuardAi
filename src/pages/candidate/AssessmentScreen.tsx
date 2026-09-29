@@ -7,7 +7,7 @@ import type { KeystrokeStats } from '@/components/shared/CodeEditor';
 import { assessmentsApi, sessionsApi, type ApiSession } from '@/lib/api';
 import { mapAssessment, mapQuestion } from '@/lib/mappers';
 import { assessmentAvailability, normalizeUtc } from '@/lib/utils';
-import { useCandidateWebRTC, getSocket } from '@/lib/realtime';
+import { useCandidateWebRTC, connectSocket } from '@/lib/realtime';
 import { useBrowserLockdown } from '@/lib/lockdown';
 import { getDeviceIdentity } from '@/lib/deviceFingerprint';
 import { useScreenRecorder } from '@/lib/screenRecorder';
@@ -200,6 +200,8 @@ const AssessmentScreen: React.FC = () => {
         assessment.id,
         device ? { fingerprint: device.fingerprint, info: device.info as unknown as Record<string, unknown> } : undefined,
       );
+      const socket = connectSocket();
+      socket.emit('join_session', { sessionId: session.id, assessmentId: assessment.id });
       sessionIdRef.current = session.id;
       setLiveSessionId(session.id);
       setMonitoringEnabled(session.monitoringEnabled !== false);
@@ -277,8 +279,7 @@ const AssessmentScreen: React.FC = () => {
 
   // Listen for monitoring toggle from the recruiter
   useEffect(() => {
-    const s = getSocket();
-    if (!s.connected) s.connect();
+    const s = connectSocket();
 
     const handleToggle = (payload: { sessionId: string; enabled: boolean }) => {
       if (payload.sessionId === sessionIdRef.current) {

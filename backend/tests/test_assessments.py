@@ -60,6 +60,51 @@ def test_add_question_and_status_change(client, recruiter, auth_header):
     assert status.get_json()["status"] == "active"
 
 
+def test_starting_session_emits_candidate_started_to_monitor(
+    client, recruiter, candidate, auth_header, app
+):
+    from app.extensions import socketio
+
+    recruiter_headers = auth_header(client, "recruiter@test.rw")
+    assessment_id = _create_assessment(client, recruiter_headers).get_json()["id"]
+    client.patch(
+        f"/api/v1/assessments/{assessment_id}/status",
+        headers=recruiter_headers,
+        json={"status": "active"},
+    )
+
+    recruiter_token = recruiter_headers["Authorization"].removeprefix("Bearer ")
+    monitor = socketio.test_client(app, auth={"token": recruiter_token})
+    monitor.emit("join_monitoring", {})
+
+    candidate_headers = auth_header(client, "candidate@test.rw")
+    started = client.post(
+        "/api/v1/sessions",
+        headers=candidate_headers,
+        json={"assessmentId": assessment_id},
+    )
+    assert started.status_code == 201
+    session = started.get_json()
+
+    events = monitor.get_received()
+    payload = next(
+        event["args"][0] for event in events if event["name"] == "candidate_started"
+    )
+    assert payload["candidateId"] == str(candidate.id)
+    assert payload["sessionId"] == session["id"]
+    assert payload["assessmentId"] == assessment_id
+    assert payload["candidateName"] == candidate.full_name
+    assert payload["status"] == "in_progress"
+
+    candidate_token = candidate_headers["Authorization"].removeprefix("Bearer ")
+    candidate_socket = socketio.test_client(app, auth={"token": candidate_token})
+    candidate_socket.emit("join_session", {"sessionId": session["id"]})
+    joined = candidate_socket.get_received()
+    assert any(event["name"] == "session_joined" for event in joined)
+    candidate_socket.disconnect()
+    monitor.disconnect()
+
+
 def test_full_session_flow(client, recruiter, candidate, auth_header):
     rec_headers = auth_header(client, "recruiter@test.rw")
     aid = _create_assessment(client, rec_headers).get_json()["id"]

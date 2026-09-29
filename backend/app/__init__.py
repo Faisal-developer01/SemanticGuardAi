@@ -33,9 +33,13 @@ def create_app(config_name: str | None = None) -> Flask:
     @app.route("/", defaults={"path": ""})
     @app.route("/<path:path>")
     def serve_spa(path: str):
-        if path and (Path(app.static_folder) / path).exists():
+        if path and path != "index.html" and (Path(app.static_folder) / path).exists():
             return app.send_static_file(path)
-        return app.send_static_file("index.html")
+        response = app.send_static_file("index.html")
+        response.headers["Cache-Control"] = "no-cache, no-store, must-revalidate"
+        response.headers["Pragma"] = "no-cache"
+        response.headers["Expires"] = "0"
+        return response
 
     @app.get("/health")
     def health():  # pragma: no cover - trivial
@@ -81,14 +85,15 @@ def _init_extensions(app: Flask) -> None:
     jwt.init_app(app)
     mail.init_app(app)
     limiter.init_app(app)
+    frontend_origins = app.config["FRONTEND_ORIGINS"]
     cors.init_app(
         app,
-        resources={r"/api/*": {"origins": [app.config["FRONTEND_ORIGIN"]]}},
+        resources={r"/api/*": {"origins": frontend_origins}},
         supports_credentials=True,
     )
     socketio.init_app(
         app,
-        cors_allowed_origins=[app.config["FRONTEND_ORIGIN"]],
+        cors_allowed_origins=frontend_origins,
         message_queue=app.config.get("SOCKETIO_MESSAGE_QUEUE"),
         async_mode=app.config.get("SOCKETIO_ASYNC_MODE", "threading"),
     )
