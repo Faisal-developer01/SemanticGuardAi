@@ -121,7 +121,8 @@ class BaseConfig:
 
     # Real-time
     SOCKETIO_MESSAGE_QUEUE = os.getenv("SOCKETIO_MESSAGE_QUEUE") or None
-    # Defaults to threading so the app always boots; set to "eventlet" in prod.
+    # Threading mode serves Socket.IO long-polling reliably under gunicorn gthread;
+    # eventlet proved nondeterministic on this App Service runtime.
     SOCKETIO_ASYNC_MODE = os.getenv("SOCKETIO_ASYNC_MODE", "threading")
     AZURE_WEBPUBSUB_CONNECTION_STRING = os.getenv("AZURE_WEBPUBSUB_CONNECTION_STRING")
 
@@ -171,7 +172,7 @@ class ProductionConfig(BaseConfig):
     SESSION_COOKIE_HTTPONLY = True
     SESSION_COOKIE_SAMESITE = "Lax"
     PREFERRED_URL_SCHEME = "https"
-    SOCKETIO_ASYNC_MODE = "eventlet"
+    SOCKETIO_ASYNC_MODE = "threading"
     FRONTEND_ORIGINS = [
         origin for origin in BaseConfig.FRONTEND_ORIGINS
         if urlsplit(origin).hostname not in {"localhost", "127.0.0.1", "::1"}
