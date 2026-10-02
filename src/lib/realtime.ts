@@ -46,10 +46,12 @@ export function getSocket(): Socket {
     socket = io(socketUrl, {
       path: '/socket.io',
       autoConnect: false,
-      // Connect via long-polling first (always works through App Service), then
-      // transparently upgrade to WebSocket when the platform allows it. Trying
-      // WebSocket first hangs when App Service WebSockets are disabled.
-      transports: ['polling', 'websocket'],
+      // Polling only: the backend runs Socket.IO in threading mode (gunicorn
+      // gthread) which cannot serve WebSocket. Attempting a WS upgrade gets a
+      // 101 at the App Service edge then drops, breaking the connection — so we
+      // stay on long-polling, which is reliable for signaling + live updates.
+      transports: ['polling'],
+      upgrade: false,
       auth: (cb: (data: { token: string }) => void) => cb({ token: getAccessToken() ?? '' }),
     });
     socket.on('connect', () => {
