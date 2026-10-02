@@ -91,11 +91,15 @@ def _init_extensions(app: Flask) -> None:
         resources={r"/api/*": {"origins": frontend_origins}},
         supports_credentials=True,
     )
+    async_mode = app.config.get("SOCKETIO_ASYNC_MODE", "threading")
     socketio.init_app(
         app,
         cors_allowed_origins=frontend_origins,
         message_queue=app.config.get("SOCKETIO_MESSAGE_QUEUE"),
-        async_mode=app.config.get("SOCKETIO_ASYNC_MODE", "threading"),
+        async_mode=async_mode,
+        # threading/gthread cannot serve WebSocket; don't advertise an upgrade the
+        # server can't honor, or the half-open WS drops the client on App Service.
+        allow_upgrades=async_mode in ("eventlet", "gevent", "gevent_uwsgi"),
     )
     # Import registers the @socketio.on(...) handlers (connect / monitoring rooms).
     from app import realtime  # noqa: F401
