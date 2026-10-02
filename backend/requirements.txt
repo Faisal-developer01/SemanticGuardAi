@@ -28,9 +28,13 @@ apispec==6.6.1         # OpenAPI / Swagger generation
 apispec-webframeworks==1.1.0
 
 # Real-time
+# eventlet 0.36.1 has a WSGI request-body regression that drops the Socket.IO
+# CONNECT packet (POST body / WS frame) under python-engineio 4.1x, so the
+# handshake succeeds but the namespace never connects. 0.41.2 fixes it.
 Flask-SocketIO==5.3.6
 python-socketio==5.11.3
-eventlet==0.36.1
+python-engineio==4.14.0
+eventlet==0.41.2
 
 # Background jobs / cache
 celery==5.4.0
