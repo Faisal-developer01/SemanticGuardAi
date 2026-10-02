@@ -21,6 +21,8 @@ cd "$APP_DIR"
 mkdir -p "$DATA_DIR"
 
 export FLASK_ENV="${FLASK_ENV:-production}"
+# Flush stdout/stderr immediately so gunicorn/app logs show up in App Service.
+export PYTHONUNBUFFERED=1
 # Vendored dependencies take precedence over anything on the base image.
 export PYTHONPATH="$APP_DIR:$VENDOR_DIR:${PYTHONPATH:-}"
 
