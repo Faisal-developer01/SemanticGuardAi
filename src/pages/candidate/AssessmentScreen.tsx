@@ -69,6 +69,9 @@ const AssessmentScreen: React.FC = () => {
   const monitoringEnabledRef = useRef(monitoringEnabled);
   monitoringEnabledRef.current = monitoringEnabled;
 
+  // True while a camera/mic permission prompt is on screen, so the transient
+  // focus loss it causes is not mistaken for a tab/window switch.
+  const permissionPromptActiveRef = useRef(false);
 
   const sessionIdRef = useRef<string | null>(null);
   const saveTimers = useRef<Record<string, ReturnType<typeof setTimeout>>>({});
@@ -195,6 +198,21 @@ const AssessmentScreen: React.FC = () => {
     }
     setStarting(true);
     try {
+      // Acquire microphone permission up front — before the session, timer, and
+      // proctoring start — so its permission prompt can't be mistaken for a tab
+      // switch once monitoring is live. (Camera was already granted during the
+      // required face-verification step.)
+      permissionPromptActiveRef.current = true;
+      try {
+        const primer = await navigator.mediaDevices.getUserMedia({ audio: true });
+        primer.getTracks().forEach(t => t.stop());
+      } catch {
+        toast.error('Camera and microphone access are required for this proctored assessment. Please enable them in your browser settings and try again.');
+        return; // stay on the pre-flight screen so the candidate can retry
+      } finally {
+        setTimeout(() => { permissionPromptActiveRef.current = false; }, 1200);
+      }
+
       const device = await getDeviceIdentity().catch(() => undefined);
       const session = await sessionsApi.start(
         assessment.id,
@@ -372,6 +390,9 @@ const AssessmentScreen: React.FC = () => {
     };
 
     const onVisibility = () => {
+      // A camera/mic permission prompt steals focus without hiding the tab —
+      // never treat that as a switch.
+      if (permissionPromptActiveRef.current) return;
       if (document.hidden) {
         if (monitoringEnabledRef.current) {
           terminate('Tab / application switch detected');
@@ -398,6 +419,8 @@ const AssessmentScreen: React.FC = () => {
     const onBlur = () => {
       if (!monitoringEnabledRef.current) return;
       blurTimer = setTimeout(() => {
+        // Ignore the transient blur caused by a browser permission dialog.
+        if (permissionPromptActiveRef.current) return;
         // Only terminate if the page is still hidden/unfocused after the grace period.
         if (!document.hasFocus()) terminate('Window focus lost (switched away)');
       }, BLUR_GRACE_MS);
@@ -424,7 +447,9 @@ const AssessmentScreen: React.FC = () => {
 
   const startAudioMonitoring = useCallback(async () => {
     try {
-      const stream = await navigator.mediaDevices.getUserMedia({ audio: true, video: false });
+      permissionPromptActiveRef.current = true;
+      const stream = await navigator.mediaDevices.getUserMedia({ audio: true, video: false })
+        .finally(() => { setTimeout(() => { permissionPromptActiveRef.current = false; }, 1200); });
       streamRef.current = stream;
       const ctx = new AudioContext();
       audioCtxRef.current = ctx;
@@ -483,9 +508,10 @@ const AssessmentScreen: React.FC = () => {
   const startCamera = useCallback(async () => {
     let stream = camStreamRef.current;
     if (!stream) {
+      permissionPromptActiveRef.current = true;
       stream = await navigator.mediaDevices.getUserMedia({
         video: { facingMode: 'user', width: 320, height: 240 }, audio: false,
-      });
+      }).finally(() => { setTimeout(() => { permissionPromptActiveRef.current = false; }, 1200); });
       camStreamRef.current = stream;
     }
     if (videoRef.current && videoRef.current.srcObject !== stream) {
