@@ -5,8 +5,10 @@ import uuid
 from datetime import datetime, timezone
 
 from werkzeug.datastructures import FileStorage
+from sqlalchemy import func
 
 from app.errors import APIError, ForbiddenError, NotFoundError
+from app.models import Evidence
 from app.models.enums import EvidenceType, SessionStatus, UserRole
 from app.repositories import evidence as evidence_repo
 from app.repositories import sessions as sessions_repo
@@ -85,7 +87,11 @@ def list_for_session(user, session_id):
     session = sessions_repo.get_or_404(session_id)
     if not _can_access(user, session):
         raise ForbiddenError("Not your session")
-    return evidence_repo.for_session(str(session_id)).order_by(None).all()
+    return evidence_repo.for_session(str(session_id)).order_by(
+        func.coalesce(Evidence.captured_at, Evidence.created_at),
+        Evidence.created_at,
+        Evidence.id,
+    ).all()
 
 
 def get_with_bytes(user, evidence_id):
@@ -93,5 +99,11 @@ def get_with_bytes(user, evidence_id):
     session = sessions_repo.get_or_404(str(record.session_id))
     if not _can_access(user, session):
         raise ForbiddenError("Not permitted")
-    data = storage_service.read(record.storage_key)
+    try:
+        data = storage_service.read(record.storage_key)
+    except FileNotFoundError as error:
+        from flask import current_app
+
+        current_app.logger.warning("Recording file missing for evidence %s", record.id)
+        raise NotFoundError("This recording file is no longer available in storage.") from error
     return record, data

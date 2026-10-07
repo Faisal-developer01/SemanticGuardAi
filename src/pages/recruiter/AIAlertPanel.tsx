@@ -1,4 +1,4 @@
-import React, { useCallback, useEffect, useRef, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { AppLayout } from '@/components/layouts/AppLayout';
 import { SeverityBadge } from '@/components/shared/StatusBadges';
@@ -75,55 +75,118 @@ interface RecordingModalProps {
 }
 
 const RecordingModal: React.FC<RecordingModalProps> = ({ sessionId, candidateName, onClose }) => {
-  const { data: evidenceList, loading } = useAsync(() => evidenceApi.list(sessionId), [sessionId]);
-  const clips = (evidenceList ?? []).filter((e): e is ApiEvidence => e.type === 'video');
+  const { data: evidenceList, loading, error: listError, reload } = useAsync(() => evidenceApi.list(sessionId), [sessionId]);
+  const clips = useMemo(() => (evidenceList ?? [])
+    .filter((e): e is ApiEvidence => e.type === 'video')
+    .sort((a, b) => new Date(a.capturedAt ?? a.createdAt).getTime()
+      - new Date(b.capturedAt ?? b.createdAt).getTime()), [evidenceList]);
 
   const [clipIndex, setClipIndex] = useState(0);
   const [urls, setUrls] = useState<Record<string, string>>({});
-  const [loadingClip, setLoadingClip] = useState(false);
-  const [muted, setMuted] = useState(false);
+  const [clipErrors, setClipErrors] = useState<Record<string, string>>({});
+  const [muted, setMuted] = useState(true);
   const [continuous, setContinuous] = useState(true);
   const videoRef = useRef<HTMLVideoElement | null>(null);
+  const urlCache = useRef(new Map<string, string>());
+  const inFlight = useRef(new Map<string, Promise<void>>());
+  const failedClips = useRef(new Set<string>());
+  const mounted = useRef(true);
 
   const currentClip = clips[clipIndex];
+  const currentClipId = currentClip?.id;
+  const currentUrl = currentClipId ? urls[currentClipId] : undefined;
+  const clipError = currentClipId ? clipErrors[currentClipId] : undefined;
 
-  const loadUrl = useCallback(async (clip: ApiEvidence) => {
-    if (urls[clip.id]) return;
-    setLoadingClip(true);
-    try {
-      const url = await evidenceApi.objectUrl(clip.id);
-      setUrls(prev => ({ ...prev, [clip.id]: url }));
-    } catch {
-      toast.error('Could not load recording clip.');
-    } finally {
-      setLoadingClip(false);
-    }
-  }, [urls]);
-
-  // Load current clip
   useEffect(() => {
-    if (currentClip) loadUrl(currentClip);
-  }, [currentClip, loadUrl]);
+    mounted.current = true;
+    const cache = urlCache.current;
+    return () => {
+      mounted.current = false;
+      for (const url of cache.values()) URL.revokeObjectURL(url);
+      cache.clear();
+    };
+  }, []);
 
-  // Auto-play when url becomes available
-  useEffect(() => {
-    if (currentClip && urls[currentClip.id] && videoRef.current) {
-      videoRef.current.load();
-      videoRef.current.play().catch(() => undefined);
+  const loadUrl = useCallback((id: string, retry = false): Promise<void> => {
+    const existing = inFlight.current.get(id);
+    if (existing) return existing;
+    if (!retry && failedClips.current.has(id)) return Promise.resolve();
+    if (retry) {
+      failedClips.current.delete(id);
+      const url = urlCache.current.get(id);
+      if (url) URL.revokeObjectURL(url);
+      urlCache.current.delete(id);
+      setUrls(previous => {
+        const next = { ...previous };
+        delete next[id];
+        return next;
+      });
     }
-  }, [urls, currentClip]);
+    if (urlCache.current.has(id)) return Promise.resolve();
+    setClipErrors(previous => {
+      const next = { ...previous };
+      delete next[id];
+      return next;
+    });
+    const pending = evidenceApi.objectUrl(id).then(url => {
+      if (!mounted.current) {
+        URL.revokeObjectURL(url);
+        return;
+      }
+      urlCache.current.set(id, url);
+      setUrls(previous => ({ ...previous, [id]: url }));
+    }).catch((error: unknown) => {
+      console.error('[Recording] could not load clip', { id, error });
+      if (!mounted.current) return;
+      const message = error instanceof Error ? error.message : 'Could not load recording clip.';
+      failedClips.current.add(id);
+      setClipErrors(previous => ({ ...previous, [id]: message }));
+      toast.error(message);
+    }).finally(() => {
+      inFlight.current.delete(id);
+    });
+    inFlight.current.set(id, pending);
+    return pending;
+  }, []);
 
-  // Prefetch next clip for seamless playback
+  useEffect(() => {
+    if (currentClipId) void loadUrl(currentClipId);
+  }, [currentClipId, loadUrl]);
+
+  useEffect(() => {
+    let disposed = false;
+    if (currentUrl && videoRef.current) {
+      void videoRef.current.play().catch((error: unknown) => {
+        if (disposed) return;
+        console.warn('[Recording] autoplay blocked', error);
+        toast.info('Recording is ready. Press Play to start playback.');
+      });
+    }
+    return () => { disposed = true; };
+  }, [currentUrl]);
+
   useEffect(() => {
     const next = clips[clipIndex + 1];
-    if (next && !urls[next.id]) loadUrl(next);
-  }, [clipIndex, clips, urls, loadUrl]);
+    if (next) void loadUrl(next.id);
+  }, [clipIndex, clips, loadUrl]);
+
+  // The violation's final clip can still be uploading when review opens.
+  useEffect(() => {
+    const timer = setInterval(reload, 5000);
+    return () => clearInterval(timer);
+  }, [reload]);
+
+  useEffect(() => {
+    if (continuous && videoRef.current?.ended && clipIndex < clips.length - 1) {
+      setClipIndex(index => index + 1);
+    }
+  }, [clips.length, clipIndex, continuous]);
 
   const goTo = (idx: number) => {
     const clip = clips[idx];
     if (!clip) return;
     setClipIndex(idx);
-    if (!urls[clip.id]) loadUrl(clip);
+    void loadUrl(clip.id);
   };
 
   const handleEnded = () => {
@@ -170,9 +233,16 @@ const RecordingModal: React.FC<RecordingModalProps> = ({ sessionId, candidateNam
           </div>
         </div>
 
+        {listError && (
+          <div role="alert" className="px-5 py-2 text-sm text-destructive flex items-center justify-between">
+            <span>{listError}</span>
+            <Button size="sm" variant="outline" onClick={reload}>Retry</Button>
+          </div>
+        )}
+
         {/* Video */}
         <div className="relative bg-black aspect-video w-full flex items-center justify-center">
-          {loading || loadingClip ? (
+          {loading && clips.length === 0 ? (
             <div className="flex flex-col items-center gap-3 text-white/60">
               <Loader2 className="w-10 h-10 animate-spin" />
               <span className="text-sm">Loading recording…</span>
@@ -180,16 +250,29 @@ const RecordingModal: React.FC<RecordingModalProps> = ({ sessionId, candidateNam
           ) : clips.length === 0 ? (
             <div className="flex flex-col items-center gap-3 text-white/40">
               <Video className="w-12 h-12" />
-              <span className="text-sm">No recordings captured for this session</span>
+              <span className="text-sm">{listError ? 'Recording list could not be loaded' : 'No recordings captured for this session yet'}</span>
             </div>
-          ) : currentClip && urls[currentClip.id] ? (
+          ) : clipError ? (
+            <div role="alert" className="flex flex-col items-center gap-3 text-white/80 p-5 text-center">
+              <span className="text-sm">{clipError}</span>
+              <Button size="sm" variant="outline" onClick={() => currentClipId && loadUrl(currentClipId, true)}>Retry clip</Button>
+            </div>
+          ) : currentClip && currentUrl ? (
             <video
               ref={videoRef}
               key={currentClip.id}
-              src={urls[currentClip.id]}
+              src={currentUrl}
               muted={muted}
+              autoPlay
+              playsInline
               controls
               onEnded={handleEnded}
+              onError={() => {
+                const message = 'This recording could not be played. Retry the clip or select another clip.';
+                console.error('[Recording] video playback failed', { id: currentClip.id, error: videoRef.current?.error });
+                setClipErrors(previous => ({ ...previous, [currentClip.id]: message }));
+                toast.error(message);
+              }}
               className="w-full h-full object-contain"
             />
           ) : (
@@ -384,6 +467,7 @@ const AIAlertPanel: React.FC = () => {
     <AppLayout>
       {recordingAlert && (
         <RecordingModal
+          key={recordingAlert.sessionId}
           sessionId={recordingAlert.sessionId}
           candidateName={candidateLabel(recordingAlert)}
           onClose={() => setRecordingAlert(null)}

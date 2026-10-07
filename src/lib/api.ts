@@ -722,11 +722,16 @@ async function uploadEvidenceRequest(
     method: 'POST',
     headers: accessToken ? { Authorization: `Bearer ${accessToken}` } : {},
     body: form,
+    signal: AbortSignal.timeout(30_000),
   });
   if (res.status === 401 && !retried && refreshToken) {
     if (await tryRefresh()) return uploadEvidenceRequest(sessionId, form, true);
   }
-  if (!res.ok) throw new ApiError('Evidence upload failed', res.status);
+  if (!res.ok) {
+    const payload: { message?: string } | null = res.headers.get('content-type')?.includes('application/json')
+      ? await res.json() : null;
+    throw new ApiError(payload?.message || 'Evidence upload failed', res.status, payload);
+  }
   return res.json();
 }
 
@@ -737,7 +742,11 @@ async function fetchEvidenceBlob(id: string, retried = false): Promise<Blob> {
   if (res.status === 401 && !retried && refreshToken) {
     if (await tryRefresh()) return fetchEvidenceBlob(id, true);
   }
-  if (!res.ok) throw new ApiError('Failed to load evidence', res.status);
+  if (!res.ok) {
+    const payload: { message?: string } | null = res.headers.get('content-type')?.includes('application/json')
+      ? await res.json() : null;
+    throw new ApiError(payload?.message || 'Failed to load evidence', res.status, payload);
+  }
   return res.blob();
 }
 

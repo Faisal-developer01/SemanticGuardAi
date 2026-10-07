@@ -23,6 +23,8 @@ mkdir -p "$DATA_DIR"
 export FLASK_ENV="${FLASK_ENV:-production}"
 # Flush stdout/stderr immediately so gunicorn/app logs show up in App Service.
 export PYTHONUNBUFFERED=1
+# Evidence must survive Oryx extraction-directory changes and deployments.
+export STORAGE_LOCAL_PATH="${STORAGE_LOCAL_PATH:-$DATA_DIR/evidence}"
 # Vendored dependencies take precedence over anything on the base image.
 export PYTHONPATH="$APP_DIR:$VENDOR_DIR:${PYTHONPATH:-}"
 

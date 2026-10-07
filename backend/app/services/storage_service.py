@@ -97,7 +97,12 @@ def _save_azure(data: bytes, storage_key: str, content_type: str | None) -> str 
 
 
 def _read_azure(storage_key: str) -> bytes:
-    return _blob_client(storage_key).download_blob().readall()
+    from azure.core.exceptions import ResourceNotFoundError
+
+    try:
+        return _blob_client(storage_key).download_blob().readall()
+    except ResourceNotFoundError as error:
+        raise FileNotFoundError(storage_key) from error
 
 
 # ─── public API ──────────────────────────────────────────────────────────────

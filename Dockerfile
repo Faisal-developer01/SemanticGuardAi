@@ -17,6 +17,9 @@ RUN if [ -f package-lock.json ]; then \
     fi
 
 COPY . .
+ARG VITE_TURN_URL
+ARG VITE_TURN_USERNAME
+ARG VITE_TURN_CREDENTIAL
 # VITE_API_BASE_URL is intentionally left unset so the SPA calls the same origin
 # (/api/v1), which nginx proxies to the backend.
 RUN npm run build

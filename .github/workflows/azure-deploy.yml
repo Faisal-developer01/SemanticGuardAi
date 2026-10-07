@@ -32,9 +32,16 @@ jobs:
           python-version: '3.12'
 
       - name: Build frontend
+        env:
+          VITE_TURN_URL: ${{ vars.VITE_TURN_URL }}
+          VITE_TURN_USERNAME: ${{ secrets.VITE_TURN_USERNAME }}
+          VITE_TURN_CREDENTIAL: ${{ secrets.VITE_TURN_CREDENTIAL }}
         run: |
           npm ci --legacy-peer-deps
           npm run build
+
+      - name: Test media lifecycle
+        run: node --test scripts/test-realtime.cjs
 
       - name: Assemble deployment package
         run: |

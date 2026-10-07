@@ -53,6 +53,7 @@ const AssessmentScreen: React.FC = () => {
   const [isFullscreen, setIsFullscreen] = useState(false);
   const [audioActive, setAudioActive] = useState(false);
   const [cameraOn, setCameraOn] = useState(false);
+  const [cameraStream, setCameraStream] = useState<MediaStream | null>(null);
   const [gazeDir, setGazeDir] = useState<GazeDir>('center');
 
   // Real assessment data + backend session state
@@ -114,6 +115,7 @@ const AssessmentScreen: React.FC = () => {
   // ─── Screen recording (evidence) ────────────────────────────────────────────
   const screenRecorder = useScreenRecorder({
     sessionId: liveSessionId,
+    onError: message => toast.error(message),
     onEnded: () => {
       toast.warning('⚠ Screen sharing stopped — please keep it enabled for the whole exam.');
       const sid = sessionIdRef.current;
@@ -196,6 +198,13 @@ const AssessmentScreen: React.FC = () => {
       toast.error('This assessment has closed.');
       return;
     }
+    if (!camStreamRef.current?.getVideoTracks().some(track => track.readyState === 'live')) {
+      setFaceOk(false);
+      setCameraOn(false);
+      setCameraStream(null);
+      toast.error('Your camera is no longer active. Verify your identity again before starting the assessment.');
+      return;
+    }
     setStarting(true);
     try {
       // Acquire microphone permission up front — before the session, timer, and
@@ -227,7 +236,7 @@ const AssessmentScreen: React.FC = () => {
       // Begin screen recording for evidence (best-effort; needs the user gesture
       // from the "Begin" click). A denial is surfaced but does not block the exam.
       if (session.monitoringEnabled !== false) {
-        const ok = await screenRecorder.start();
+        const ok = await screenRecorder.start(session.id);
         if (!ok) {
           toast.warning('Screen recording was not enabled. Recruiters may require it for a valid attempt.');
         }
@@ -362,6 +371,7 @@ const AssessmentScreen: React.FC = () => {
       if (timerRef.current) clearInterval(timerRef.current);
       stopAudioMonitoring();
       stopFaceMonitoring();
+      void screenRecorder.stop();
       if (document.fullscreenElement) document.exitFullscreen().catch(() => {});
       setAiStatus(s => ({
         ...s,
@@ -507,16 +517,21 @@ const AssessmentScreen: React.FC = () => {
 
   const startCamera = useCallback(async () => {
     let stream = camStreamRef.current;
-    if (!stream) {
+    if (!stream?.getVideoTracks().some(track => track.readyState === 'live')) {
+      stream?.getTracks().forEach(track => track.stop());
       permissionPromptActiveRef.current = true;
       stream = await navigator.mediaDevices.getUserMedia({
         video: { facingMode: 'user', width: 320, height: 240 }, audio: false,
       }).finally(() => { setTimeout(() => { permissionPromptActiveRef.current = false; }, 1200); });
       camStreamRef.current = stream;
     }
+    setCameraStream(stream);
     if (videoRef.current && videoRef.current.srcObject !== stream) {
       videoRef.current.srcObject = stream;
-      await videoRef.current.play().catch(() => {});
+      await videoRef.current.play().catch(error => {
+        console.error('[Camera] preview playback failed', error);
+        toast.error('Camera preview could not play. Please check your browser camera settings.');
+      });
     }
     setCameraOn(true);
     return stream;
@@ -641,6 +656,7 @@ const AssessmentScreen: React.FC = () => {
     }
     awayStartRef.current = null;
     setCameraOn(false);
+    setCameraStream(null);
   }, []);
 
   // Safety net: release camera + mic if the component unmounts in any phase
@@ -736,14 +752,14 @@ const AssessmentScreen: React.FC = () => {
   // Continuous, low-latency live webcam feed to recruiters over WebRTC. The 3s
   // heartbeat above still persists AI status + risk aggregates.
   useCandidateWebRTC({
-    enabled: phase === 'assessment',
+    enabled: phase === 'assessment' && monitoringEnabled,
     sessionId: liveSessionId,
-    streamRef: camStreamRef,
+    stream: cameraStream,
   });
 
   // Stop screen recording when the attempt ends by any path (terminated/submitted).
   useEffect(() => {
-    if (phase === 'terminated' || phase === 'submitted') screenRecorder.stop();
+    if (phase === 'terminated' || phase === 'submitted') void screenRecorder.stop();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [phase]);
 
@@ -753,7 +769,7 @@ const AssessmentScreen: React.FC = () => {
     if (timerRef.current) clearInterval(timerRef.current);
     stopAudioMonitoring();
     stopFaceMonitoring();
-    screenRecorder.stop();
+    await screenRecorder.stop();
     if (document.fullscreenElement) document.exitFullscreen().catch(() => {});
     const sid = sessionIdRef.current;
     if (sid) {

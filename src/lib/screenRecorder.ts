@@ -5,7 +5,7 @@
 // evidence. Segmenting means a dropped connection or closed browser only loses
 // the final in-flight clip, and recruiters can replay the session as a timeline.
 
-import { useCallback, useRef, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { evidenceApi } from '@/lib/api';
 
 interface UseScreenRecorderOptions {
@@ -14,13 +14,14 @@ interface UseScreenRecorderOptions {
   segmentMs?: number;
   /** Called when the user stops screen sharing from the browser UI. */
   onEnded?: () => void;
+  onError?: (message: string) => void;
 }
 
 interface ScreenRecorderControls {
   active: boolean;
   error: string | null;
-  start: () => Promise<boolean>;
-  stop: () => void;
+  start: (sessionId?: string) => Promise<boolean>;
+  stop: () => Promise<void>;
 }
 
 const MIME_CANDIDATES = [
@@ -35,85 +36,126 @@ function pickMimeType(): string {
   for (const m of MIME_CANDIDATES) {
     if (typeof MediaRecorder !== 'undefined' && MediaRecorder.isTypeSupported(m)) return m;
   }
-  return 'video/webm';
+  throw new Error('This browser cannot record screen video in a supported format.');
 }
 
 export function useScreenRecorder(opts: UseScreenRecorderOptions): ScreenRecorderControls {
-  const { sessionId, segmentMs = 30_000, onEnded } = opts;
+  const { sessionId, segmentMs = 30_000, onEnded, onError } = opts;
   const [active, setActive] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
   const streamRef = useRef<MediaStream | null>(null);
   const recorderRef = useRef<MediaRecorder | null>(null);
-  const chunksRef = useRef<BlobPart[]>([]);
   const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const stoppingRef = useRef(false);
   const mimeRef = useRef<string>('video/webm');
-  // Mirror the session id so uploads always use the latest value even if
-  // recording starts in the same tick the session id is being set.
-  const sessionIdRef = useRef<string | null>(sessionId);
-  sessionIdRef.current = sessionId;
+  const stoppedRef = useRef<Promise<void>>(Promise.resolve());
+  const uploadsRef = useRef(new Set<Promise<void>>());
+  const onErrorRef = useRef(onError);
+  const onEndedRef = useRef(onEnded);
+  const mountedRef = useRef(true);
 
-  const uploadSegment = useCallback((blob: Blob) => {
-    const sid = sessionIdRef.current;
-    if (!sid || blob.size < 1024) return; // skip empty/near-empty clips
-    evidenceApi.upload(sid, blob, 'video', new Date().toISOString()).catch(() => {
-      /* best-effort — a failed clip must not interrupt the exam */
+  useEffect(() => {
+    onErrorRef.current = onError;
+    onEndedRef.current = onEnded;
+  }, [onError, onEnded]);
+
+  const reportError = useCallback((message: string, cause?: unknown) => {
+    console.error('[Recording]', message, cause);
+    if (mountedRef.current) setError(message);
+    onErrorRef.current?.(message);
+  }, []);
+
+  const uploadSegment = useCallback((blob: Blob, sid: string, capturedAt: string) => {
+    if (blob.size === 0) {
+      reportError('The screen recorder produced an empty clip; that segment could not be saved.');
+      return;
+    }
+    const upload = evidenceApi.upload(sid, blob, 'video', capturedAt).then(() => undefined).catch((cause: unknown) => {
+      reportError('A recording clip could not be saved. Please check your connection.', cause);
+    }).finally(() => {
+      uploadsRef.current.delete(upload);
     });
+    uploadsRef.current.add(upload);
+  }, [reportError]);
+
+  const stop = useCallback(async () => {
+    stoppingRef.current = true;
+    if (timerRef.current) clearTimeout(timerRef.current);
+    timerRef.current = null;
+    const stopped = stoppedRef.current;
+    const recorder = recorderRef.current;
+    if (recorder && recorder.state !== 'inactive') recorder.stop();
+    streamRef.current?.getTracks().forEach(track => track.stop());
+    streamRef.current = null;
+    if (mountedRef.current) setActive(false);
+    await stopped;
+    await Promise.all(uploadsRef.current);
   }, []);
 
   // Records one segment; on stop it uploads and (unless stopping) starts the next.
-  const recordSegment = useCallback(() => {
-    const stream = streamRef.current;
-    if (!stream) return;
-    let recorder: MediaRecorder;
-    try {
-      recorder = new MediaRecorder(stream, { mimeType: mimeRef.current });
-    } catch {
-      return;
-    }
+  const recordSegment = useCallback((stream: MediaStream, sid: string) => {
+    const recorder = new MediaRecorder(stream, { mimeType: mimeRef.current });
+    const chunks: BlobPart[] = [];
+    const capturedAt = new Date().toISOString();
+    let resolveStopped: () => void = () => {};
+    stoppedRef.current = new Promise<void>(resolve => { resolveStopped = resolve; });
     recorderRef.current = recorder;
-    chunksRef.current = [];
 
     recorder.ondataavailable = (e) => {
-      if (e.data && e.data.size > 0) chunksRef.current.push(e.data);
+      if (e.data.size > 0) chunks.push(e.data);
     };
     recorder.onstop = () => {
-      const blob = new Blob(chunksRef.current, { type: mimeRef.current });
-      chunksRef.current = [];
-      uploadSegment(blob);
-      if (!stoppingRef.current && streamRef.current) recordSegment();
+      if (recorderRef.current === recorder) recorderRef.current = null;
+      uploadSegment(new Blob(chunks, { type: recorder.mimeType || mimeRef.current }), sid, capturedAt);
+      resolveStopped();
+      if (!stoppingRef.current && streamRef.current === stream) {
+        try {
+          recordSegment(stream, sid);
+        } catch (cause) {
+          reportError('Screen recording stopped unexpectedly; further clips cannot be captured.', cause);
+          void stop();
+        }
+      }
+    };
+    recorder.onerror = event => {
+      reportError('Screen recording failed; please check your browser screen-sharing settings.', event);
+      void stop();
     };
 
-    recorder.start();
+    try {
+      recorder.start();
+    } catch (cause) {
+      recorderRef.current = null;
+      resolveStopped();
+      throw cause;
+    }
     if (timerRef.current) clearTimeout(timerRef.current);
     timerRef.current = setTimeout(() => {
-      if (recorderRef.current && recorderRef.current.state !== 'inactive') {
-        recorderRef.current.stop(); // triggers onstop -> upload -> next segment
+      if (recorderRef.current === recorder && recorder.state !== 'inactive') {
+        recorder.stop();
       }
     }, segmentMs);
-  }, [segmentMs, uploadSegment]);
+  }, [segmentMs, uploadSegment, reportError, stop]);
 
-  const stop = useCallback(() => {
-    stoppingRef.current = true;
-    if (timerRef.current) clearTimeout(timerRef.current);
-    if (recorderRef.current && recorderRef.current.state !== 'inactive') {
-      try {
-        recorderRef.current.stop(); // flushes and uploads the final clip
-      } catch {
-        /* ignore */
-      }
-    }
-    streamRef.current?.getTracks().forEach((t) => t.stop());
-    streamRef.current = null;
-    setActive(false);
-  }, []);
+  useEffect(() => {
+    mountedRef.current = true;
+    return () => {
+      mountedRef.current = false;
+      void stop();
+    };
+  }, [stop]);
 
-  const start = useCallback(async (): Promise<boolean> => {
+  const start = useCallback(async (sid = sessionId): Promise<boolean> => {
     setError(null);
+    if (!sid) {
+      reportError('An assessment session is required before recording can start.');
+      return false;
+    }
+    await stop();
     stoppingRef.current = false;
     if (!navigator.mediaDevices?.getDisplayMedia) {
-      setError('Screen recording is not supported by this browser.');
+      reportError('Screen recording is not supported by this browser.');
       return false;
     }
     try {
@@ -122,23 +164,28 @@ export function useScreenRecorder(opts: UseScreenRecorderOptions): ScreenRecorde
         // Captures system/tab audio when the user grants permission.
         audio: true,
       });
+      if (!mountedRef.current || stoppingRef.current) {
+        stream.getTracks().forEach(track => track.stop());
+        return false;
+      }
       streamRef.current = stream;
       mimeRef.current = pickMimeType();
       // The user can end sharing via the browser's own control.
       stream.getVideoTracks()[0]?.addEventListener('ended', () => {
-        if (!stoppingRef.current) {
-          stop();
-          onEnded?.();
+        if (!stoppingRef.current && streamRef.current === stream) {
+          void stop();
+          onEndedRef.current?.();
         }
       });
-      recordSegment();
+      recordSegment(stream, sid);
       setActive(true);
       return true;
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Screen sharing was denied.');
+      reportError(err instanceof Error ? err.message : 'Screen sharing was denied.', err);
+      await stop();
       return false;
     }
-  }, [recordSegment, stop, onEnded]);
+  }, [recordSegment, stop, sessionId, reportError]);
 
   return { active, error, start, stop };
 }

@@ -1,11 +1,11 @@
-import React, { useEffect, useRef, useState } from 'react';
+import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { AppLayout } from '@/components/layouts/AppLayout';
 import { RiskBadge, StatusDot } from '@/components/shared/StatusBadges';
 import { sessionsApi, type ApiAlert, type ApiLiveSession } from '@/lib/api';
 import { useAsync } from '@/lib/useApi';
 import { mapLiveSession } from '@/lib/mappers';
-import { useMonitoringFeed, useWebRTCViewer } from '@/lib/realtime';
+import { useMonitoringFeed, useWebRTCViewer, type WebRTCFeed } from '@/lib/realtime';
 import { Button } from '@/components/ui/button';
 import { Shield, AlertTriangle, Eye, VideoOff, ShieldOff, Brain } from 'lucide-react';
 import { toast } from 'sonner';
@@ -28,21 +28,52 @@ const ALERT_LABELS: Record<string, string> = {
 
 const EMPTY: ApiLiveSession[] = [];
 
-/**
- * Live WebRTC video for one candidate. Opens a viewer peer connection to the
- * candidate's browser and renders their continuous webcam feed. Fills its
- * positioned parent; shows a placeholder until the stream connects.
- */
-const CandidateVideo: React.FC<{ candidateId: string; sessionId: string; enabled?: boolean }> = ({
+// One peer per session: the grid and detail panel must not negotiate separately
+// because signaling routes both to the same authenticated recruiter.
+const CandidateFeed: React.FC<{
+  candidateId: string;
+  sessionId: string;
+  onChange: (sessionId: string, feed: WebRTCFeed | null) => void;
+}> = ({
   candidateId,
   sessionId,
-  enabled = true,
+  onChange,
 }) => {
-  const { stream, state } = useWebRTCViewer({ candidateId, sessionId, enabled });
+  const { stream, state } = useWebRTCViewer({ candidateId, sessionId, enabled: true });
+  useEffect(() => {
+    onChange(sessionId, { stream, state });
+  }, [onChange, sessionId, stream, state]);
+  useEffect(() => () => onChange(sessionId, null), [onChange, sessionId]);
+  return null;
+};
+
+const CandidateVideo: React.FC<{ feed?: WebRTCFeed }> = ({ feed }) => {
+  const { stream = null, state = 'idle' } = feed ?? {};
   const videoRef = useRef<HTMLVideoElement | null>(null);
+  const [playbackError, setPlaybackError] = useState(false);
   useEffect(() => {
     const v = videoRef.current;
-    if (v && v.srcObject !== stream) v.srcObject = stream;
+    if (!v) return;
+    let disposed = false;
+    v.srcObject = stream;
+    setPlaybackError(false);
+    const play = () => {
+      if (!stream) return;
+      void v.play().then(() => {
+        if (!disposed) setPlaybackError(false);
+      }).catch(error => {
+        if (disposed) return;
+        console.error('[WebRTC] live video playback failed', error);
+        setPlaybackError(true);
+      });
+    };
+    v.addEventListener('loadedmetadata', play);
+    play();
+    return () => {
+      disposed = true;
+      v.removeEventListener('loadedmetadata', play);
+      v.srcObject = null;
+    };
   }, [stream]);
   return (
     <>
@@ -53,11 +84,13 @@ const CandidateVideo: React.FC<{ candidateId: string; sessionId: string; enabled
         muted
         className={cn('absolute inset-0 w-full h-full object-cover', !stream && 'opacity-0')}
       />
-      {!stream && (
+      {(!stream || playbackError) && (
         <div className="flex flex-col items-center gap-1 text-muted-foreground">
           <VideoOff className="w-6 h-6" />
           <span className="text-[10px]">
-            {state === 'new' || state === 'connecting' ? 'Connecting…' : 'Waiting for camera…'}
+            {playbackError ? 'Video playback blocked by browser'
+              : state === 'failed' ? 'Video connection failed — retrying…'
+              : state === 'new' || state === 'connecting' ? 'Connecting…' : 'Waiting for camera…'}
           </span>
         </div>
       )}
@@ -65,7 +98,7 @@ const CandidateVideo: React.FC<{ candidateId: string; sessionId: string; enabled
   );
 };
 
-const CandidateCard: React.FC<{ candidate: LiveCandidate; onClick: () => void; selected: boolean }> = ({ candidate, onClick, selected }) => {
+const CandidateCard: React.FC<{ candidate: LiveCandidate; feed?: WebRTCFeed; onClick: () => void; selected: boolean }> = ({ candidate, feed, onClick, selected }) => {
   const s = candidate.status;
   return (
     <button
@@ -85,7 +118,7 @@ const CandidateCard: React.FC<{ candidate: LiveCandidate; onClick: () => void; s
       </div>
       {/* Live webcam feed from candidate */}
       <div className="relative aspect-video bg-muted rounded border border-border/50 flex items-center justify-center mb-2 overflow-hidden">
-        <CandidateVideo candidateId={candidate.candidateId} sessionId={candidate.sessionId} />
+        <CandidateVideo feed={feed} />
         {/* Bounding box overlay */}
         {s.faceDetected && (
           <div className="absolute inset-0 pointer-events-none">
@@ -126,6 +159,15 @@ const LiveMonitoring: React.FC = () => {
   // Tracks per-session monitoring overrides: sessionId → enabled
   const [monitoringStates, setMonitoringStates] = useState<Record<string, boolean>>({});
   const [toggling, setToggling] = useState<string | null>(null);
+  const [videoFeeds, setVideoFeeds] = useState<Record<string, WebRTCFeed>>({});
+  const handleFeedChange = useCallback((sessionId: string, feed: WebRTCFeed | null) => {
+    setVideoFeeds(previous => {
+      const next = { ...previous };
+      if (feed) next[sessionId] = feed;
+      else delete next[sessionId];
+      return next;
+    });
+  }, []);
 
   const toggleMonitoring = async (sessionId: string, currentlyEnabled: boolean) => {
     setToggling(sessionId);
@@ -159,6 +201,14 @@ const LiveMonitoring: React.FC = () => {
 
   return (
     <AppLayout>
+      {candidates.map(candidate => (
+        <CandidateFeed
+          key={candidate.sessionId}
+          candidateId={candidate.candidateId}
+          sessionId={candidate.sessionId}
+          onChange={handleFeedChange}
+        />
+      ))}
       <div className="space-y-4 max-w-7xl">
         {/* Header */}
         <div className="flex flex-col md:flex-row md:items-center justify-between gap-3">
@@ -220,6 +270,7 @@ const LiveMonitoring: React.FC = () => {
                   <CandidateCard
                     key={candidate.id}
                     candidate={candidate}
+                    feed={videoFeeds[candidate.sessionId]}
                     onClick={() => setSelected(selected === candidate.id ? null : candidate.id)}
                     selected={selected === candidate.id}
                   />
@@ -240,7 +291,7 @@ const LiveMonitoring: React.FC = () => {
                 <p className="text-xs text-muted-foreground">{selectedCandidate.candidateId}</p>
               </div>
               <div className="relative aspect-video bg-muted rounded border border-border overflow-hidden flex items-center justify-center">
-                <CandidateVideo candidateId={selectedCandidate.candidateId} sessionId={selectedCandidate.sessionId} />
+                <CandidateVideo feed={videoFeeds[selectedCandidate.sessionId]} />
                 <div className="absolute bottom-1 right-1 flex items-center gap-1 bg-black/60 px-1.5 py-0.5 rounded text-xs text-green-400">
                   <span className="w-1.5 h-1.5 rounded-full bg-green-400 ai-active" /> LIVE
                 </div>

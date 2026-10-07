@@ -5,7 +5,7 @@
  * The backend fans out `session_update` (live snapshots) and `alert` events as
  * candidates push integrity events / status heartbeats over REST.
  */
-import { useEffect, useRef, useState, type RefObject } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { io, type Socket } from 'socket.io-client';
 
 import { getAccessToken, type ApiAlert, type ApiLiveSession, type ApiNotification } from '@/lib/api';
@@ -198,28 +198,30 @@ export function disconnectMonitoring(): void {
 export function useCandidateWebRTC(opts: {
   enabled: boolean;
   sessionId: string | null;
-  streamRef: RefObject<MediaStream | null>;
+  stream: MediaStream | null;
 }): void {
-  const { enabled, sessionId, streamRef } = opts;
-  const sessionIdRef = useRef(sessionId);
-  sessionIdRef.current = sessionId;
+  const { enabled, sessionId, stream } = opts;
 
   useEffect(() => {
-    if (!enabled || !sessionId) return;
+    if (!enabled || !sessionId || !stream?.getVideoTracks().some(track => track.readyState === 'live')) return;
     const s = connectSocket();
 
     // One peer connection per viewer, keyed by the viewer's user id.
     const peers = new Map<string, RTCPeerConnection>();
     // ICE candidates that arrive before the remote description is set.
     const pending = new Map<string, RTCIceCandidateInit[]>();
+    const timeouts = new Map<string, ReturnType<typeof setTimeout>>();
+    let disposed = false;
 
     const closePeer = (viewerId: string) => {
+      clearTimeout(timeouts.get(viewerId));
+      timeouts.delete(viewerId);
       const pc = peers.get(viewerId);
       if (pc) {
         pc.onicecandidate = null;
         pc.ontrack = null;
         pc.onconnectionstatechange = null;
-        try { pc.close(); } catch { /* ignore */ }
+        pc.close();
         peers.delete(viewerId);
       }
       pending.delete(viewerId);
@@ -227,44 +229,64 @@ export function useCandidateWebRTC(opts: {
 
     const handleRequest = async (data: { viewerId?: string; sessionId?: string | null }) => {
       const viewerId = data?.viewerId;
-      const stream = streamRef.current;
-      if (!viewerId || !stream) return;
+      if (disposed || !viewerId || (data.sessionId && data.sessionId !== sessionId)) return;
+      const existing = peers.get(viewerId);
+      if (existing && !['failed', 'closed', 'disconnected'].includes(existing.connectionState)) return;
       closePeer(viewerId); // reset any stale connection for this viewer
 
       const pc = new RTCPeerConnection({ iceServers: ICE_SERVERS });
       peers.set(viewerId, pc);
-      for (const track of stream.getTracks()) pc.addTrack(track, stream);
+      for (const track of stream.getTracks()) {
+        if (track.readyState === 'live') pc.addTrack(track, stream);
+      }
+      timeouts.set(viewerId, setTimeout(() => {
+        if (peers.get(viewerId) === pc && pc.connectionState !== 'connected') {
+          console.error('[WebRTC] publisher connection timed out', { viewerId, sessionId });
+          closePeer(viewerId);
+        }
+      }, 15000));
 
       pc.onicecandidate = (ev) => {
-        if (ev.candidate) {
+        if (ev.candidate && peers.get(viewerId) === pc) {
           console.info('[WebRTC] ICE candidate sent', { viewerId });
           s.emit('webrtc_ice', { targetId: viewerId, candidate: ev.candidate.toJSON() });
         }
       };
       pc.onconnectionstatechange = () => {
+        console.info('[WebRTC] publisher connection state', { viewerId, state: pc.connectionState });
+        if (pc.connectionState === 'connected') {
+          clearTimeout(timeouts.get(viewerId));
+          timeouts.delete(viewerId);
+        }
         if (['failed', 'closed', 'disconnected'].includes(pc.connectionState)) closePeer(viewerId);
       };
 
       try {
         const offer = await pc.createOffer();
+        if (disposed || peers.get(viewerId) !== pc) return;
         await pc.setLocalDescription(offer);
-        s.emit('webrtc_offer', { viewerId, sessionId: sessionIdRef.current, sdp: pc.localDescription });
-      } catch {
-        closePeer(viewerId);
+        if (disposed || peers.get(viewerId) !== pc) return;
+        s.emit('webrtc_offer', { viewerId, sessionId, sdp: pc.localDescription });
+      } catch (error) {
+        console.error('[WebRTC] could not publish camera offer', { viewerId, sessionId, error });
+        if (peers.get(viewerId) === pc) closePeer(viewerId);
       }
     };
 
     const handleAnswer = async (data: { viewerId?: string; sdp?: RTCSessionDescriptionInit }) => {
       const viewerId = data?.viewerId;
       const pc = viewerId ? peers.get(viewerId) : undefined;
-      if (!pc || !data?.sdp) return;
+      if (!viewerId || !pc || !data?.sdp) return;
       console.info('[WebRTC] answer received', { viewerId });
       try {
         await pc.setRemoteDescription(new RTCSessionDescription(data.sdp));
-        const queued = pending.get(viewerId!) ?? [];
-        for (const c of queued) await pc.addIceCandidate(c).catch(() => {});
-        pending.delete(viewerId!);
-      } catch { /* ignore */ }
+        const queued = pending.get(viewerId) ?? [];
+        pending.delete(viewerId);
+        for (const c of queued) await pc.addIceCandidate(c);
+      } catch (error) {
+        console.error('[WebRTC] could not apply viewer answer/ICE', { viewerId, error });
+        if (peers.get(viewerId) === pc) closePeer(viewerId);
+      }
     };
 
     const handleIce = async (data: { fromId?: string; candidate?: RTCIceCandidateInit }) => {
@@ -272,35 +294,46 @@ export function useCandidateWebRTC(opts: {
       const pc = fromId ? peers.get(fromId) : undefined;
       if (!fromId || !data?.candidate) return;
       console.info('[WebRTC] ICE candidate received', { viewerId: fromId });
-      if (!pc || !pc.remoteDescription) {
+      if (!pc) return;
+      if (!pc.remoteDescription) {
         const arr = pending.get(fromId) ?? [];
         arr.push(data.candidate);
         pending.set(fromId, arr);
         return;
       }
-      await pc.addIceCandidate(data.candidate).catch(() => {});
+      try {
+        await pc.addIceCandidate(data.candidate);
+      } catch (error) {
+        console.error('[WebRTC] could not apply viewer ICE', { viewerId: fromId, error });
+      }
     };
 
     const handleStop = (data: { fromId?: string }) => {
       if (data?.fromId) closePeer(data.fromId);
+    };
+    const handleDisconnect = () => {
+      for (const viewerId of Array.from(peers.keys())) closePeer(viewerId);
     };
 
     s.on('webrtc_request', handleRequest);
     s.on('webrtc_answer', handleAnswer);
     s.on('webrtc_ice', handleIce);
     s.on('webrtc_stop', handleStop);
+    s.on('disconnect', handleDisconnect);
 
     return () => {
+      disposed = true;
       s.off('webrtc_request', handleRequest);
       s.off('webrtc_answer', handleAnswer);
       s.off('webrtc_ice', handleIce);
       s.off('webrtc_stop', handleStop);
+      s.off('disconnect', handleDisconnect);
       for (const viewerId of Array.from(peers.keys())) {
         s.emit('webrtc_stop', { targetId: viewerId });
         closePeer(viewerId);
       }
     };
-  }, [enabled, sessionId, streamRef]);
+  }, [enabled, sessionId, stream]);
 }
 
 /**
@@ -315,13 +348,10 @@ export function useWebRTCViewer(opts: {
   candidateId: string | null;
   sessionId?: string | null;
   enabled: boolean;
-}): { stream: MediaStream | null; state: RTCPeerConnectionState | 'idle' } {
+}): WebRTCFeed {
   const { candidateId, sessionId, enabled } = opts;
   const [stream, setStream] = useState<MediaStream | null>(null);
   const [state, setState] = useState<RTCPeerConnectionState | 'idle'>('idle');
-  const sessionIdRef = useRef(sessionId);
-  sessionIdRef.current = sessionId;
-
   useEffect(() => {
     if (!enabled || !candidateId) return;
     const s = connectSocket();
@@ -329,59 +359,85 @@ export function useWebRTCViewer(opts: {
     let pc: RTCPeerConnection | null = null;
     let disposed = false;
     const pending: RTCIceCandidateInit[] = [];
+    let connectionTimeout: ReturnType<typeof setTimeout> | undefined;
 
     const teardown = () => {
+      clearTimeout(connectionTimeout);
       if (pc) {
         pc.onicecandidate = null;
         pc.ontrack = null;
         pc.onconnectionstatechange = null;
-        try { pc.close(); } catch { /* ignore */ }
+        pc.close();
         pc = null;
       }
+      pending.length = 0;
     };
 
     const requestFeed = () => {
-      if (disposed) return;
-      s.emit('webrtc_request', { candidateId, sessionId: sessionIdRef.current });
+      if (disposed || !s.connected || pc) return;
+      s.emit('webrtc_request', { candidateId, sessionId });
     };
 
-    const handleOffer = async (data: { candidateId?: string; sdp?: RTCSessionDescriptionInit }) => {
-      if (disposed || data?.candidateId !== candidateId || !data?.sdp) return;
+    const handleOffer = async (data: { candidateId?: string; sessionId?: string; sdp?: RTCSessionDescriptionInit }) => {
+      if (disposed || data?.candidateId !== candidateId || !data?.sdp
+        || (sessionId && data.sessionId !== sessionId)) return;
       console.info('[WebRTC] offer received', { candidateId });
+      const queued = pending.splice(0);
       teardown();
-      pc = new RTCPeerConnection({ iceServers: ICE_SERVERS });
-
-      pc.ontrack = (ev) => {
-        if (ev.streams[0]) {
-          console.info('[WebRTC] stream received', { candidateId });
-          setStream(ev.streams[0]);
+      const peer = new RTCPeerConnection({ iceServers: ICE_SERVERS });
+      pc = peer;
+      const remoteStream = new MediaStream();
+      setStream(null);
+      setState('connecting');
+      connectionTimeout = setTimeout(() => {
+        if (pc === peer && peer.connectionState !== 'connected') {
+          console.error('[WebRTC] viewer connection timed out', { candidateId, sessionId });
+          teardown();
+          setStream(null);
+          setState('failed');
         }
+      }, 15000);
+
+      peer.ontrack = (ev) => {
+        if (disposed || pc !== peer) return;
+        const received = ev.streams[0] ?? remoteStream;
+        if (!received.getTracks().includes(ev.track)) received.addTrack(ev.track);
+        console.info('[WebRTC] stream received', { candidateId, kind: ev.track.kind });
+        setStream(received);
       };
-      pc.onicecandidate = (ev) => {
-        if (ev.candidate) {
+      peer.onicecandidate = (ev) => {
+        if (ev.candidate && pc === peer) {
           console.info('[WebRTC] ICE candidate sent', { candidateId });
           s.emit('webrtc_ice', { targetId: candidateId, candidate: ev.candidate.toJSON() });
         }
       };
-      pc.onconnectionstatechange = () => {
-        if (!pc) return;
-        setState(pc.connectionState);
-        if (['failed', 'disconnected'].includes(pc.connectionState) && !disposed) {
-          // Connection dropped — attempt recovery.
+      peer.onconnectionstatechange = () => {
+        if (disposed || pc !== peer) return;
+        console.info('[WebRTC] viewer connection state', { candidateId, state: peer.connectionState });
+        setState(peer.connectionState);
+        if (peer.connectionState === 'connected') clearTimeout(connectionTimeout);
+        if (['failed', 'disconnected'].includes(peer.connectionState)) {
           teardown();
           setStream(null);
-          setTimeout(requestFeed, 1500);
         }
       };
 
       try {
-        await pc.setRemoteDescription(new RTCSessionDescription(data.sdp));
-        while (pending.length) await pc.addIceCandidate(pending.shift()!).catch(() => {});
-        const answer = await pc.createAnswer();
-        await pc.setLocalDescription(answer);
-        s.emit('webrtc_answer', { candidateId, sdp: pc.localDescription });
-      } catch {
-        teardown();
+        await peer.setRemoteDescription(new RTCSessionDescription(data.sdp));
+        if (disposed || pc !== peer) return;
+        for (const candidate of [...queued, ...pending.splice(0)]) await peer.addIceCandidate(candidate);
+        const answer = await peer.createAnswer();
+        if (disposed || pc !== peer) return;
+        await peer.setLocalDescription(answer);
+        if (disposed || pc !== peer) return;
+        s.emit('webrtc_answer', { candidateId, sdp: peer.localDescription });
+      } catch (error) {
+        console.error('[WebRTC] could not answer camera offer', { candidateId, sessionId, error });
+        if (pc === peer) {
+          teardown();
+          setStream(null);
+          setState('failed');
+        }
       }
     };
 
@@ -392,7 +448,16 @@ export function useWebRTCViewer(opts: {
         pending.push(data.candidate);
         return;
       }
-      await pc.addIceCandidate(data.candidate).catch(() => {});
+      try {
+        await pc.addIceCandidate(data.candidate);
+      } catch (error) {
+        console.error('[WebRTC] could not apply candidate ICE', { candidateId, error });
+      }
+    };
+    const handleDisconnect = () => {
+      teardown();
+      setStream(null);
+      setState('disconnected');
     };
 
     const handleStop = (data: { fromId?: string }) => {
@@ -406,12 +471,14 @@ export function useWebRTCViewer(opts: {
     s.on('webrtc_offer', handleOffer);
     s.on('webrtc_ice', handleIce);
     s.on('webrtc_stop', handleStop);
+    s.on('connect', requestFeed);
+    s.on('disconnect', handleDisconnect);
 
     requestFeed();
     // Keep asking until the candidate answers (they may still be initializing).
     const retry = setInterval(() => {
-      if (!pc || ['failed', 'closed', 'disconnected', 'new'].includes(pc.connectionState)) requestFeed();
-    }, 4000);
+      requestFeed();
+    }, 1000);
 
     return () => {
       disposed = true;
@@ -419,12 +486,19 @@ export function useWebRTCViewer(opts: {
       s.off('webrtc_offer', handleOffer);
       s.off('webrtc_ice', handleIce);
       s.off('webrtc_stop', handleStop);
+      s.off('connect', requestFeed);
+      s.off('disconnect', handleDisconnect);
       s.emit('webrtc_stop', { targetId: candidateId });
       teardown();
     };
   }, [enabled, candidateId, sessionId]);
 
-  return { stream, state };
+  return enabled && candidateId ? { stream, state } : { stream: null, state: 'idle' };
+}
+
+export interface WebRTCFeed {
+  stream: MediaStream | null;
+  state: RTCPeerConnectionState | 'idle';
 }
 
 /**
