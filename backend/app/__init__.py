@@ -101,8 +101,10 @@ def _init_extensions(app: Flask) -> None:
         # server can't honor, or the half-open WS drops the client on App Service.
         allow_upgrades=async_mode in ("eventlet", "gevent", "gevent_uwsgi"),
     )
-    # Import registers the @socketio.on(...) handlers (connect / monitoring rooms).
-    from app import realtime  # noqa: F401
+    # Module imports are cached; bind handlers to every newly initialized server.
+    from app.realtime import register_handlers
+
+    register_handlers()
 
 
 def _register_jwt_callbacks(app: Flask) -> None:

@@ -65,6 +65,28 @@ jobs:
           pip install -r requirements.txt \
             --target package/.python_packages/lib/site-packages
 
+      - name: Verify Socket.IO application initialization
+        env:
+          FLASK_ENV: testing
+          PROCTORING_SMS_ALERT_ENABLED: "false"
+        run: |
+          export PYTHONPATH="$PWD/package/backend:$PWD/package/.python_packages/lib/site-packages"
+          python - <<'PY'
+          from app import create_app
+          from app.extensions import socketio
+          required = {
+              "connect", "disconnect", "join_monitoring", "leave_monitoring",
+              "join_session", "webrtc_request", "webrtc_offer", "webrtc_answer",
+              "webrtc_ice", "webrtc_stop",
+          }
+          for _ in range(2):
+              app = create_app("testing")
+              assert required <= set(socketio.server.handlers.get("/", {}))
+              client = socketio.test_client(app)
+              assert not client.is_connected(), "Unauthenticated socket was accepted"
+          print("Repeated app initialization preserves authenticated monitoring/signaling")
+          PY
+
       - name: Deploy to Azure App Service
         uses: azure/webapps-deploy@v3
         with:

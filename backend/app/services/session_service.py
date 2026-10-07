@@ -311,6 +311,14 @@ def _finalize_session(session, candidate):
         "session.submit", user=candidate, resource=str(session.id),
         details=f"score={session.score} risk={session.risk_score}",
     )
+    try:
+        from app.realtime import broadcast_status
+
+        broadcast_status(session)
+    except Exception:
+        from flask import current_app
+
+        current_app.logger.exception("[Socket] failed to broadcast closed session %s", session.id)
 
     # Analyze coding answers for plagiarism / AI-generated code (best-effort).
     try:
@@ -457,4 +465,3 @@ def toggle_monitoring(user, session_id: str, enabled: bool) -> AssessmentSession
     session.monitoring_enabled = enabled
     sessions.session.commit()
     return session
-

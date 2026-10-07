@@ -86,6 +86,27 @@ export interface MonitoringFeed {
   connectionState: 'connecting' | 'connected' | 'disconnected' | 'error';
 }
 
+function mergeLiveSessions(
+  current: ApiLiveSession[],
+  updates: ApiLiveSession[],
+  closed: Set<string>,
+  assessmentId?: string,
+): ApiLiveSession[] {
+  const next = current.filter(session => !assessmentId || session.assessmentId === assessmentId);
+  for (const session of updates) {
+    if (assessmentId && session.assessmentId !== assessmentId) continue;
+    const index = next.findIndex(item => item.sessionId === session.sessionId);
+    if (session.status !== 'in_progress') {
+      closed.add(session.sessionId);
+      if (index !== -1) next.splice(index, 1);
+    } else if (!closed.has(session.sessionId)) {
+      if (index === -1) next.push(session);
+      else next[index] = { ...next[index], ...session };
+    }
+  }
+  return next;
+}
+
 /**
  * Subscribe to the live monitoring feed. Pass the initial REST snapshot so the
  * grid renders immediately; socket updates then merge in.
@@ -94,7 +115,7 @@ export function useMonitoringFeed(
   initial: ApiLiveSession[],
   options?: { assessmentId?: string; onAlert?: (alert: ApiAlert) => void },
 ): MonitoringFeed {
-  const [sessions, setSessions] = useState<ApiLiveSession[]>(initial);
+  const [sessions, setSessions] = useState<ApiLiveSession[]>(initial.filter(session => session.status === 'in_progress'));
   const [alerts, setAlerts] = useState<ApiAlert[]>([]);
   const [connected, setConnected] = useState(false);
   const [connectionState, setConnectionState] = useState<MonitoringFeed['connectionState']>('connecting');
@@ -102,27 +123,51 @@ export function useMonitoringFeed(
   const onAlertRef = useRef(options?.onAlert);
   onAlertRef.current = options?.onAlert;
   const assessmentId = options?.assessmentId;
+  const closedSessions = useRef(new Set<string>());
 
   // Re-hydrate when a fresh REST snapshot arrives.
   useEffect(() => {
-    setSessions((current) => {
-      const next = current.slice();
-      for (const session of initial) {
-        const index = next.findIndex((item) => item.sessionId === session.sessionId);
-        if (index === -1) next.push(session);
-        else next[index] = { ...next[index], ...session };
-      }
-      return next;
-    });
-  }, [initial]);
+    setSessions(current => mergeLiveSessions(current, initial, closedSessions.current, assessmentId));
+  }, [initial, assessmentId]);
 
   useEffect(() => {
     const s = connectSocket();
+    let awaitingSnapshot = false;
+    const receivedDuringJoin = new Map<string, ApiLiveSession>();
 
     const handleConnect = () => {
+      awaitingSnapshot = true;
+      receivedDuringJoin.clear();
+      setConnected(false);
+      setConnectionState('connecting');
+      s.emit('join_monitoring', assessmentId ? { assessmentId } : {});
+    };
+    const handleJoined = (payload: { ok?: boolean }) => {
+      if (!payload?.ok) {
+        handleDenied();
+        return;
+      }
+      console.info('[Socket] monitoring subscription acknowledged');
       setConnected(true);
       setConnectionState('connected');
-      s.emit('join_monitoring', assessmentId ? { assessmentId } : {});
+    };
+    const handleDenied = () => {
+      console.error('[Socket] monitoring subscription denied');
+      setConnected(false);
+      setConnectionState('error');
+    };
+    const handleSnapshot = (payload: { assessmentId?: string | null; sessions?: ApiLiveSession[] }) => {
+      if (assessmentId && payload?.assessmentId !== assessmentId) return;
+      if (!Array.isArray(payload?.sessions)) {
+        console.error('[Socket] invalid monitoring snapshot');
+        setConnected(false);
+        setConnectionState('error');
+        return;
+      }
+      const updates = [...payload.sessions, ...receivedDuringJoin.values()];
+      awaitingSnapshot = false;
+      receivedDuringJoin.clear();
+      setSessions(() => mergeLiveSessions([], updates, closedSessions.current, assessmentId));
     };
     const handleDisconnect = () => {
       setConnected(false);
@@ -130,13 +175,8 @@ export function useMonitoringFeed(
     };
     const handleConnectError = () => setConnectionState('error');
     const mergeSession = (payload: ApiLiveSession) => {
-      setSessions((prev) => {
-        const idx = prev.findIndex((x) => x.sessionId === payload.sessionId);
-        if (idx === -1) return [payload, ...prev];
-        const next = prev.slice();
-        next[idx] = { ...next[idx], ...payload };
-        return next;
-      });
+      if (awaitingSnapshot) receivedDuringJoin.set(payload.sessionId, payload);
+      setSessions(prev => mergeLiveSessions(prev, [payload], closedSessions.current, assessmentId));
     };
     const handleUpdate = (payload: ApiLiveSession) => mergeSession(payload);
     const handleCandidateStarted = (payload: ApiLiveSession) => {
@@ -156,6 +196,9 @@ export function useMonitoringFeed(
     s.on('connect', handleConnect);
     s.on('disconnect', handleDisconnect);
     s.on('connect_error', handleConnectError);
+    s.on('monitoring_joined', handleJoined);
+    s.on('monitoring_denied', handleDenied);
+    s.on('monitoring_snapshot', handleSnapshot);
     s.on('session_update', handleUpdate);
     s.on('candidate_started', handleCandidateStarted);
     s.on('alert', handleAlert);
@@ -168,6 +211,9 @@ export function useMonitoringFeed(
       s.off('connect', handleConnect);
       s.off('disconnect', handleDisconnect);
       s.off('connect_error', handleConnectError);
+      s.off('monitoring_joined', handleJoined);
+      s.off('monitoring_denied', handleDenied);
+      s.off('monitoring_snapshot', handleSnapshot);
       s.off('session_update', handleUpdate);
       s.off('candidate_started', handleCandidateStarted);
       s.off('alert', handleAlert);
@@ -351,7 +397,7 @@ export function useWebRTCViewer(opts: {
 }): WebRTCFeed {
   const { candidateId, sessionId, enabled } = opts;
   const [stream, setStream] = useState<MediaStream | null>(null);
-  const [state, setState] = useState<RTCPeerConnectionState | 'idle'>('idle');
+  const [state, setState] = useState<RTCPeerConnectionState | 'idle'>(enabled && candidateId ? 'connecting' : 'idle');
   useEffect(() => {
     if (!enabled || !candidateId) return;
     const s = connectSocket();

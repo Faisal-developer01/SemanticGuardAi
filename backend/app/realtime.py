@@ -162,7 +162,6 @@ def _authenticate(auth: dict | None) -> dict | None:
         return None
 
 
-@socketio.on("connect")
 def handle_connect(auth=None):
     claims = _authenticate(auth)
     if not claims:
@@ -187,7 +186,6 @@ def handle_connect(auth=None):
     return True
 
 
-@socketio.on("join_monitoring")
 def handle_join_monitoring(data=None):
     """Recruiter/admin subscribes to live updates (optionally per assessment)."""
     role = flask_session.get("role")
@@ -204,9 +202,21 @@ def handle_join_monitoring(data=None):
         assessment_id,
     )
     emit("monitoring_joined", {"ok": True})
+    from app.services import session_service
+
+    sessions = session_service.active_sessions()
+    emit(
+        "monitoring_snapshot",
+        {
+            "assessmentId": str(assessment_id) if assessment_id else None,
+            "sessions": [
+                live_session_payload(session) for session in sessions
+                if not assessment_id or str(session.assessment_id) == str(assessment_id)
+            ],
+        },
+    )
 
 
-@socketio.on("join_session")
 def handle_join_session(data=None):
     """Allow a candidate to join only their own active assessment session room."""
     if not isinstance(data, dict) or flask_session.get("role") != UserRole.candidate.value:
@@ -238,7 +248,6 @@ def handle_join_session(data=None):
     emit("session_joined", {"ok": True, "sessionId": str(session.id)})
 
 
-@socketio.on("leave_monitoring")
 def handle_leave_monitoring(data=None):
     leave_room(MONITOR_ROOM)
     assessment_id = (data or {}).get("assessmentId") if isinstance(data, dict) else None
@@ -264,7 +273,6 @@ def _is_monitor(role: str | None) -> bool:
     return role in (UserRole.recruiter.value, UserRole.admin.value)
 
 
-@socketio.on("webrtc_request")
 def handle_webrtc_request(data=None):
     """Viewer asks a candidate to open a live video peer connection."""
     if not isinstance(data, dict):
@@ -291,7 +299,6 @@ def handle_webrtc_request(data=None):
     )
 
 
-@socketio.on("webrtc_offer")
 def handle_webrtc_offer(data=None):
     """Candidate sends an SDP offer to a specific viewer."""
     if not isinstance(data, dict):
@@ -316,7 +323,6 @@ def handle_webrtc_offer(data=None):
     )
 
 
-@socketio.on("webrtc_answer")
 def handle_webrtc_answer(data=None):
     """Viewer sends an SDP answer back to the candidate."""
     if not isinstance(data, dict):
@@ -337,7 +343,6 @@ def handle_webrtc_answer(data=None):
     )
 
 
-@socketio.on("webrtc_ice")
 def handle_webrtc_ice(data=None):
     """Relay a trickled ICE candidate to the other peer (bidirectional)."""
     if not isinstance(data, dict):
@@ -361,7 +366,6 @@ def handle_webrtc_ice(data=None):
     )
 
 
-@socketio.on("webrtc_stop")
 def handle_webrtc_stop(data=None):
     """Tear down a peer connection (viewer closed a card, or candidate submitted)."""
     if not isinstance(data, dict):
@@ -380,7 +384,6 @@ def handle_webrtc_stop(data=None):
     )
 
 
-@socketio.on("disconnect")
 def handle_disconnect():  # pragma: no cover - cleanup is automatic
     leave_room(MONITOR_ROOM)
     user_id = flask_session.get("user_id")
@@ -408,3 +411,22 @@ def handle_disconnect():  # pragma: no cover - cleanup is automatic
                     notification_service.notify_disconnect(active_session)
                 except Exception:  # noqa: BLE001 - best-effort
                     pass
+
+
+def register_handlers() -> None:
+    """Bind lifecycle and signaling handlers after each Socket.IO init_app."""
+    handlers = {
+        "connect": handle_connect,
+        "disconnect": handle_disconnect,
+        "join_monitoring": handle_join_monitoring,
+        "join_session": handle_join_session,
+        "leave_monitoring": handle_leave_monitoring,
+        "webrtc_request": handle_webrtc_request,
+        "webrtc_offer": handle_webrtc_offer,
+        "webrtc_answer": handle_webrtc_answer,
+        "webrtc_ice": handle_webrtc_ice,
+        "webrtc_stop": handle_webrtc_stop,
+    }
+    for event, handler in handlers.items():
+        socketio.on_event(event, handler)
+    logger.info("[Socket] registered application handlers count=%s", len(handlers))

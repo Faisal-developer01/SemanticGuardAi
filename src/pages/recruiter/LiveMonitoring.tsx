@@ -94,6 +94,11 @@ const CandidateVideo: React.FC<{ feed?: WebRTCFeed }> = ({ feed }) => {
           </span>
         </div>
       )}
+      <div className={cn('absolute bottom-1 right-1 flex items-center gap-1 bg-black/60 px-1.5 py-0.5 rounded text-xs',
+        stream && state === 'connected' ? 'text-green-400' : 'text-white/70')}>
+        <span className={cn('w-1.5 h-1.5 rounded-full', stream && state === 'connected' ? 'bg-green-400 ai-active' : 'bg-white/50')} />
+        {stream && state === 'connected' ? 'LIVE' : 'CONNECTING'}
+      </div>
     </>
   );
 };
@@ -134,9 +139,6 @@ const CandidateCard: React.FC<{ candidate: LiveCandidate; feed?: WebRTCFeed; onC
             <AlertTriangle className="w-3 h-3" /> FLAGGED
           </div>
         )}
-        <div className="absolute bottom-1 right-1 flex items-center gap-1 bg-black/60 px-1.5 py-0.5 rounded text-xs text-green-400">
-          <span className="w-1.5 h-1.5 rounded-full bg-green-400 ai-active" /> LIVE
-        </div>
       </div>
       <div className="grid grid-cols-2 gap-x-3 gap-y-1">
         <StatusDot active={s.faceDetected} label="Face" />
@@ -292,9 +294,6 @@ const LiveMonitoring: React.FC = () => {
               </div>
               <div className="relative aspect-video bg-muted rounded border border-border overflow-hidden flex items-center justify-center">
                 <CandidateVideo feed={videoFeeds[selectedCandidate.sessionId]} />
-                <div className="absolute bottom-1 right-1 flex items-center gap-1 bg-black/60 px-1.5 py-0.5 rounded text-xs text-green-400">
-                  <span className="w-1.5 h-1.5 rounded-full bg-green-400 ai-active" /> LIVE
-                </div>
               </div>
               <div className="space-y-2">
                 <p className="text-xs font-medium text-muted-foreground uppercase tracking-wide">AI Status</p>

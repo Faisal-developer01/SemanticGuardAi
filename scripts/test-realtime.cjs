@@ -651,3 +651,77 @@ test('unsupported codecs or recorder startup failures never report an active rec
     h.cleanup();
   }
 });
+
+const liveSession = (id, status = 'in_progress', assessmentId = 'assessment-1') => ({
+  id, sessionId: id, candidateId: `candidate-${id}`, assessmentId, status,
+});
+
+test('monitoring waits for room acknowledgement and hydrates without a page refresh', async () => {
+  const h = harness();
+  const initial = [];
+  let feed = h.render('useMonitoringFeed', initial);
+  assert.equal(feed.connected, false, 'transport connection is not proof that monitoring is subscribed');
+  assert.equal(h.count('join_monitoring'), 1);
+  await h.receive('monitoring_joined', { ok: true });
+  const first = liveSession('first');
+  await h.receive('monitoring_snapshot', { sessions: [first] });
+  feed = h.render('useMonitoringFeed', initial);
+  assert.equal(feed.connected, true);
+  assert.equal(feed.sessions[0].sessionId, 'first');
+  await h.receive('candidate_started', liveSession('second'));
+  feed = h.render('useMonitoringFeed', initial);
+  assert.deepEqual(Array.from(feed.sessions, s => s.sessionId), ['first', 'second']);
+  h.cleanup();
+});
+
+test('completed sessions disappear and stale REST or socket snapshots cannot resurrect them', async () => {
+  const h = harness();
+  const initial = [liveSession('first')];
+  h.render('useMonitoringFeed', initial);
+  await h.receive('monitoring_joined', { ok: true });
+  await h.receive('monitoring_snapshot', { sessions: initial });
+  await h.receive('session_update', liveSession('first', 'completed'));
+  assert.equal(h.render('useMonitoringFeed', initial).sessions.length, 0);
+  const staleRest = [liveSession('first')];
+  h.render('useMonitoringFeed', staleRest);
+  await h.receive('monitoring_snapshot', { sessions: staleRest });
+  assert.equal(h.render('useMonitoringFeed', staleRest).sessions.length, 0);
+  h.cleanup();
+});
+
+test('reconnect reconciles missed sessions while preserving arrivals during snapshot hydration', async () => {
+  const h = harness();
+  const initial = [liveSession('ended-while-offline')];
+  h.render('useMonitoringFeed', initial);
+  await h.receive('monitoring_joined', { ok: true });
+  await h.receive('monitoring_snapshot', { sessions: initial });
+  await h.receive('disconnect');
+  await h.receive('connect');
+  await h.receive('candidate_started', liveSession('arrived-during-join'));
+  await h.receive('monitoring_snapshot', { sessions: [liveSession('started-while-offline')] });
+  const feed = h.render('useMonitoringFeed', initial);
+  assert.deepEqual(Array.from(feed.sessions, s => s.sessionId),
+    ['started-while-offline', 'arrived-during-join']);
+  h.cleanup();
+});
+
+test('monitoring subscription denial is surfaced instead of a green connected badge', async () => {
+  const h = harness();
+  h.render('useMonitoringFeed', []);
+  await h.receive('monitoring_denied', { ok: false });
+  const feed = h.render('useMonitoringFeed', []);
+  assert.equal(feed.connected, false);
+  assert.equal(feed.connectionState, 'error');
+  assert.equal(h.errors.length, 1);
+  h.cleanup();
+});
+
+test('terminal updates arriving during join win over an older active snapshot', async () => {
+  const h = harness();
+  const initial = [];
+  h.render('useMonitoringFeed', initial);
+  await h.receive('session_update', liveSession('first', 'flagged'));
+  await h.receive('monitoring_snapshot', { sessions: [liveSession('first')] });
+  assert.equal(h.render('useMonitoringFeed', initial).sessions.length, 0);
+  h.cleanup();
+});

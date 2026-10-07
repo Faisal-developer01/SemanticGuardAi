@@ -55,6 +55,13 @@ guarantee a working media connection. The candidate must grant camera access
 during face verification and keep the assessment open with monitoring enabled.
 Camera access requires HTTPS in production (localhost is allowed in development).
 The grid and selected-candidate detail panel share one peer connection per session.
+The Connected badge is shown only after the server acknowledges the monitoring
+room subscription. Joining or reconnecting receives a database-backed active
+session snapshot; candidate-start and heartbeat events update the grid immediately.
+Completed/terminated sessions are removed rather than left as camera placeholders.
+Socket.IO application handlers are explicitly rebound for each Flask application
+initialization so repeated app-factory calls cannot leave a connected but inert
+signaling server.
 
 Public STUN is configured by default. For networks that block direct peer-to-peer
 media, configure a real TURN relay using `VITE_TURN_URL`, `VITE_TURN_USERNAME`, and
@@ -104,6 +111,9 @@ endless loading spinner.
 Backend recording regressions: from `backend`, run
 `python -m pytest tests/test_evidence.py -q`. The frontend media regressions above
 also cover recording prefetch, final-clip discovery, upload flushing, and errors.
+Realtime backend regressions: `python -m pytest tests/test_realtime.py -q`, covering
+repeated app initialization, authenticated subscriptions, reconnect snapshots,
+session completion, and the full request/offer/answer/ICE signaling route.
 
 ## Project Structure
 
