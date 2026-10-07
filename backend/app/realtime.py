@@ -201,7 +201,16 @@ def handle_join_monitoring(data=None):
         flask_session.get("user_id"),
         assessment_id,
     )
-    emit("monitoring_joined", {"ok": True})
+    import sys
+
+    eventlet_patcher = sys.modules.get("eventlet.patcher")
+    emit("monitoring_joined", {
+        "ok": True,
+        "asyncMode": socketio.server.eio.async_mode,
+        "eventletThreadPatched": bool(
+            eventlet_patcher and eventlet_patcher.is_monkey_patched("thread")
+        ),
+    })
     from app.services import session_service
 
     sessions = session_service.active_sessions()
