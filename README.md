@@ -153,6 +153,25 @@ Socket.IO authentication validates the existing access token through the API
 before connecting; expired tokens are refreshed once for concurrent callers so
 a stale token cannot strand an otherwise authenticated monitoring page.
 
+## Certificate PDFs
+
+Completion certificates use a print-ready landscape A4 design in Semantic
+Services' navy, blue, and teal palette. The supplied white-lettered logo appears
+on a navy letterhead, with the original combined signature/stamp image, candidate
+and assessment details, available scores, issue date, and certificate reference.
+The verification QR code is also clickable.
+
+The branding images in `docs/images` match the existing `public/img` assets.
+Vite copies them into `dist/img`, which the PDF service resolves in deployment;
+an explicit Flask `BRAND_ASSETS_DIR` configuration still takes precedence.
+Missing or unreadable branding fails explicitly rather than producing an
+unsigned certificate. Older cached certificates regenerate on their next
+download or email attachment without changing the issued record or verification
+token. Offer-letter layout and cached downloads are unchanged.
+
+Certificate regressions: from `backend`, run
+`python -m pytest tests/test_certificates.py -q`.
+
 ## Project Structure
 
 ```

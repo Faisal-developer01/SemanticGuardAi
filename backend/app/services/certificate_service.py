@@ -13,6 +13,7 @@ import secrets
 from datetime import datetime, timezone
 from io import BytesIO
 from pathlib import Path
+from xml.sax.saxutils import escape
 
 from flask import current_app
 
@@ -21,33 +22,41 @@ from app.repositories import credentials as credentials_repo
 
 # ReportLab
 from reportlab.lib.colors import HexColor
+from reportlab.lib.enums import TA_CENTER
 from reportlab.lib.pagesizes import A4, landscape
+from reportlab.lib.styles import ParagraphStyle
 from reportlab.lib.units import mm
 from reportlab.lib.utils import ImageReader
 from reportlab.pdfgen import canvas
 from reportlab.graphics import renderPDF
 from reportlab.graphics.barcode import qr
 from reportlab.graphics.shapes import Drawing
+from reportlab.platypus import Paragraph
+from sqlalchemy.exc import SQLAlchemyError
 
 ISSUER_NAME = "Semantic Services Rwanda Ltd"
 
 # Brand palette
 _NAVY = HexColor("#0f172a")
 _PRIMARY = HexColor("#0ea5e9")
-_GOLD = HexColor("#b8860b")
 _SLATE = HexColor("#475569")
 _MUTED = HexColor("#94a3b8")
+_TEAL = HexColor("#10b8ad")
+_PAPER = HexColor("#f1f5f9")
+_CERTIFICATE_TEMPLATE = "semantic-v2"
 
 
 # ─── asset + storage resolution ──────────────────────────────────────────────
 
 def _assets_dir() -> Path:
-    """Directory holding the logo and stamp/signature images (public/img)."""
+    """Resolve source assets locally and Vite-packaged assets in production."""
     configured = current_app.config.get("BRAND_ASSETS_DIR")
     if configured:
         return Path(configured)
     # backend/app/services/certificate_service.py -> repo root is parents[3]
-    return Path(__file__).resolve().parents[3] / "public" / "img"
+    root = Path(__file__).resolve().parents[3]
+    source = root / "public" / "img"
+    return source if source.is_dir() else root / "dist" / "img"
 
 
 def _logo_path() -> Path | None:
@@ -113,13 +122,10 @@ def _qr_drawing(data: str, size: float) -> Drawing:
 
 def _draw_image_fit(c: canvas.Canvas, path: Path, x: float, y: float, max_w: float, max_h: float, anchor: str = "sw") -> None:
     """Draw an image scaled to fit within (max_w, max_h) preserving aspect ratio."""
-    try:
-        reader = ImageReader(str(path))
-        iw, ih = reader.getSize()
-    except Exception:
-        return
+    reader = ImageReader(str(path))
+    iw, ih = reader.getSize()
     if not iw or not ih:
-        return
+        raise ValueError(f"Brand image has invalid dimensions: {path.name}")
     scale = min(max_w / iw, max_h / ih)
     w, h = iw * scale, ih * scale
     if anchor == "n":  # centered horizontally on x, top at y
@@ -133,87 +139,128 @@ def _draw_image_fit(c: canvas.Canvas, path: Path, x: float, y: float, max_w: flo
 
 # ─── certificate ─────────────────────────────────────────────────────────────
 
+def _certificate_text(
+    c: canvas.Canvas, text: str, y: float, width: float, height: float,
+    size: float, minimum: float,
+) -> None:
+    while size >= minimum:
+        style = ParagraphStyle(
+            "CertificateText", fontName="Helvetica-Bold", fontSize=size,
+            leading=size * 1.2, alignment=TA_CENTER, textColor=_NAVY,
+        )
+        paragraph = Paragraph(escape(text), style)
+        _, rendered_height = paragraph.wrap(width, height)
+        if rendered_height <= height:
+            page_width, _ = landscape(A4)
+            paragraph.drawOn(c, (page_width - width) / 2, y + (height - rendered_height) / 2)
+            return
+        size -= 0.5
+    raise ValueError("Certificate text is too long to fit the printable area.")
+
+
 def _render_certificate(cred) -> bytes:
+    logo = _logo_path()
+    stamp = _stamp_path()
+    if logo is None or stamp is None:
+        current_app.logger.error("Required certificate branding is missing from %s", _assets_dir())
+        raise FileNotFoundError("Certificate logo and signature/stamp images are required.")
+
     buf = BytesIO()
     page = landscape(A4)
     width, height = page
     c = canvas.Canvas(buf, pagesize=page)
-
-    # Outer decorative border
-    c.setStrokeColor(_PRIMARY)
-    c.setLineWidth(3)
-    c.rect(12 * mm, 12 * mm, width - 24 * mm, height - 24 * mm)
-    c.setStrokeColor(_GOLD)
-    c.setLineWidth(1)
-    c.rect(15 * mm, 15 * mm, width - 30 * mm, height - 30 * mm)
-
+    c.setTitle(f"Completion Certificate - {cred.number}")
+    c.setAuthor(ISSUER_NAME)
+    c.setSubject(f"Assessment completion credential for {cred.candidate_name}")
     center = width / 2
 
-    # Logo
-    logo = _logo_path()
-    if logo:
-        _draw_image_fit(c, logo, center, height - 26 * mm, 48 * mm, 24 * mm, anchor="n")
+    c.setFillColor(_PAPER)
+    c.rect(0, 0, width, height, fill=1, stroke=0)
+    c.setFillColor(HexColor("#ffffff"))
+    c.setStrokeColor(_NAVY)
+    c.setLineWidth(1)
+    c.roundRect(14 * mm, 14 * mm, width - 28 * mm, height - 28 * mm, 4 * mm, fill=1, stroke=1)
 
+    # The supplied logo has white lettering; retain its transparency on navy.
     c.setFillColor(_NAVY)
-    c.setFont("Helvetica-Bold", 30)
-    c.drawCentredString(center, height - 58 * mm, "CERTIFICATE OF COMPLETION")
-
-    c.setFillColor(_PRIMARY)
-    c.setLineWidth(1.5)
-    c.line(center - 45 * mm, height - 62 * mm, center + 45 * mm, height - 62 * mm)
-
-    c.setFillColor(_SLATE)
-    c.setFont("Helvetica", 13)
-    c.drawCentredString(center, height - 74 * mm, "This is to certify that")
-
-    c.setFillColor(_NAVY)
-    c.setFont("Helvetica-Bold", 26)
-    c.drawCentredString(center, height - 88 * mm, cred.candidate_name)
-
-    c.setFillColor(_SLATE)
-    c.setFont("Helvetica", 13)
-    c.drawCentredString(center, height - 100 * mm, "has successfully completed the assessment")
-
-    c.setFillColor(_NAVY)
-    c.setFont("Helvetica-Bold", 16)
-    c.drawCentredString(center, height - 111 * mm, f"\u201c{cred.title}\u201d")
-
-    # Metrics row
-    issued = cred.issued_at or _now()
-    metrics = []
-    if cred.percentage is not None:
-        metrics.append(f"Score: {cred.percentage:.0f}%")
-    if cred.integrity_score is not None:
-        metrics.append(f"Integrity Score: {cred.integrity_score:.0f}%")
-    metrics.append(f"Date: {issued.strftime('%d %B %Y')}")
-    c.setFillColor(_SLATE)
-    c.setFont("Helvetica", 12)
-    c.drawCentredString(center, height - 124 * mm, "     |     ".join(metrics))
-
-    # Stamp & signature (bottom-left area)
-    stamp = _stamp_path()
-    if stamp:
-        _draw_image_fit(c, stamp, 40 * mm, 24 * mm, 55 * mm, 34 * mm, anchor="s")
-    c.setFillColor(_MUTED)
-    c.setFont("Helvetica", 9)
-    c.drawCentredString(67 * mm, 20 * mm, "Authorized Signature & Official Stamp")
-
-    # QR (bottom-right)
-    qr_size = 30 * mm
-    qr_x = width - 30 * mm - qr_size
-    qr_y = 22 * mm
-    renderPDF.draw(_qr_drawing(_verify_url(cred.verification_token), qr_size), c, qr_x, qr_y)
-    c.setFillColor(_MUTED)
+    c.rect(15 * mm, height - 47 * mm, width - 30 * mm, 32 * mm, fill=1, stroke=0)
+    _draw_image_fit(c, logo, 26 * mm, height - 42 * mm, 65 * mm, 22 * mm)
+    c.setFillColor(HexColor("#ffffff"))
+    c.setFont("Helvetica-Bold", 12)
+    c.drawRightString(width - 27 * mm, height - 27 * mm, ISSUER_NAME.upper())
     c.setFont("Helvetica", 8)
-    c.drawCentredString(qr_x + qr_size / 2, qr_y - 4 * mm, "Scan to verify")
+    c.drawRightString(width - 27 * mm, height - 34 * mm, "PROFESSIONAL ASSESSMENT CREDENTIAL")
+    c.setStrokeColor(_TEAL)
+    c.setLineWidth(2)
+    c.line(15 * mm, height - 47 * mm, width - 15 * mm, height - 47 * mm)
 
-    # Certificate number + issuer footer
+    c.setFillColor(_NAVY)
+    c.setFont("Helvetica-Bold", 28)
+    c.drawCentredString(center, height - 65 * mm, "CERTIFICATE")
+    c.setFillColor(_TEAL)
+    c.setFont("Helvetica-Bold", 12)
+    c.drawCentredString(center, height - 74 * mm, "OF COMPLETION")
+
     c.setFillColor(_SLATE)
-    c.setFont("Helvetica-Bold", 10)
-    c.drawString(30 * mm, 34 * mm, f"Certificate No: {cred.number}")
-    c.setFillColor(_MUTED)
-    c.setFont("Helvetica", 9)
-    c.drawCentredString(center, 17 * mm, f"Issued by {ISSUER_NAME}")
+    c.setFont("Helvetica", 11)
+    c.drawCentredString(center, height - 85 * mm, "This is to certify that")
+
+    _certificate_text(c, cred.candidate_name, 100 * mm, 240 * mm, 24 * mm, 28, 14)
+    c.setStrokeColor(_TEAL)
+    c.setLineWidth(1)
+    c.line(center - 32 * mm, 98 * mm, center + 32 * mm, 98 * mm)
+
+    c.setFillColor(_SLATE)
+    c.setFont("Helvetica", 11)
+    c.drawCentredString(center, 92 * mm, "has successfully completed the assessment")
+    _certificate_text(c, cred.title, 75 * mm, 240 * mm, 14 * mm, 17, 10)
+
+    issued = cred.issued_at or _now()
+    metrics: list[tuple[str, str]] = []
+    if cred.percentage is not None:
+        metrics.append(("ASSESSMENT SCORE", f"{cred.percentage:.0f}%"))
+    if cred.integrity_score is not None:
+        metrics.append(("INTEGRITY SCORE", f"{cred.integrity_score:.0f}%"))
+    metrics.append(("DATE ISSUED", issued.strftime("%d %B %Y")))
+    card_width, gap = 63 * mm, 6 * mm
+    start = center - (len(metrics) * card_width + (len(metrics) - 1) * gap) / 2
+    for index, (label, value) in enumerate(metrics):
+        x = start + index * (card_width + gap)
+        c.setFillColor(_PAPER)
+        c.roundRect(x, 56 * mm, card_width, 15 * mm, 2 * mm, fill=1, stroke=0)
+        c.setFillColor(_SLATE)
+        c.setFont("Helvetica", 7.5)
+        c.drawCentredString(x + card_width / 2, 66 * mm, label)
+        c.setFillColor(_NAVY)
+        c.setFont("Helvetica-Bold", 12)
+        c.drawCentredString(x + card_width / 2, 60 * mm, value)
+
+    _draw_image_fit(c, stamp, 70 * mm, 22 * mm, 68 * mm, 25 * mm, anchor="s")
+    c.setFillColor(_SLATE)
+    c.setFont("Helvetica", 7.5)
+    c.drawCentredString(70 * mm, 18 * mm, "Authorized Signature & Official Stamp")
+
+    qr_size = 24 * mm
+    qr_x = width - 28 * mm - qr_size
+    qr_y = 22 * mm
+    verification_url = _verify_url(cred.verification_token)
+    renderPDF.draw(_qr_drawing(verification_url, qr_size), c, qr_x, qr_y)
+    c.linkURL(verification_url, (qr_x, qr_y, qr_x + qr_size, qr_y + qr_size), relative=0)
+    c.setFillColor(_SLATE)
+    c.setFont("Helvetica", 7.5)
+    c.drawCentredString(qr_x + qr_size / 2, 18 * mm, "Scan or click to verify")
+
+    c.setFillColor(_SLATE)
+    c.setFont("Helvetica", 7.5)
+    c.drawCentredString(center, 34 * mm, "CERTIFICATE REFERENCE")
+    c.setFillColor(_NAVY)
+    c.setFont("Helvetica-Bold", 9)
+    c.drawCentredString(center, 28 * mm, cred.number)
+    c.setFillColor(_SLATE)
+    c.setFont("Helvetica", 8)
+    c.drawCentredString(center, 22 * mm, ISSUER_NAME)
+    c.setFont("Helvetica", 7)
+    c.drawCentredString(center, 17 * mm, "Kigali, Rwanda")
 
     c.showPage()
     c.save()
@@ -354,9 +401,14 @@ def render_pdf(cred) -> bytes:
     return _render_offer_letter(cred)
 
 
+def _pdf_filename(cred) -> str:
+    suffix = f"-{_CERTIFICATE_TEMPLATE}" if cred.type == CredentialType.certificate else ""
+    return f"{cred.number}{suffix}.pdf"
+
+
 def _persist_pdf(cred) -> str:
     data = render_pdf(cred)
-    filename = f"{cred.number}.pdf"
+    filename = _pdf_filename(cred)
     path = _storage_dir() / filename
     path.write_bytes(data)
     return str(path)
@@ -364,19 +416,24 @@ def _persist_pdf(cred) -> str:
 
 def get_pdf_bytes(cred) -> bytes:
     """Return the credential PDF, reading the cached file or regenerating it."""
-    if cred.file_path and os.path.exists(cred.file_path):
+    current_template = (
+        cred.type != CredentialType.certificate
+        or (cred.file_path and Path(cred.file_path).name == _pdf_filename(cred))
+    )
+    if current_template and cred.file_path and os.path.exists(cred.file_path):
         try:
             return Path(cred.file_path).read_bytes()
         except OSError:
-            pass
+            current_app.logger.warning("Could not read cached credential PDF %s", cred.number, exc_info=True)
     data = render_pdf(cred)
     try:
-        path = _storage_dir() / f"{cred.number}.pdf"
+        path = _storage_dir() / _pdf_filename(cred)
         path.write_bytes(data)
         cred.file_path = str(path)
         credentials_repo.session.commit()
-    except Exception:  # noqa: BLE001 - caching is best-effort
+    except (OSError, SQLAlchemyError):
         credentials_repo.session.rollback()
+        current_app.logger.exception("Could not cache credential PDF %s", cred.number)
     return data
 
 
