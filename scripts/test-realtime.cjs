@@ -470,7 +470,7 @@ const clip = (id, capturedAt) => ({
   id, capturedAt, createdAt: capturedAt, type: 'video', sessionId: 'session-1',
 });
 
-function recordingModal(h, state, fetchBlob, toast = { error() {}, info() {} }, makeUrl = async blob => blob) {
+function alertPanelModule(h, state, fetchBlob, toast = { error() {}, info() {} }, makeUrl = async blob => blob) {
   return h.loadModule('src/pages/recruiter/AIAlertPanel.tsx', {
     'react-router-dom': { Link: 'a' },
     '@/components/layouts/AppLayout': { AppLayout: 'main' },
@@ -485,8 +485,112 @@ function recordingModal(h, state, fetchBlob, toast = { error() {}, info() {} }, 
     sonner: { toast },
     'date-fns': { format: () => 'recorded-at' },
     '@/lib/utils': { cn: (...values) => values.filter(value => typeof value === 'string').join(' ') },
-  }, '\nexport { RecordingModal };\n').RecordingModal;
+  }, '\nexport { RecordingModal, AlertCard };\n');
 }
+
+function recordingModal(...args) {
+  return alertPanelModule(...args).RecordingModal;
+}
+
+test('recording viewer bounds its viewport, contains video, and keeps accessible clip controls', async () => {
+  const h = harness();
+  const state = { data: [clip('clip-1', '2026-10-07T12:00:00Z')], loading: false, error: null, reload() {} };
+  const modal = recordingModal(h, state, async () => 'blob:clip-1');
+  let closed = 0;
+  const props = { sessionId: 'session', candidateName: 'Long candidate name '.repeat(10), onClose() { closed++; } };
+  h.renderFunction(modal, props);
+  await flush();
+  let tree = h.renderFunction(modal, props);
+  const dialog = findElements(tree, 'div').find(element => element.props.role === 'dialog');
+  assert.equal(dialog.props['aria-modal'], 'true');
+  assert.match(dialog.props.className, /100dvh/);
+  assert.match(dialog.props.className, /overflow-hidden/);
+  const video = findElements(tree, 'video')[0];
+  assert.match(video.props.className, /absolute inset-0/);
+  assert.match(video.props.className, /object-contain/);
+  assert.equal(video.props.controls, true, 'retain native playback and fullscreen controls');
+  assert.equal(video.props.src, 'blob:clip-1');
+  const switchButton = findElements(tree, 'button').find(button => button.props.role === 'switch');
+  assert.equal(switchButton.props['aria-checked'], true);
+  switchButton.props.onClick();
+  tree = h.renderFunction(modal, props);
+  assert.equal(findElements(tree, 'button').find(button => button.props.role === 'switch').props['aria-checked'], false);
+  findElements(tree, 'button').find(button => button.props['aria-label'] === 'Close recording').props.onClick();
+  assert.equal(closed, 1);
+  h.cleanup();
+});
+
+test('lockdown alert cards show readable event names and open full-session recordings without renaming the event', () => {
+  const h = harness();
+  const { AlertCard } = alertPanelModule(h, {}, async () => {});
+  for (const [type, label] of [
+    ['devtools_open', 'Developer Tools Detected'],
+    ['keyboard_shortcut', 'Blocked Keyboard Shortcut'],
+    ['clipboard_attempt', 'Clipboard Attempt'],
+    ['multiple_tabs', 'Duplicate Assessment Tab'],
+  ]) {
+    const alert = {
+      id: 'alert', sessionId: 'session', candidateId: 'candidate', candidateName: 'Candidate',
+      assessmentTitle: 'Assessment', type, severity: 'high', riskScore: 50,
+      timestamp: '2026-10-07T12:00:00Z', description: 'Integrity event', reviewed: false,
+    };
+    let selected;
+    const tree = h.renderFunction(AlertCard, {
+      alert, onMarkReviewed() {}, onViewRecording(value) { selected = value; },
+    });
+    assert.ok(elementText(tree).includes(label));
+    assert.ok(!elementText(tree).includes(type), 'never expose the raw snake-case code as the title');
+    const recording = findElements(tree, 'button').find(button => button.props.title === 'Watch the full session recording');
+    recording.props.onClick();
+    assert.equal(selected, alert);
+    assert.equal(alert.type, type, 'preserve the original integrity evidence classification');
+  }
+  h.cleanup();
+});
+
+test('recording dialog traps keyboard focus, preserves fullscreen Escape, and restores the recording action on close', () => {
+  const listeners = new Map();
+  const document = { activeElement: null, fullscreenElement: null };
+  class Element {
+    isConnected = true;
+    focus() { document.activeElement = this; }
+  }
+  const original = new Element();
+  const close = new Element();
+  const last = new Element();
+  original.focus();
+  const h = harness(true, {
+    document, HTMLElement: Element,
+    window: {
+      location: { origin: 'https://assessment.test' },
+      addEventListener(event, handler) { listeners.set(event, handler); },
+      removeEventListener(event, handler) { if (listeners.get(event) === handler) listeners.delete(event); },
+    },
+  });
+  const state = { data: [], loading: false, error: null, reload() {} };
+  const modal = recordingModal(h, state, async () => {});
+  let closed = 0;
+  let tree = h.renderFunction(modal, { sessionId: 'session', candidateName: 'Candidate', onClose() {} });
+  findElements(tree, 'div').find(element => element.props.role === 'dialog').props.ref.current = {
+    querySelector: () => close, querySelectorAll: () => [close, last],
+    contains: element => element === close || element === last,
+  };
+  tree = h.renderFunction(modal, { sessionId: 'session', candidateName: 'Candidate', onClose() { closed++; } });
+  assert.equal(document.activeElement, close);
+  last.focus();
+  let prevented = false;
+  listeners.get('keydown')({ key: 'Tab', shiftKey: false, preventDefault() { prevented = true; } });
+  assert.equal(prevented, true);
+  assert.equal(document.activeElement, close);
+  document.fullscreenElement = {};
+  listeners.get('keydown')({ key: 'Escape', preventDefault() {} });
+  assert.equal(closed, 0, 'Escape should exit native video fullscreen without also closing review');
+  document.fullscreenElement = null;
+  listeners.get('keydown')({ key: 'Escape', preventDefault() {} });
+  assert.equal(closed, 1);
+  h.cleanup();
+  assert.equal(document.activeElement, original);
+});
 
 test('recording prefetch never unmounts or reloads the playing clip', async () => {
   const h = harness();

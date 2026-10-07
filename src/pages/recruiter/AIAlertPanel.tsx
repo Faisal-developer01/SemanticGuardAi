@@ -31,6 +31,10 @@ const ALERT_LABELS: Record<string, string> = {
   identity_mismatch:   'Identity Mismatch',
   browser_unfocused:   'Browser Unfocused',
   object_detected:     'Object Detected',
+  devtools_open:       'Developer Tools Detected',
+  keyboard_shortcut:   'Blocked Keyboard Shortcut',
+  clipboard_attempt:  'Clipboard Attempt',
+  multiple_tabs:      'Duplicate Assessment Tab',
 };
 
 const ALERT_ICONS: Record<string, React.ReactNode> = {
@@ -38,6 +42,7 @@ const ALERT_ICONS: Record<string, React.ReactNode> = {
   phone_detected:    <ShieldAlert className="w-4 h-4" />,
   tab_switch:        <Activity className="w-4 h-4" />,
   browser_unfocused: <Activity className="w-4 h-4" />,
+  devtools_open:     <ShieldAlert className="w-4 h-4" />,
 };
 
 const SEVERITY_ORDER: Record<AlertSeverity, number> = { critical: 0, high: 1, medium: 2, low: 3 };
@@ -88,6 +93,7 @@ const RecordingModal: React.FC<RecordingModalProps> = ({ sessionId, candidateNam
   const [muted, setMuted] = useState(true);
   const [continuous, setContinuous] = useState(true);
   const videoRef = useRef<HTMLVideoElement | null>(null);
+  const dialogRef = useRef<HTMLDivElement | null>(null);
   const urlCache = useRef(new Map<string, string>());
   const blobCache = useRef(new Map<string, Blob>());
   const usedUrls = useRef(new Set<string>());
@@ -211,54 +217,84 @@ const RecordingModal: React.FC<RecordingModalProps> = ({ sessionId, candidateNam
   };
 
   useEffect(() => {
-    const handler = (e: KeyboardEvent) => { if (e.key === 'Escape') onClose(); };
+    const dialog = dialogRef.current;
+    const previousFocus = dialog ? document.activeElement : null;
+    dialog?.querySelector<HTMLButtonElement>('[aria-label="Close recording"]')?.focus();
+    const handler = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') {
+        if (dialog && document.fullscreenElement) return;
+        e.preventDefault();
+        onClose();
+      } else if (e.key === 'Tab' && dialog) {
+        const controls = [...dialog.querySelectorAll<HTMLElement>('button:not(:disabled), video[controls], input:not(:disabled), [href]')];
+        const first = controls[0];
+        const last = controls[controls.length - 1];
+        if (!first || !last) return;
+        if (!dialog.contains(document.activeElement) || (e.shiftKey && document.activeElement === first)) {
+          e.preventDefault();
+          (e.shiftKey ? last : first).focus();
+        } else if (!e.shiftKey && document.activeElement === last) {
+          e.preventDefault();
+          first.focus();
+        }
+      }
+    };
     window.addEventListener('keydown', handler);
-    return () => window.removeEventListener('keydown', handler);
+    return () => {
+      window.removeEventListener('keydown', handler);
+      if (previousFocus && previousFocus instanceof HTMLElement && previousFocus.isConnected) previousFocus.focus();
+    };
   }, [onClose]);
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/70 backdrop-blur-sm" onClick={onClose}>
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-2 sm:p-4 bg-black/70 backdrop-blur-sm" onClick={onClose}>
       <div
-        className="relative w-full max-w-4xl bg-card border border-border rounded-2xl shadow-2xl flex flex-col overflow-hidden"
+        ref={dialogRef}
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="session-recording-title"
+        className="relative w-full min-w-0 max-w-4xl h-[min(680px,calc(100dvh-1rem))] sm:h-[min(680px,calc(100dvh-2rem))] bg-card border border-border rounded-xl sm:rounded-2xl shadow-2xl flex flex-col overflow-hidden"
         onClick={e => e.stopPropagation()}
       >
         {/* Header */}
-        <div className="flex items-center justify-between px-5 py-3 border-b border-border bg-muted/40">
-          <div className="flex items-center gap-3">
-            <div className="w-8 h-8 rounded-lg bg-primary/10 flex items-center justify-center">
+        <div className="flex shrink-0 items-center justify-between gap-2 px-3 sm:px-5 py-3 border-b border-border bg-muted/40">
+          <div className="flex min-w-0 items-center gap-2 sm:gap-3">
+            <div className="w-9 h-9 shrink-0 rounded-xl bg-primary/10 flex items-center justify-center">
               <Video className="w-4 h-4 text-primary" />
             </div>
-            <div>
-              <p className="text-sm font-semibold text-foreground">{candidateName} — Session Recording</p>
-              <p className="text-xs text-muted-foreground">
+            <div className="min-w-0">
+              <h2 id="session-recording-title" className="text-sm font-semibold text-foreground">Session recording</h2>
+              <p className="text-xs text-muted-foreground truncate" title={candidateName}>{candidateName}</p>
+              <p className="text-[11px] text-muted-foreground truncate">
                 {clips.length === 0 ? 'No recordings' : `Clip ${clipIndex + 1} of ${clips.length}`}
                 {currentClip?.capturedAt && ` · ${safeDate(currentClip.capturedAt)}`}
               </p>
             </div>
           </div>
-          <div className="flex items-center gap-1.5">
+          <div className="flex shrink-0 items-center gap-1.5">
             <button
               onClick={() => setMuted(m => !m)}
+              aria-label={muted ? 'Unmute recording' : 'Mute recording'}
               title={muted ? 'Unmute' : 'Mute'}
               className="p-1.5 rounded-md hover:bg-muted transition-colors text-muted-foreground hover:text-foreground"
             >
               {muted ? <VolumeX className="w-4 h-4" /> : <Volume2 className="w-4 h-4" />}
             </button>
-            <button onClick={onClose} className="p-1.5 rounded-md hover:bg-muted transition-colors text-muted-foreground hover:text-foreground">
+            <button onClick={onClose} aria-label="Close recording" className="p-2 rounded-md hover:bg-muted transition-colors text-muted-foreground hover:text-foreground">
               <X className="w-4 h-4" />
             </button>
           </div>
         </div>
 
         {listError && (
-          <div role="alert" className="px-5 py-2 text-sm text-destructive flex items-center justify-between">
-            <span>{listError}</span>
+          <div role="alert" className="shrink-0 px-3 sm:px-5 py-2 text-sm text-destructive flex items-center justify-between gap-2">
+            <span className="min-w-0 break-words">{listError}</span>
             <Button size="sm" variant="outline" onClick={reload}>Retry</Button>
           </div>
         )}
 
         {/* Video */}
-        <div className="relative bg-black aspect-video w-full flex items-center justify-center">
+        <div className="relative bg-black w-full min-h-0 min-w-0 flex-1 overflow-hidden flex items-center justify-center">
           {loading && clips.length === 0 ? (
             <div className="flex flex-col items-center gap-3 text-white/60">
               <Loader2 className="w-10 h-10 animate-spin" />
@@ -295,7 +331,7 @@ const RecordingModal: React.FC<RecordingModalProps> = ({ sessionId, candidateNam
                 setClipErrors(previous => ({ ...previous, [currentClip.id]: message }));
                 toast.error(message);
               }}
-              className="w-full h-full object-contain"
+              className="absolute inset-0 w-full h-full max-w-full max-h-full object-contain"
             />
           ) : (
             <div className="flex flex-col items-center gap-3 text-white/60">
@@ -307,13 +343,15 @@ const RecordingModal: React.FC<RecordingModalProps> = ({ sessionId, candidateNam
 
         {/* Footer controls */}
         {clips.length > 0 && (
-          <div className="px-5 py-3 border-t border-border bg-muted/30 space-y-3">
+          <div className="shrink-0 min-w-0 px-3 sm:px-5 py-2 sm:py-3 border-t border-border bg-muted/30 space-y-2">
+            <p className="text-[11px] text-muted-foreground">Full-session footage, not just this alert. Use fullscreen for a closer view.</p>
             {/* Clip strip */}
             <div className="flex items-center gap-1.5 overflow-x-auto pb-0.5">
               {clips.map((clip, i) => (
                 <button
                   key={clip.id}
                   onClick={() => goTo(i)}
+                  aria-current={i === clipIndex ? 'step' : undefined}
                   className={cn(
                     'shrink-0 px-3 py-1 rounded-md text-xs font-medium transition-colors border',
                     i === clipIndex
@@ -326,25 +364,31 @@ const RecordingModal: React.FC<RecordingModalProps> = ({ sessionId, candidateNam
               ))}
             </div>
 
-            <div className="flex items-center justify-between">
+            <div className="flex flex-wrap items-center justify-between gap-2">
               <div className="flex items-center gap-2">
-                <Button size="sm" variant="outline" onClick={() => goTo(clipIndex - 1)} disabled={clipIndex === 0} className="h-7 px-2">
+                <Button size="sm" variant="outline" aria-label="Previous recording clip" onClick={() => goTo(clipIndex - 1)} disabled={clipIndex === 0} className="h-8 px-2">
                   <SkipBack className="w-3.5 h-3.5" />
                 </Button>
-                <Button size="sm" variant="outline" onClick={() => goTo(clipIndex + 1)} disabled={clipIndex >= clips.length - 1} className="h-7 px-2">
+                <Button size="sm" variant="outline" aria-label="Next recording clip" onClick={() => goTo(clipIndex + 1)} disabled={clipIndex >= clips.length - 1} className="h-8 px-2">
                   <SkipForward className="w-3.5 h-3.5" />
                 </Button>
                 <span className="text-xs text-muted-foreground">{clipIndex + 1} / {clips.length}</span>
               </div>
-              <label className="flex items-center gap-2 text-xs text-muted-foreground select-none cursor-pointer">
-                <div
-                  onClick={() => setContinuous(c => !c)}
+              <button
+                type="button"
+                role="switch"
+                aria-checked={continuous}
+                aria-label="Auto-advance clips"
+                onClick={() => setContinuous(c => !c)}
+                className="flex items-center gap-2 text-xs text-muted-foreground select-none rounded-md p-1 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+              >
+                <span
                   className={cn('w-8 h-4 rounded-full transition-colors relative cursor-pointer', continuous ? 'bg-primary' : 'bg-muted-foreground/30')}
                 >
                   <span className={cn('absolute top-0.5 w-3 h-3 rounded-full bg-white shadow transition-all', continuous ? 'left-4' : 'left-0.5')} />
-                </div>
+                </span>
                 Auto-advance clips
-              </label>
+              </button>
             </div>
           </div>
         )}
@@ -414,7 +458,7 @@ const AlertCard: React.FC<{
 
         {/* Actions */}
         <div className="flex flex-col gap-2 shrink-0 ml-2">
-          <Button size="sm" variant="outline" onClick={() => onViewRecording(alert)} className="h-8 text-xs gap-1.5 whitespace-nowrap">
+          <Button size="sm" variant="outline" title="Watch the full session recording" onClick={() => onViewRecording(alert)} className="h-8 text-xs gap-1.5 whitespace-nowrap">
             <Play className="w-3 h-3" /> Recording
           </Button>
           <Button size="sm" variant="secondary" asChild className="h-8 text-xs gap-1.5 whitespace-nowrap">

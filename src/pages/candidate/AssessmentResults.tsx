@@ -21,6 +21,8 @@ const ALERT_LABELS: Record<string, string> = {
   looking_away: 'Looking Away', tab_switch: 'Tab Switch', phone_detected: 'Phone Detected',
   multiple_faces: 'Multiple Faces', audio_detected: 'Audio Detected',
   face_not_detected: 'Face Not Detected', browser_unfocused: 'Browser Unfocused',
+  devtools_open: 'Developer Tools Detected', keyboard_shortcut: 'Blocked Keyboard Shortcut',
+  clipboard_attempt: 'Clipboard Attempt', multiple_tabs: 'Duplicate Assessment Tab',
 };
 
 function safeDate(value: string, fmt: string): string {

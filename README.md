@@ -96,6 +96,11 @@ harness; the application only publishes the candidate's actual webcam stream.
 
 The AI Alert Panel's Recording action plays the session's captured video
 segments in capture order, with automatic advancement enabled by default.
+The viewer is bounded to the current viewport height, fits the entire recording
+without cropping, and keeps clip controls available on mobile and short desktop
+windows. Native video fullscreen is available for closer inspection. Recording
+opens the full session footage; alert names (such as Developer Tools Detected)
+describe integrity events, not recording filenames.
 Prefetching and refreshing the clip list do not interrupt the current video.
 Prefetch waits for the current clip download so it cannot compete with initial
 playback. WebM clips use MediaSource buffering when supported, allowing the

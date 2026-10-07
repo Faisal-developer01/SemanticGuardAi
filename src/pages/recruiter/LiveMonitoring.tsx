@@ -24,6 +24,10 @@ const ALERT_LABELS: Record<string, string> = {
   browser_unfocused: 'Browser unfocused',
   object_detected: 'Suspicious object detected',
   suspicious_movement: 'Suspicious movement',
+  devtools_open: 'Developer tools detected',
+  keyboard_shortcut: 'Blocked keyboard shortcut',
+  clipboard_attempt: 'Clipboard attempt',
+  multiple_tabs: 'Duplicate assessment tab',
 };
 
 const EMPTY: ApiLiveSession[] = [];
