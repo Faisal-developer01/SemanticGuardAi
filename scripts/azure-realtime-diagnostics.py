@@ -20,40 +20,27 @@ authorization = base64.b64encode(
 ).decode()
 
 command = r"""
-import glob, json, os, pathlib, re
-result = {"processes": [], "startup_logs": []}
-for filename in glob.glob("/proc/[0-9]*/cmdline"):
-    try:
-        text = pathlib.Path(filename).read_bytes().decode(errors="replace").replace("\0", " ")
-        if "gunicorn" not in text or "import glob, json" in text:
-            continue
-        pid = filename.split("/")[2]
-        status = pathlib.Path("/proc/" + pid + "/status").read_text()
-        threads = re.search(r"^Threads:\s*(\d+)", status, re.M)
-        result["processes"].append({
-            "pid": int(pid), "gthread": "gthread" in text, "eventlet": "eventlet" in text,
-            "threads": int(threads.group(1)) if threads else None,
-            "cwd": os.readlink("/proc/" + pid + "/cwd"),
-        })
-    except (OSError, UnicodeError) as error:
-        result.setdefault("read_errors", []).append(type(error).__name__)
-logs = sorted(pathlib.Path("/home/LogFiles").glob("*docker.log"), key=lambda p: p.stat().st_mtime)[-4:]
-for path in logs:
-    lines = path.read_text(errors="replace").splitlines()[-4000:]
-    for line in lines:
-        if re.search(r"Using worker:|registered application handlers|recruiter joined monitoring room", line):
-            line = re.sub(r"(?:user_id|session_id|candidate_id|assessment_id|sid)=[^\s]+", "<redacted>", line)
-            result["startup_logs"].append(line[:350])
-result["startup_logs"] = result["startup_logs"][-25:]
-print(json.dumps(result))
+echo "Sanitized Gunicorn process metadata:"
+ps -eo pid,nlwp,args | awk '/[g]unicorn/ && !/awk/ {
+  print "pid=" $1, "threads=" $2, "gthread=" (index($0, "gthread") > 0), "eventlet=" (index($0, "eventlet") > 0)
+}'
+echo "Worker startup log evidence:"
+for path in /home/LogFiles/*docker.log; do
+  if [ -f "$path" ]; then
+    tail -n 4000 "$path" | grep -E 'Using worker:|registered application handlers|Launching Gunicorn' | tail -n 25
+  fi
+done
 """
 request = urllib.request.Request(
     f"https://{host}/api/command",
-    data=json.dumps({"command": "python3 -c " + shlex.quote(command), "dir": "/home"}).encode(),
+    data=json.dumps({"command": "bash -c " + shlex.quote(command), "dir": "/home"}).encode(),
     headers={"Authorization": "Basic " + authorization, "Content-Type": "application/json"},
 )
 with urllib.request.urlopen(request, timeout=60) as response:
     payload = json.load(response)
 if payload.get("ExitCode") != 0:
-    raise RuntimeError(f"Azure diagnostic command failed with exit code {payload.get('ExitCode')}")
+    error = str(payload.get("Error") or payload.get("Output") or "No command error returned")
+    for secret in (profile.attrib["userName"], profile.attrib["userPWD"], authorization):
+        error = error.replace(secret, "<redacted>")
+    raise RuntimeError(f"Azure diagnostic command failed: {error[:2000]}")
 print(payload["Output"])
