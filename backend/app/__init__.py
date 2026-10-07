@@ -91,15 +91,21 @@ def _init_extensions(app: Flask) -> None:
         resources={r"/api/*": {"origins": frontend_origins}},
         supports_credentials=True,
     )
-    async_mode = app.config.get("SOCKETIO_ASYNC_MODE", "threading")
+    requested_mode = app.config.get("SOCKETIO_ASYNC_MODE", "threading")
+    if requested_mode != "threading":
+        app.logger.warning(
+            "[Socket] async mode %r is incompatible with the native-threaded WSGI "
+            "deployment; using threading for monitoring/signaling.",
+            requested_mode,
+        )
+    app.config["SOCKETIO_ASYNC_MODE"] = "threading"
     socketio.init_app(
         app,
         cors_allowed_origins=frontend_origins,
         message_queue=app.config.get("SOCKETIO_MESSAGE_QUEUE"),
-        async_mode=async_mode,
-        # threading/gthread cannot serve WebSocket; don't advertise an upgrade the
-        # server can't honor, or the half-open WS drops the client on App Service.
-        allow_upgrades=async_mode in ("eventlet", "gevent", "gevent_uwsgi"),
+        async_mode="threading",
+        # This deployment uses native gthread workers and polling signaling.
+        allow_upgrades=False,
     )
     # Module imports are cached; bind handlers to every newly initialized server.
     from app.realtime import register_handlers

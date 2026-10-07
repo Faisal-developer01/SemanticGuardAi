@@ -66,6 +66,10 @@ Email-task initialization reuses the requesting Flask app rather than creating
 another app inside the web process, which would replace the live Socket.IO
 server and disconnect monitoring/signaling from its existing clients. Standalone
 Celery workers still create their own Flask app.
+The native-threaded WSGI deployment always initializes Socket.IO in threading
+mode. Legacy `SOCKETIO_ASYNC_MODE=eventlet` overrides are logged and ignored:
+eventlet background handlers cannot reliably run on native gthread request
+threads, even when the transport handshake succeeds.
 
 Public STUN is configured by default. For networks that block direct peer-to-peer
 media, configure a real TURN relay using `VITE_TURN_URL`, `VITE_TURN_USERNAME`, and

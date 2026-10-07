@@ -6,6 +6,8 @@ from pathlib import Path
 import subprocess
 import sys
 
+import pytest
+
 from app.extensions import socketio
 
 
@@ -31,16 +33,21 @@ assert not client.is_connected(), 'Missing connect handler accepts anonymous soc
     assert result.returncode == 0, result.stdout + result.stderr
 
 
-def test_importing_email_tasks_preserves_live_monitoring_connection():
+@pytest.mark.parametrize("async_mode", ["threading", "eventlet"])
+def test_importing_email_tasks_preserves_live_monitoring_connection(async_mode):
     script = """
+import os
 import threading
 from flask_jwt_extended import create_access_token
 from socketio import Client
 from werkzeug.serving import make_server
 from app import create_app
+from app.config import TestingConfig
 from app.extensions import db, socketio
 
+TestingConfig.SOCKETIO_ASYNC_MODE = os.environ['REGRESSION_ASYNC_MODE']
 app = create_app('testing')
+assert socketio.server.eio.async_mode == 'threading', 'Native WSGI must not use eventlet green threads'
 with app.app_context():
     db.create_all()
     token = create_access_token(identity='monitor', additional_claims={'role': 'recruiter'})
@@ -74,7 +81,10 @@ finally:
     result = subprocess.run(
         [sys.executable, "-c", script],
         cwd=Path(__file__).resolve().parents[1],
-        env={**os.environ, "FLASK_ENV": "testing", "PROCTORING_SMS_ALERT_ENABLED": "false"},
+        env={
+            **os.environ, "FLASK_ENV": "testing", "PROCTORING_SMS_ALERT_ENABLED": "false",
+            "REGRESSION_ASYNC_MODE": async_mode,
+        },
         capture_output=True,
         text=True,
         timeout=30,
