@@ -91,6 +91,7 @@ const AssessmentScreen: React.FC = () => {
   const videoRef         = useRef<HTMLVideoElement | null>(null);
   const faceLandmarkerRef = useRef<any>(null);
   const camStreamRef     = useRef<MediaStream | null>(null);
+  const recordingCameraRef = useRef<MediaStream | null>(null);
   const detectRafRef     = useRef<number | null>(null);
   const awayStartRef     = useRef<number | null>(null);
   const lastGazeAlertRef = useRef(0);
@@ -112,12 +113,12 @@ const AssessmentScreen: React.FC = () => {
     },
   });
 
-  // ─── Screen recording (evidence) ────────────────────────────────────────────
+  // ─── Webcam session recording (evidence) ────────────────────────────────────
   const screenRecorder = useScreenRecorder({
     sessionId: liveSessionId,
     onError: message => toast.error(message),
     onEnded: () => {
-      toast.warning('⚠ Screen sharing stopped — please keep it enabled for the whole exam.');
+      toast.error('Webcam recording stopped. Keep your camera enabled for the whole assessment.');
       const sid = sessionIdRef.current;
       if (sid) {
         sessionsApi
@@ -125,12 +126,13 @@ const AssessmentScreen: React.FC = () => {
             type: 'browser_unfocused',
             severity: 'high',
             occurredAt: new Date().toISOString(),
-            payload: { reason: 'screen_share_stopped' },
+            payload: { reason: 'webcam_recording_stopped' },
           })
-          .catch(() => {});
+          .catch(error => console.error('[Recording] could not report interrupted webcam recording', error));
       }
     },
   });
+  const { start: startRecording, stop: stopRecording } = screenRecorder;
 
   // ─── Helpers ───────────────────────────────────────────────────────────────
 
@@ -233,13 +235,13 @@ const AssessmentScreen: React.FC = () => {
       setLiveSessionId(session.id);
       setMonitoringEnabled(session.monitoringEnabled !== false);
 
-      // Begin screen recording for evidence (best-effort; needs the user gesture
-      // from the "Begin" click). A denial is surfaced but does not block the exam.
       if (session.monitoringEnabled !== false) {
-        const ok = await screenRecorder.start(session.id);
+        const ok = await screenRecorder.start(session.id, camStreamRef.current);
         if (!ok) {
-          toast.warning('Screen recording was not enabled. Recruiters may require it for a valid attempt.');
+          toast.error('Webcam recording is required. The assessment has not begun; fix camera or recording access and try again.');
+          return;
         }
+        recordingCameraRef.current = camStreamRef.current;
       }
 
       // The effective deadline is the sooner of the duration limit and the
@@ -757,11 +759,16 @@ const AssessmentScreen: React.FC = () => {
     stream: cameraStream,
   });
 
-  // Stop screen recording when the attempt ends by any path (terminated/submitted).
+  // Follow camera replacement and recruiter monitoring changes without retry loops.
   useEffect(() => {
-    if (phase === 'terminated' || phase === 'submitted') void screenRecorder.stop();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [phase]);
+    if (phase === 'terminated' || phase === 'submitted' || !monitoringEnabled) {
+      recordingCameraRef.current = null;
+      void stopRecording();
+    } else if (phase === 'assessment' && cameraStream && recordingCameraRef.current !== cameraStream) {
+      recordingCameraRef.current = cameraStream;
+      void startRecording(liveSessionId ?? undefined, cameraStream);
+    }
+  }, [phase, monitoringEnabled, cameraStream, liveSessionId, startRecording, stopRecording]);
 
   // ─── Submit ────────────────────────────────────────────────────────────────
 
@@ -887,6 +894,7 @@ const AssessmentScreen: React.FC = () => {
               {[
                 { label: 'Stable internet connection', ok: true, icon: Wifi },
                 { label: 'Camera access granted', ok: true, icon: Camera },
+                { label: 'Webcam recorded from start to finish for recruiter review', ok: true, icon: Camera },
                 { label: 'Microphone access (audio monitoring)', ok: true, icon: Mic },
                 { label: 'Quiet environment — audio is monitored', ok: true, icon: Volume2 },
                 { label: 'No mobile devices', ok: true, icon: Smartphone },
@@ -1146,6 +1154,15 @@ const AssessmentScreen: React.FC = () => {
               {monitoringEnabled ? 'Monitored' : 'Unmonitored'}
             </span>
             {/* Fullscreen indicator (only meaningful when monitored) */}
+            {monitoringEnabled && (
+              <span
+                title={screenRecorder.error ?? 'Your webcam is recorded throughout this assessment for recruiter review.'}
+                className={`flex items-center gap-1 text-xs px-2 py-1 rounded border ${screenRecorder.active && !screenRecorder.error ? 'border-green-500/30 bg-green-500/10 text-green-500' : 'border-destructive/40 bg-destructive/10 text-destructive'}`}
+              >
+                <Camera className="w-3.5 h-3.5" />
+                {screenRecorder.error ? 'Recording error' : screenRecorder.active ? 'Recording' : 'Recording stopped'}
+              </span>
+            )}
             {monitoringEnabled && (
               <button
                 onClick={enterFullscreen}

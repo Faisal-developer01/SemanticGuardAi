@@ -551,13 +551,14 @@ test('missing recording shows a retryable error and revokes URLs on close or lat
   assert.deepEqual(revoked.sort(), ['blob:clip-1', 'blob:clip-2']);
 });
 
-function recorderHarness(upload, { supported = true, startError } = {}) {
+function recorderHarness(upload, { supported = true, startError, supportedMime } = {}) {
   const recorders = [];
+  let displayRequests = 0;
   const track = {
     kind: 'video', readyState: 'live', stop() { this.readyState = 'ended'; }, addEventListener() {},
   };
   class Recorder {
-    static isTypeSupported() { return supported; }
+    static isTypeSupported(mime) { return supported && (!supportedMime || mime === supportedMime); }
     constructor(stream, options) {
       this.stream = stream;
       this.mimeType = options.mimeType;
@@ -578,11 +579,57 @@ function recorderHarness(upload, { supported = true, startError } = {}) {
   }
   const h = harness(true, {
     MediaRecorder: Recorder,
-    navigator: { mediaDevices: { getDisplayMedia: async () => new h.MediaStream([track]) } },
+    navigator: { mediaDevices: { getDisplayMedia: async () => {
+      displayRequests++;
+      return new h.MediaStream([track]);
+    } } },
   });
   const recorder = h.loadModule('src/lib/screenRecorder.ts', { '@/lib/api': { evidenceApi: { upload } } });
-  return { h, recorders, track, useScreenRecorder: recorder.useScreenRecorder };
+  return { h, recorders, track, displayRequests: () => displayRequests, useScreenRecorder: recorder.useScreenRecorder };
 }
+
+test('session recording uses the real webcam without screen sharing and never stops the live feed', async () => {
+  const uploads = [];
+  const { h, recorders, track, displayRequests, useScreenRecorder } = recorderHarness(async (...args) => uploads.push(args));
+  const sourceTrack = { kind: 'video', readyState: 'live', stop() { this.readyState = 'ended'; } };
+  const source = new h.MediaStream([sourceTrack]);
+  source.clone = () => new h.MediaStream([track]);
+  const controls = h.renderFunction(useScreenRecorder, { sessionId: null });
+  assert.equal(await controls.start('webcam-session', source), true);
+  assert.equal(displayRequests(), 0, 'a webcam recording must not ask for optional screen sharing');
+  assert.equal(recorders[0].stream.getVideoTracks()[0], track);
+  h.expire();
+  await flush();
+  await controls.stop();
+  assert.equal(uploads.length, 2, 'save both the first segment and the final partial segment');
+  assert.ok(uploads.every(upload => upload[0] === 'webcam-session'));
+  assert.equal(track.readyState, 'ended', 'release the recorder-owned clone');
+  assert.equal(sourceTrack.readyState, 'live', 'recording cleanup must preserve the shared live webcam');
+  h.cleanup();
+});
+
+test('webcam recording supports MP4-only browsers', async () => {
+  const uploads = [];
+  const { h, recorders, track, useScreenRecorder } = recorderHarness(async (...args) => uploads.push(args), { supportedMime: 'video/mp4' });
+  const source = new h.MediaStream([track]);
+  source.clone = () => new h.MediaStream([track]);
+  const controls = h.renderFunction(useScreenRecorder, { sessionId: 'mp4-session' });
+  assert.equal(await controls.start('mp4-session', source), true);
+  await controls.stop();
+  assert.equal(recorders[0].mimeType, 'video/mp4');
+  assert.equal(uploads[0][1].type, 'video/mp4');
+  h.cleanup();
+});
+
+test('an unavailable webcam cannot silently fall back to screen sharing', async () => {
+  const { h, displayRequests, useScreenRecorder } = recorderHarness(async () => {});
+  const messages = [];
+  const controls = h.renderFunction(useScreenRecorder, { sessionId: 'session', onError: message => messages.push(message) });
+  assert.equal(await controls.start('session', null), false);
+  assert.equal(displayRequests(), 0);
+  assert.equal(messages.length, 1);
+  h.cleanup();
+});
 
 test('recorder starts with the newly created session ID and saves small final clips', async () => {
   const uploads = [];

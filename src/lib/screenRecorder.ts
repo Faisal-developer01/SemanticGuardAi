@@ -1,6 +1,6 @@
-// Screen recording for proctoring evidence.
+// Session recording for proctoring evidence.
 //
-// Captures the candidate's screen via getDisplayMedia and records it in short,
+// Records the supplied webcam stream (or an explicitly requested screen share) in short,
 // independently-playable segments (each a standalone WebM) that are uploaded as
 // evidence. Segmenting means a dropped connection or closed browser only loses
 // the final in-flight clip, and recruiters can replay the session as a timeline.
@@ -12,7 +12,7 @@ interface UseScreenRecorderOptions {
   sessionId: string | null;
   /** Segment length in ms (each becomes one uploaded clip). Default 30s. */
   segmentMs?: number;
-  /** Called when the user stops screen sharing from the browser UI. */
+  /** Called when the recording's media source ends unexpectedly. */
   onEnded?: () => void;
   onError?: (message: string) => void;
 }
@@ -20,7 +20,7 @@ interface UseScreenRecorderOptions {
 interface ScreenRecorderControls {
   active: boolean;
   error: string | null;
-  start: (sessionId?: string) => Promise<boolean>;
+  start: (sessionId?: string, sourceStream?: MediaStream | null) => Promise<boolean>;
   stop: () => Promise<void>;
 }
 
@@ -30,13 +30,14 @@ const MIME_CANDIDATES = [
   'video/webm;codecs=vp9',
   'video/webm;codecs=vp8',
   'video/webm',
+  'video/mp4',
 ];
 
 function pickMimeType(): string {
   for (const m of MIME_CANDIDATES) {
     if (typeof MediaRecorder !== 'undefined' && MediaRecorder.isTypeSupported(m)) return m;
   }
-  throw new Error('This browser cannot record screen video in a supported format.');
+  throw new Error('This browser cannot record session video in a supported format.');
 }
 
 export function useScreenRecorder(opts: UseScreenRecorderOptions): ScreenRecorderControls {
@@ -68,7 +69,7 @@ export function useScreenRecorder(opts: UseScreenRecorderOptions): ScreenRecorde
 
   const uploadSegment = useCallback((blob: Blob, sid: string, capturedAt: string) => {
     if (blob.size === 0) {
-      reportError('The screen recorder produced an empty clip; that segment could not be saved.');
+      reportError('The session recorder produced an empty clip; that segment could not be saved.');
       return;
     }
     const upload = evidenceApi.upload(sid, blob, 'video', capturedAt).then(() => undefined).catch((cause: unknown) => {
@@ -113,13 +114,13 @@ export function useScreenRecorder(opts: UseScreenRecorderOptions): ScreenRecorde
         try {
           recordSegment(stream, sid);
         } catch (cause) {
-          reportError('Screen recording stopped unexpectedly; further clips cannot be captured.', cause);
+          reportError('Session recording stopped unexpectedly; further clips cannot be captured.', cause);
           void stop();
         }
       }
     };
     recorder.onerror = event => {
-      reportError('Screen recording failed; please check your browser screen-sharing settings.', event);
+      reportError('Session recording failed; please check your camera and browser recording support.', event);
       void stop();
     };
 
@@ -146,7 +147,7 @@ export function useScreenRecorder(opts: UseScreenRecorderOptions): ScreenRecorde
     };
   }, [stop]);
 
-  const start = useCallback(async (sid = sessionId): Promise<boolean> => {
+  const start = useCallback(async (sid = sessionId, sourceStream?: MediaStream | null): Promise<boolean> => {
     setError(null);
     if (!sid) {
       reportError('An assessment session is required before recording can start.');
@@ -154,12 +155,17 @@ export function useScreenRecorder(opts: UseScreenRecorderOptions): ScreenRecorde
     }
     await stop();
     stoppingRef.current = false;
-    if (!navigator.mediaDevices?.getDisplayMedia) {
+    if (sourceStream !== undefined && !sourceStream?.getVideoTracks().some(track => track.readyState === 'live')) {
+      reportError('A live webcam is required before session recording can start.');
+      return false;
+    }
+    if (sourceStream === undefined && !navigator.mediaDevices?.getDisplayMedia) {
       reportError('Screen recording is not supported by this browser.');
       return false;
     }
     try {
-      const stream = await navigator.mediaDevices.getDisplayMedia({
+      // Own the cloned tracks; stopping recording must not stop the live feed.
+      const stream = sourceStream ? sourceStream.clone() : await navigator.mediaDevices.getDisplayMedia({
         video: { frameRate: 8 },
         // Captures system/tab audio when the user grants permission.
         audio: true,
@@ -170,7 +176,6 @@ export function useScreenRecorder(opts: UseScreenRecorderOptions): ScreenRecorde
       }
       streamRef.current = stream;
       mimeRef.current = pickMimeType();
-      // The user can end sharing via the browser's own control.
       stream.getVideoTracks()[0]?.addEventListener('ended', () => {
         if (!stoppingRef.current && streamRef.current === stream) {
           void stop();
@@ -181,7 +186,7 @@ export function useScreenRecorder(opts: UseScreenRecorderOptions): ScreenRecorde
       setActive(true);
       return true;
     } catch (err) {
-      reportError(err instanceof Error ? err.message : 'Screen sharing was denied.', err);
+      reportError(err instanceof Error ? err.message : 'Session recording could not start.', err);
       await stop();
       return false;
     }

@@ -250,7 +250,12 @@ const RecordingModal: React.FC<RecordingModalProps> = ({ sessionId, candidateNam
           ) : clips.length === 0 ? (
             <div className="flex flex-col items-center gap-3 text-white/40">
               <Video className="w-12 h-12" />
-              <span className="text-sm">{listError ? 'Recording list could not be loaded' : 'No recordings captured for this session yet'}</span>
+              <span className="text-sm">{listError ? 'Recording list could not be loaded' : 'No recording files have been saved for this session'}</span>
+              {!listError && (
+                <span className="text-xs text-center px-6">
+                  Clips appear as they are uploaded during the assessment. Video that was never captured cannot be recovered.
+                </span>
+              )}
             </div>
           ) : clipError ? (
             <div role="alert" className="flex flex-col items-center gap-3 text-white/80 p-5 text-center">

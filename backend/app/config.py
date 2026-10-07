@@ -109,7 +109,10 @@ class BaseConfig:
 
     # Storage
     STORAGE_PROVIDER = os.getenv("STORAGE_PROVIDER", "local")
-    STORAGE_LOCAL_PATH = os.getenv("STORAGE_LOCAL_PATH", "./var/uploads")
+    STORAGE_LOCAL_PATH = os.getenv(
+        "STORAGE_LOCAL_PATH",
+        "/home/data/evidence" if os.getenv("WEBSITE_HOSTNAME") else "./var/uploads",
+    )
     AZURE_STORAGE_CONNECTION_STRING = os.getenv("AZURE_STORAGE_CONNECTION_STRING")
     # Blob endpoint for managed-identity access (preferred; no account key needed).
     AZURE_STORAGE_ACCOUNT_URL = os.getenv("AZURE_STORAGE_ACCOUNT_URL")

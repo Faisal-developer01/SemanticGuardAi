@@ -2,10 +2,43 @@
 from __future__ import annotations
 
 from io import BytesIO
+import os
+from pathlib import Path
+import subprocess
+import sys
 
 import pytest
 
 from app.services import storage_service
+
+
+@pytest.mark.parametrize("azure,configured,expected", [
+    (True, None, "/home/data/evidence"),
+    (True, "/home/custom-evidence", "/home/custom-evidence"),
+    (False, None, "./var/uploads"),
+])
+def test_recording_storage_defaults_are_persistent_on_azure(azure, configured, expected):
+    env = {**os.environ}
+    env.pop("STORAGE_LOCAL_PATH", None)
+    env.pop("WEBSITE_HOSTNAME", None)
+    if azure:
+        env["WEBSITE_HOSTNAME"] = "recording-regression.azurewebsites.net"
+    if configured:
+        env["STORAGE_LOCAL_PATH"] = configured
+    result = subprocess.run(
+        [
+            sys.executable, "-c",
+            "import dotenv; dotenv.load_dotenv = lambda: None; "
+            "from app.config import BaseConfig; print(BaseConfig.STORAGE_LOCAL_PATH)",
+        ],
+        cwd=Path(__file__).resolve().parents[1],
+        env=env,
+        capture_output=True,
+        text=True,
+        timeout=15,
+    )
+    assert result.returncode == 0, result.stderr
+    assert result.stdout.strip() == expected
 
 
 def _session(client, auth_header):

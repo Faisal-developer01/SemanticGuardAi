@@ -94,7 +94,7 @@ harness; the application only publishes the candidate's actual webcam stream.
 
 ## Alert recording playback
 
-The AI Alert Panel's Recording action plays the session's captured screen-share
+The AI Alert Panel's Recording action plays the session's captured webcam
 segments in capture order, with automatic advancement enabled by default.
 Prefetching and refreshing the clip list do not interrupt the current video.
 The modal checks for newly uploaded segments every five seconds, including the
@@ -102,13 +102,19 @@ final segment flushed when a violation terminates an attempt. Playback starts
 muted so browser autoplay policies do not hide otherwise valid recordings; use
 the audio toggle to unmute.
 
-Candidate recording starts with the newly created session ID. Non-empty final
+Candidate recording starts with the newly created session ID and the already
+verified live camera stream, without requiring a screen-sharing prompt. The
+recorder owns cloned tracks so cleanup cannot interrupt the WebRTC live feed.
+A monitored assessment cannot enter its assessment phase unless recording starts.
+WebM and MP4 recording formats are supported according to browser capabilities.
+Non-empty final
 clips are retained, submission waits for pending clip uploads, and capture/upload
-failures are reported to the candidate. The recording covers the screen surface
-the candidate agreed to share, up to submission or termination; it is not a
+failures are reported to the candidate and shown in the recording status badge.
+The recording covers the candidate's webcam up to submission or termination
+(or an intentional recruiter monitoring disable); it is not a
 reconstruction of activity that was never recorded.
 
-Azure startup defaults local evidence storage to `/home/data/evidence`, outside
+Azure configuration and startup default local evidence storage to `/home/data/evidence`, outside
 the replaceable deployment package. An explicitly configured
 `STORAGE_LOCAL_PATH` is preserved; it should also point to persistent storage.
 Azure Blob Storage remains supported via the existing storage configuration.
