@@ -62,6 +62,10 @@ Completed/terminated sessions are removed rather than left as camera placeholder
 Socket.IO application handlers are explicitly rebound for each Flask application
 initialization so repeated app-factory calls cannot leave a connected but inert
 signaling server.
+Email-task initialization reuses the requesting Flask app rather than creating
+another app inside the web process, which would replace the live Socket.IO
+server and disconnect monitoring/signaling from its existing clients. Standalone
+Celery workers still create their own Flask app.
 
 Public STUN is configured by default. For networks that block direct peer-to-peer
 media, configure a real TURN relay using `VITE_TURN_URL`, `VITE_TURN_USERNAME`, and
@@ -113,7 +117,9 @@ Backend recording regressions: from `backend`, run
 also cover recording prefetch, final-clip discovery, upload flushing, and errors.
 Realtime backend regressions: `python -m pytest tests/test_realtime.py -q`, covering
 repeated app initialization, authenticated subscriptions, reconnect snapshots,
-session completion, and the full request/offer/answer/ICE signaling route.
+session completion, and the full request/offer/answer/ICE signaling route. A real
+HTTP long-polling regression also verifies that importing email tasks preserves
+the running server and an existing monitoring subscription.
 
 ## Project Structure
 

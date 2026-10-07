@@ -21,11 +21,6 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      - name: Read Azure realtime runtime diagnostics
-        env:
-          AZURE_PUBLISH_PROFILE: ${{ secrets.AZURE_WEBAPP_PUBLISH_PROFILE }}
-        run: python3 scripts/azure-realtime-diagnostics.py
-
       - name: Set up Node
         uses: actions/setup-node@v4
         with:
@@ -89,6 +84,11 @@ jobs:
               assert required <= set(socketio.server.handlers.get("/", {}))
               client = socketio.test_client(app)
               assert not client.is_connected(), "Unauthenticated socket was accepted"
+          live_server = socketio.server
+          with app.app_context():
+              from app import tasks
+          assert socketio.server is live_server, "Email tasks replaced the live Socket.IO server"
+          assert tasks.celery.flask_app is app, "Email tasks did not reuse the running app"
           print("Repeated app initialization preserves authenticated monitoring/signaling")
           PY
 

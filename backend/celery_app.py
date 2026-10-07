@@ -9,12 +9,19 @@ from __future__ import annotations
 import os
 
 from celery import Celery
+from flask import current_app, has_app_context
 
 from app import create_app
 
 
 def make_celery() -> Celery:
-    flask_app = create_app(os.getenv("FLASK_ENV"))
+    # Email dispatch imports this module inside the running web app's context.
+    # Creating another app there replaces the shared Socket.IO server.
+    flask_app = (
+        current_app._get_current_object()
+        if has_app_context()
+        else create_app(os.getenv("FLASK_ENV"))
+    )
     celery = Celery(
         flask_app.import_name,
         broker=flask_app.config["CELERY_BROKER_URL"],
