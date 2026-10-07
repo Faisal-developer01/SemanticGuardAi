@@ -97,6 +97,10 @@ harness; the application only publishes the candidate's actual webcam stream.
 The AI Alert Panel's Recording action plays the session's captured webcam
 segments in capture order, with automatic advancement enabled by default.
 Prefetching and refreshing the clip list do not interrupt the current video.
+Prefetch waits for the current clip download so it cannot compete with initial
+playback. WebM clips use MediaSource buffering when supported, allowing the
+browser's streaming demuxer to play MediaRecorder containers that its ordinary
+file demuxer rejects. Other supported formats retain native file playback.
 The modal checks for newly uploaded segments every five seconds, including the
 final segment flushed when a violation terminates an attempt. Playback starts
 muted so browser autoplay policies do not hide otherwise valid recordings; use
@@ -107,6 +111,8 @@ verified live camera stream, without requiring a screen-sharing prompt. The
 recorder owns cloned tracks so cleanup cannot interrupt the WebRTC live feed.
 A monitored assessment cannot enter its assessment phase unless recording starts.
 WebM and MP4 recording formats are supported according to browser capabilities.
+Webcam recording uses a 500 kbps video target to keep 30-second segments small
+without changing the camera stream used by live monitoring.
 Non-empty final
 clips are retained, submission waits for pending clip uploads, and capture/upload
 failures are reported to the candidate and shown in the recording status badge.
@@ -130,6 +136,9 @@ repeated app initialization, authenticated subscriptions, reconnect snapshots,
 session completion, and the full request/offer/answer/ICE signaling route. A real
 HTTP long-polling regression also verifies that importing email tasks preserves
 the running server and an existing monitoring subscription.
+Socket.IO authentication validates the existing access token through the API
+before connecting; expired tokens are refreshed once for concurrent callers so
+a stale token cannot strand an otherwise authenticated monitoring page.
 
 ## Project Structure
 

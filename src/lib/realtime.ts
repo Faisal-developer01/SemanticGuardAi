@@ -8,7 +8,7 @@
 import { useEffect, useRef, useState } from 'react';
 import { io, type Socket } from 'socket.io-client';
 
-import { getAccessToken, type ApiAlert, type ApiLiveSession, type ApiNotification } from '@/lib/api';
+import { authApi, getAccessToken, type ApiAlert, type ApiLiveSession, type ApiNotification } from '@/lib/api';
 
 let socket: Socket | null = null;
 
@@ -52,7 +52,15 @@ export function getSocket(): Socket {
       // stay on long-polling, which is reliable for signaling + live updates.
       transports: ['polling'],
       upgrade: false,
-      auth: (cb: (data: { token: string }) => void) => cb({ token: getAccessToken() ?? '' }),
+      auth: (cb: (data: { token: string }) => void) => {
+        // REST refresh-on-401 must finish before the Socket.IO handshake.
+        void authApi.me().then(() => {
+          cb({ token: getAccessToken() ?? '' });
+        }).catch(error => {
+          console.error('[Socket] could not authenticate realtime connection', error);
+          cb({ token: '' });
+        });
+      },
     });
     socket.on('connect', () => {
       console.info('[Socket] connected', { connected: socket?.connected ?? false, id: socket?.id });

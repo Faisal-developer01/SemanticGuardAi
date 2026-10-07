@@ -171,6 +171,46 @@ const viewer = { candidateId: 'candidate-1', sessionId: 'session-1', enabled: tr
 const offer = { candidateId: viewer.candidateId, sessionId: viewer.sessionId, sdp: { type: 'offer', sdp: 'test' } };
 const request = { viewerId: 'recruiter-1', sessionId: 'session-1' };
 
+test('socket authentication waits for API token refresh before the handshake', async () => {
+  const h = harness();
+  let options;
+  let token = 'expired-token';
+  let finishValidation;
+  const realtime = h.loadModule('src/lib/realtime.ts', {
+    'socket.io-client': { io: (_url, opts) => { options = opts; return h.socket; } },
+    '@/lib/api': {
+      getAccessToken: () => token,
+      authApi: { me: () => new Promise(resolve => { finishValidation = resolve; }) },
+    },
+  });
+  realtime.getSocket();
+  let auth;
+  options.auth(value => { auth = value; });
+  assert.equal(auth, undefined, 'do not submit an expired token while REST refresh is pending');
+  token = 'refreshed-token';
+  finishValidation();
+  await flush();
+  assert.equal(auth.token, 'refreshed-token');
+});
+
+test('failed realtime authentication is logged and never uses a stale token', async () => {
+  const h = harness();
+  let options;
+  const realtime = h.loadModule('src/lib/realtime.ts', {
+    'socket.io-client': { io: (_url, opts) => { options = opts; return h.socket; } },
+    '@/lib/api': {
+      getAccessToken: () => 'expired-token',
+      authApi: { me: async () => { throw new Error('Session expired'); } },
+    },
+  });
+  realtime.getSocket();
+  let auth;
+  options.auth(value => { auth = value; });
+  await flush();
+  assert.equal(auth.token, '');
+  assert.equal(h.errors.length, 1);
+});
+
 test('publisher waits for a live webcam, then sends its actual tracks once', async () => {
   const h = harness();
   const options = { enabled: true, sessionId: 'session-1', stream: null };
@@ -462,6 +502,7 @@ test('recording prefetch never unmounts or reloads the playing clip', async () =
   });
   const props = { sessionId: 'session-1', candidateName: 'Candidate', onClose() {} };
   h.renderFunction(modal, props);
+  assert.deepEqual(requests, ['clip-1'], 'prefetch must not compete with the current download');
   deferred.get('clip-1')('blob:clip-1');
   await flush();
   let tree = h.renderFunction(modal, props);
@@ -474,6 +515,7 @@ test('recording prefetch never unmounts or reloads the playing clip', async () =
   await flush();
   tree = h.renderFunction(modal, props);
   assert.equal(findElements(tree, 'video')[0].props.src, 'blob:clip-1');
+  await flush();
   assert.equal(loads, 0, 'prefetch completion must not rewind the current clip');
   assert.equal(plays, 0);
   findElements(tree, 'video')[0].props.onEnded();
@@ -506,6 +548,7 @@ test('recording timeline sorts captures and discovers the final uploaded clip wi
   await flush();
   let tree = h.renderFunction(modal, props);
   assert.equal(findElements(tree, 'video')[0].props.src, 'blob:clip-1');
+  await flush();
   findElements(tree, 'video')[0].props.onEnded();
   tree = h.renderFunction(modal, props);
   const video = findElements(tree, 'video')[0];
@@ -562,6 +605,7 @@ function recorderHarness(upload, { supported = true, startError, supportedMime }
     constructor(stream, options) {
       this.stream = stream;
       this.mimeType = options.mimeType;
+      this.videoBitsPerSecond = options.videoBitsPerSecond;
       this.state = 'inactive';
       recorders.push(this);
     }
@@ -598,6 +642,7 @@ test('session recording uses the real webcam without screen sharing and never st
   assert.equal(await controls.start('webcam-session', source), true);
   assert.equal(displayRequests(), 0, 'a webcam recording must not ask for optional screen sharing');
   assert.equal(recorders[0].stream.getVideoTracks()[0], track);
+  assert.equal(recorders[0].videoBitsPerSecond, 500_000);
   h.expire();
   await flush();
   await controls.stop();
@@ -629,6 +674,114 @@ test('an unavailable webcam cannot silently fall back to screen sharing', async 
   assert.equal(displayRequests(), 0);
   assert.equal(messages.length, 1);
   h.cleanup();
+});
+
+function playbackHarness(supported = true) {
+  const objects = [];
+  class Source {
+    static isTypeSupported() { return supported; }
+    constructor() {
+      this.sourceBuffers = [];
+      this.readyState = 'open';
+      this.listeners = new Map();
+    }
+    addEventListener(name, fn) { this.listeners.set(name, fn); }
+    addSourceBuffer(mime) {
+      this.mime = mime;
+      const listeners = new Map();
+      const buffer = {
+        updating: false,
+        addEventListener(name, fn) { listeners.set(name, fn); },
+        appendBuffer(data) { this.data = data; this.updating = true; },
+        finish() { this.updating = false; listeners.get('updateend')(); },
+        fail() { this.updating = false; listeners.get('error')(); },
+      };
+      this.sourceBuffers.push(buffer);
+      return buffer;
+    }
+    endOfStream(reason) { this.readyState = 'ended'; this.reason = reason; }
+    open() { this.readyState = 'open'; this.listeners.get('sourceopen')(); }
+  }
+  const h = harness(true, {
+    MediaSource: Source, TextDecoder,
+    URL: { createObjectURL(object) { objects.push(object); return 'blob:recording'; } },
+  });
+  const playback = h.loadModule('src/lib/recordingPlayback.ts');
+  return { h, objects, Source, recordingObjectUrl: playback.recordingObjectUrl };
+}
+
+for (const [header, codecs] of [['V_VP9', 'vp9'], ['V_VP8 A_OPUS', 'vp8,opus']]) {
+  test(`WebM playback buffers ${codecs} and finalizes a seekable complete clip`, async () => {
+    const { recordingObjectUrl, objects } = playbackHarness();
+    const blob = new Blob([header], { type: 'video/webm' });
+    assert.equal(await recordingObjectUrl(blob), 'blob:recording');
+    const media = objects[0];
+    media.open();
+    assert.equal(media.mime, `video/webm;codecs="${codecs}"`);
+    assert.equal(new TextDecoder().decode(media.sourceBuffers[0].data), header);
+    media.sourceBuffers[0].finish();
+    assert.equal(media.readyState, 'ended');
+    media.open();
+    assert.equal(media.sourceBuffers.length, 1, 'do not double-append on an existing buffer');
+    media.sourceBuffers = [];
+    media.open();
+    assert.equal(media.sourceBuffers.length, 1, 'a detached clip must support replay');
+    media.sourceBuffers[0].finish();
+    assert.equal(media.readyState, 'ended');
+  });
+}
+
+test('MP4 and browsers without the streaming codec retain native recording playback', async () => {
+  for (const type of ['video/mp4', 'video/webm']) {
+    const { recordingObjectUrl, objects } = playbackHarness(false);
+    const blob = new Blob(['V_VP9'], { type });
+    await recordingObjectUrl(blob);
+    assert.equal(objects[0], blob);
+  }
+});
+
+test('streaming recording decode failures are logged and surfaced as media errors', async () => {
+  const { h, recordingObjectUrl, objects } = playbackHarness();
+  await recordingObjectUrl(new Blob(['V_VP9'], { type: 'video/webm' }));
+  objects[0].open();
+  objects[0].sourceBuffers[0].fail();
+  assert.equal(objects[0].reason, 'decode');
+  assert.equal(h.errors.length, 1);
+});
+
+test('concurrent expired-token API requests share one refresh operation', async () => {
+  const stored = new Map([['sg_access_token', 'expired'], ['sg_refresh_token', 'refresh']]);
+  let refreshes = 0;
+  let completeRefresh;
+  const response = (status, data) => new Response(JSON.stringify(data), {
+    status, headers: { 'Content-Type': 'application/json' },
+  });
+  const h = harness(true, {
+    localStorage: {
+      getItem: key => stored.get(key) ?? null,
+      setItem: (key, value) => stored.set(key, value),
+      removeItem: key => stored.delete(key),
+    },
+    fetch: async (url, options) => {
+      if (url.endsWith('/auth/refresh')) {
+        refreshes++;
+        return new Promise(resolve => { completeRefresh = resolve; });
+      }
+      return options.headers.Authorization === 'Bearer expired'
+        ? response(401, { message: 'Expired token' })
+        : response(200, { id: 'user', role: 'recruiter' });
+    },
+  });
+  const api = h.loadModule('src/lib/api.ts', {
+    '@/lib/recordingPlayback': { recordingObjectUrl() {} },
+  });
+  const first = api.authApi.me();
+  const second = api.authApi.me();
+  await flush();
+  assert.equal(refreshes, 1);
+  completeRefresh(response(200, { accessToken: 'fresh' }));
+  await Promise.all([first, second]);
+  assert.equal(api.getAccessToken(), 'fresh');
 });
 
 test('recorder starts with the newly created session ID and saves small final clips', async () => {

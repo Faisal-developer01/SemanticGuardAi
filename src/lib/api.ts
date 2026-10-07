@@ -6,6 +6,7 @@
  * helpers for the authentication + MFA flows used across the app.
  */
 import type { UserRole } from '@/types/types';
+import { recordingObjectUrl } from '@/lib/recordingPlayback';
 
 const API_BASE: string =
   (import.meta.env.VITE_API_BASE_URL as string | undefined)?.replace(/\/$/, '') ?? '/api/v1';
@@ -100,7 +101,15 @@ async function request<T>(path: string, opts: RequestOptions = {}): Promise<T> {
   return data as T;
 }
 
-async function tryRefresh(): Promise<boolean> {
+let pendingRefresh: Promise<boolean> | null = null;
+
+function tryRefresh(): Promise<boolean> {
+  if (pendingRefresh) return pendingRefresh;
+  pendingRefresh = refreshAccessToken().finally(() => { pendingRefresh = null; });
+  return pendingRefresh;
+}
+
+async function refreshAccessToken(): Promise<boolean> {
   if (!refreshToken) return false;
   try {
     const data = await request<{ accessToken: string }>('/auth/refresh', {
@@ -110,7 +119,8 @@ async function tryRefresh(): Promise<boolean> {
     });
     setTokens(data.accessToken);
     return true;
-  } catch {
+  } catch (error) {
+    console.error('[Auth] access token refresh failed', error);
     clearTokens();
     return false;
   }
@@ -738,6 +748,7 @@ async function uploadEvidenceRequest(
 async function fetchEvidenceBlob(id: string, retried = false): Promise<Blob> {
   const res = await fetch(`${API_BASE}/evidence/${id}/download?inline=1`, {
     headers: accessToken ? { Authorization: `Bearer ${accessToken}` } : {},
+    signal: AbortSignal.timeout(60_000),
   });
   if (res.status === 401 && !retried && refreshToken) {
     if (await tryRefresh()) return fetchEvidenceBlob(id, true);
@@ -766,7 +777,7 @@ export const evidenceApi = {
     return fetchEvidenceBlob(id);
   },
   async objectUrl(id: string): Promise<string> {
-    return URL.createObjectURL(await fetchEvidenceBlob(id));
+    return recordingObjectUrl(await fetchEvidenceBlob(id));
   },
 };
 

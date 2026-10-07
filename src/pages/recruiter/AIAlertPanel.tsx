@@ -167,8 +167,8 @@ const RecordingModal: React.FC<RecordingModalProps> = ({ sessionId, candidateNam
 
   useEffect(() => {
     const next = clips[clipIndex + 1];
-    if (next) void loadUrl(next.id);
-  }, [clipIndex, clips, loadUrl]);
+    if (currentUrl && next) void loadUrl(next.id);
+  }, [clipIndex, clips, currentUrl, loadUrl]);
 
   // The violation's final clip can still be uploading when review opens.
   useEffect(() => {
@@ -281,7 +281,10 @@ const RecordingModal: React.FC<RecordingModalProps> = ({ sessionId, candidateNam
               className="w-full h-full object-contain"
             />
           ) : (
-            <Loader2 className="w-8 h-8 animate-spin text-white/40" />
+            <div className="flex flex-col items-center gap-3 text-white/60">
+              <Loader2 className="w-8 h-8 animate-spin" />
+              <span className="text-sm">Loading recording clip…</span>
+            </div>
           )}
         </div>
 

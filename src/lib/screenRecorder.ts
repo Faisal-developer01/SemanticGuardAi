@@ -96,7 +96,10 @@ export function useScreenRecorder(opts: UseScreenRecorderOptions): ScreenRecorde
 
   // Records one segment; on stop it uploads and (unless stopping) starts the next.
   const recordSegment = useCallback((stream: MediaStream, sid: string) => {
-    const recorder = new MediaRecorder(stream, { mimeType: mimeRef.current });
+    const recorder = new MediaRecorder(stream, {
+      mimeType: mimeRef.current,
+      videoBitsPerSecond: 500_000,
+    });
     const chunks: BlobPart[] = [];
     const capturedAt = new Date().toISOString();
     let resolveStopped: () => void = () => {};
