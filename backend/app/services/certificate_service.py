@@ -13,6 +13,7 @@ import secrets
 from datetime import datetime, timezone
 from io import BytesIO
 from pathlib import Path
+from urllib.parse import urlsplit
 from xml.sax.saxutils import escape
 
 from flask import current_app
@@ -43,7 +44,7 @@ _SLATE = HexColor("#475569")
 _MUTED = HexColor("#94a3b8")
 _TEAL = HexColor("#10b8ad")
 _PAPER = HexColor("#f1f5f9")
-_CERTIFICATE_TEMPLATE = "semantic-v2"
+_CERTIFICATE_TEMPLATE = "semantic-v3"
 
 
 # ─── asset + storage resolution ──────────────────────────────────────────────
@@ -104,7 +105,23 @@ def _generate_number(credential_type: CredentialType) -> str:
 
 
 def _verify_url(token: str) -> str:
-    base = (current_app.config.get("FRONTEND_ORIGIN") or "").rstrip("/")
+    origins = [
+        origin.strip().rstrip("/")
+        for origin in (current_app.config.get("FRONTEND_ORIGIN") or "").split(",")
+        if origin.strip()
+    ]
+    if not origins or any(
+        urlsplit(origin).scheme not in {"http", "https"}
+        or not urlsplit(origin).hostname
+        or urlsplit(origin).username
+        or urlsplit(origin).password
+        or urlsplit(origin).query
+        or urlsplit(origin).fragment
+        for origin in origins
+    ):
+        current_app.logger.error("Credential verification requires valid HTTP(S) frontend origins.")
+        raise ValueError("FRONTEND_ORIGIN must contain valid HTTP(S) URLs for credential verification.")
+    base = next((origin for origin in origins if urlsplit(origin).scheme == "https"), origins[0])
     return f"{base}/verify/{token}"
 
 

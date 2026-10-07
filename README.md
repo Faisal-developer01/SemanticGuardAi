@@ -160,6 +160,8 @@ Services' navy, blue, and teal palette. The supplied white-lettered logo appears
 on a navy letterhead, with the original combined signature/stamp image, candidate
 and assessment details, available scores, issue date, and certificate reference.
 The verification QR code is also clickable.
+Credential links select a single valid frontend URL, preferring HTTPS when the
+frontend setting contains comma-separated origins; invalid URLs fail explicitly.
 
 The branding images in `docs/images` match the existing `public/img` assets.
 Vite copies them into `dist/img`, which the PDF service resolves in deployment;

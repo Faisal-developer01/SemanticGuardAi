@@ -86,7 +86,7 @@ def test_old_cached_certificate_is_upgraded_without_changing_issued_details(cred
     issued_at, number, token = credential.issued_at, credential.number, credential.verification_token
     data = service.get_pdf_bytes(credential)
     assert data.startswith(b"%PDF-")
-    assert Path(credential.file_path).name == f"{number}-semantic-v2.pdf"
+    assert Path(credential.file_path).name == f"{number}-semantic-v3.pdf"
     assert Path(credential.file_path).read_bytes() == data
     assert old.read_bytes() == b"old-unbranded-pdf"
     assert (credential.issued_at, credential.number, credential.verification_token) == (issued_at, number, token)
@@ -98,6 +98,22 @@ def test_current_certificate_cache_is_reused(credential, monkeypatch):
         pytest.fail("Current branded PDF should be reused")
     monkeypatch.setattr(service, "render_pdf", unexpected_render)
     assert service.get_pdf_bytes(credential) == expected
+
+@pytest.mark.parametrize("origin,expected", [
+    ("https://assessment.example/", "https://assessment.example/verify/token"),
+    ("http://assessment.example,https://assessment.example", "https://assessment.example/verify/token"),
+    ("http://localhost:5173", "http://localhost:5173/verify/token"),
+])
+def test_verification_uses_one_valid_origin_and_prefers_https(app, monkeypatch, origin, expected):
+    monkeypatch.setitem(app.config, "FRONTEND_ORIGIN", origin)
+    assert service._verify_url("token") == expected
+
+
+@pytest.mark.parametrize("origin", ["", "not-a-url", "https://assessment.example/#fragment"])
+def test_invalid_verification_origin_is_reported(app, monkeypatch, origin):
+    monkeypatch.setitem(app.config, "FRONTEND_ORIGIN", origin)
+    with pytest.raises(ValueError, match="FRONTEND_ORIGIN"):
+        service._verify_url("token")
 
 
 def test_offer_letter_cached_download_remains_unchanged(credential, tmp_path):
