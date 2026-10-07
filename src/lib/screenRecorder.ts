@@ -1,6 +1,6 @@
 // Session recording for proctoring evidence.
 //
-// Records the supplied webcam stream (or an explicitly requested screen share) in short,
+// Records the supplied media stream (or an explicitly requested screen share) in short,
 // independently-playable segments (each a standalone WebM) that are uploaded as
 // evidence. Segmenting means a dropped connection or closed browser only loses
 // the final in-flight clip, and recruiters can replay the session as a timeline.
@@ -12,6 +12,7 @@ interface UseScreenRecorderOptions {
   sessionId: string | null;
   /** Segment length in ms (each becomes one uploaded clip). Default 30s. */
   segmentMs?: number;
+  videoBitsPerSecond?: number;
   /** Called when the recording's media source ends unexpectedly. */
   onEnded?: () => void;
   onError?: (message: string) => void;
@@ -41,7 +42,7 @@ function pickMimeType(): string {
 }
 
 export function useScreenRecorder(opts: UseScreenRecorderOptions): ScreenRecorderControls {
-  const { sessionId, segmentMs = 30_000, onEnded, onError } = opts;
+  const { sessionId, segmentMs = 30_000, videoBitsPerSecond = 500_000, onEnded, onError } = opts;
   const [active, setActive] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -98,7 +99,7 @@ export function useScreenRecorder(opts: UseScreenRecorderOptions): ScreenRecorde
   const recordSegment = useCallback((stream: MediaStream, sid: string) => {
     const recorder = new MediaRecorder(stream, {
       mimeType: mimeRef.current,
-      videoBitsPerSecond: 500_000,
+      videoBitsPerSecond,
     });
     const chunks: BlobPart[] = [];
     const capturedAt = new Date().toISOString();
@@ -119,12 +120,14 @@ export function useScreenRecorder(opts: UseScreenRecorderOptions): ScreenRecorde
         } catch (cause) {
           reportError('Session recording stopped unexpectedly; further clips cannot be captured.', cause);
           void stop();
+          onEndedRef.current?.();
         }
       }
     };
     recorder.onerror = event => {
-      reportError('Session recording failed; please check your camera and browser recording support.', event);
+      reportError('Session recording failed; please check screen sharing, camera access, and browser recording support.', event);
       void stop();
+      onEndedRef.current?.();
     };
 
     try {
@@ -140,7 +143,7 @@ export function useScreenRecorder(opts: UseScreenRecorderOptions): ScreenRecorde
         recorder.stop();
       }
     }, segmentMs);
-  }, [segmentMs, uploadSegment, reportError, stop]);
+  }, [segmentMs, videoBitsPerSecond, uploadSegment, reportError, stop]);
 
   useEffect(() => {
     mountedRef.current = true;
@@ -159,7 +162,7 @@ export function useScreenRecorder(opts: UseScreenRecorderOptions): ScreenRecorde
     await stop();
     stoppingRef.current = false;
     if (sourceStream !== undefined && !sourceStream?.getVideoTracks().some(track => track.readyState === 'live')) {
-      reportError('A live webcam is required before session recording can start.');
+      reportError('A live video source is required before session recording can start.');
       return false;
     }
     if (sourceStream === undefined && !navigator.mediaDevices?.getDisplayMedia) {

@@ -94,31 +94,39 @@ harness; the application only publishes the candidate's actual webcam stream.
 
 ## Alert recording playback
 
-The AI Alert Panel's Recording action plays the session's captured webcam
+The AI Alert Panel's Recording action plays the session's captured video
 segments in capture order, with automatic advancement enabled by default.
 Prefetching and refreshing the clip list do not interrupt the current video.
 Prefetch waits for the current clip download so it cannot compete with initial
 playback. WebM clips use MediaSource buffering when supported, allowing the
 browser's streaming demuxer to play MediaRecorder containers that its ordinary
 file demuxer rejects. Other supported formats retain native file playback.
+Downloaded clips are cached separately from playback URLs; replaying a previously
+attached clip creates a fresh source without downloading the recording again.
 The modal checks for newly uploaded segments every five seconds, including the
 final segment flushed when a violation terminates an attempt. Playback starts
 muted so browser autoplay policies do not hide otherwise valid recordings; use
 the audio toggle to unmute.
 
-Candidate recording starts with the newly created session ID and the already
-verified live camera stream, without requiring a screen-sharing prompt. The
-recorder owns cloned tracks so cleanup cannot interrupt the WebRTC live feed.
-A monitored assessment cannot enter its assessment phase unless recording starts.
+Before starting a monitored assessment, the candidate must explicitly share the
+assessment tab or its window from the Begin button. This permission request runs
+before microphone permission and session API calls, preserving the browser's
+required user gesture. Unsupported browsers or denied sharing remain on preflight.
+The real screen (including questions and answers) and a small webcam overlay are
+composed into one video, up to 1920x1080 at 10 fps with a 2.5 Mbps target to keep
+screen text readable. The existing segmented recorder starts with the actual
+session ID before entering the assessment phase. Webcam tracks are cloned, so
+recording cleanup cannot interrupt the separate WebRTC live webcam feed.
 WebM and MP4 recording formats are supported according to browser capabilities.
-Webcam recording uses a 500 kbps video target to keep 30-second segments small
-without changing the camera stream used by live monitoring.
-Non-empty final
-clips are retained, submission waits for pending clip uploads, and capture/upload
+Non-empty final clips are retained, submission waits for pending clip uploads, and capture/upload
 failures are reported to the candidate and shown in the recording status badge.
-The recording covers the candidate's webcam up to submission or termination
-(or an intentional recruiter monitoring disable); it is not a
-reconstruction of activity that was never recorded.
+Stopping screen sharing or losing capture ends the monitored attempt and flushes
+the final clip. An intentional recruiter monitoring disable releases capture;
+re-enabling it requires a new candidate screen-sharing gesture before answering
+can continue, while the assessment timer continues running.
+Capture covers the assessment up to submission or termination (or intentional
+monitoring disable). Older webcam-only recordings remain playable, but assessment
+screens that were never captured cannot be reconstructed.
 
 Azure configuration and startup default local evidence storage to `/home/data/evidence`, outside
 the replaceable deployment package. An explicitly configured

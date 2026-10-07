@@ -11,6 +11,7 @@ import { useCandidateWebRTC, connectSocket } from '@/lib/realtime';
 import { useBrowserLockdown } from '@/lib/lockdown';
 import { getDeviceIdentity } from '@/lib/deviceFingerprint';
 import { useScreenRecorder } from '@/lib/screenRecorder';
+import { createAssessmentRecording, type AssessmentRecording } from '@/lib/assessmentRecording';
 
 import { Button } from '@/components/ui/button';
 import { Progress } from '@/components/ui/progress';
@@ -63,6 +64,7 @@ const AssessmentScreen: React.FC = () => {
   const [loading, setLoading] = useState(true);
   const [loadError, setLoadError] = useState<string | null>(null);
   const [starting, setStarting] = useState(false);
+  const [recordingConsentRequired, setRecordingConsentRequired] = useState(false);
   const [submittedSession, setSubmittedSession] = useState<ApiSession | null>(null);
   // Drives the live webcam stream to recruiters (set once the session starts).
   const [liveSessionId, setLiveSessionId] = useState<string | null>(null);
@@ -73,6 +75,7 @@ const AssessmentScreen: React.FC = () => {
   // True while a camera/mic permission prompt is on screen, so the transient
   // focus loss it causes is not mistaken for a tab/window switch.
   const permissionPromptActiveRef = useRef(false);
+  const screenPermissionPromptActiveRef = useRef(false);
 
   const sessionIdRef = useRef<string | null>(null);
   const saveTimers = useRef<Record<string, ReturnType<typeof setTimeout>>>({});
@@ -92,6 +95,10 @@ const AssessmentScreen: React.FC = () => {
   const faceLandmarkerRef = useRef<any>(null);
   const camStreamRef     = useRef<MediaStream | null>(null);
   const recordingCameraRef = useRef<MediaStream | null>(null);
+  const assessmentRecordingRef = useRef<AssessmentRecording | null>(null);
+  const recordingMountedRef = useRef(true);
+  const terminationHandlerRef = useRef<((reason: string, eventType?: 'tab_switch' | 'browser_unfocused') => void) | null>(null);
+  const recordingDialogRef = useRef<HTMLDialogElement | null>(null);
   const detectRafRef     = useRef<number | null>(null);
   const awayStartRef     = useRef<number | null>(null);
   const lastGazeAlertRef = useRef(0);
@@ -113,26 +120,53 @@ const AssessmentScreen: React.FC = () => {
     },
   });
 
-  // ─── Webcam session recording (evidence) ────────────────────────────────────
+  const recordingInterrupted = useCallback((message: string) => {
+    console.error('[Recording]', message);
+    if (monitoringEnabledRef.current && terminationHandlerRef.current) {
+      terminationHandlerRef.current(message, 'browser_unfocused');
+    } else {
+      toast.error(message);
+    }
+  }, []);
+
+  // ─── Assessment screen + webcam recording (evidence) ────────────────────────
   const screenRecorder = useScreenRecorder({
     sessionId: liveSessionId,
+    videoBitsPerSecond: 2_500_000,
     onError: message => toast.error(message),
-    onEnded: () => {
-      toast.error('Webcam recording stopped. Keep your camera enabled for the whole assessment.');
-      const sid = sessionIdRef.current;
-      if (sid) {
-        sessionsApi
-          .ingestEvent(sid, {
-            type: 'browser_unfocused',
-            severity: 'high',
-            occurredAt: new Date().toISOString(),
-            payload: { reason: 'webcam_recording_stopped' },
-          })
-          .catch(error => console.error('[Recording] could not report interrupted webcam recording', error));
-      }
-    },
+    onEnded: () => recordingInterrupted('Assessment screen recording stopped'),
   });
   const { start: startRecording, stop: stopRecording } = screenRecorder;
+
+  const prepareRecording = useCallback(async () => {
+    assessmentRecordingRef.current?.stop();
+    const source = camStreamRef.current;
+    if (!source) throw new Error('Verify your webcam before sharing the assessment screen.');
+    screenPermissionPromptActiveRef.current = true;
+    let capture: AssessmentRecording;
+    try {
+      capture = await createAssessmentRecording(source, recordingInterrupted);
+    } finally {
+      screenPermissionPromptActiveRef.current = false;
+    }
+    if (!recordingMountedRef.current) {
+      capture.stop();
+      throw new Error('The assessment was closed before screen sharing started.');
+    }
+    assessmentRecordingRef.current = capture;
+    recordingCameraRef.current = camStreamRef.current;
+    return capture;
+  }, [recordingInterrupted]);
+
+  useEffect(() => {
+    const dialog = recordingDialogRef.current;
+    if (!dialog) return;
+    if (recordingConsentRequired && phase === 'assessment') {
+      if (!dialog.open) dialog.showModal();
+    } else if (dialog.open) {
+      dialog.close();
+    }
+  }, [recordingConsentRequired, phase]);
 
   // ─── Helpers ───────────────────────────────────────────────────────────────
 
@@ -208,7 +242,10 @@ const AssessmentScreen: React.FC = () => {
       return;
     }
     setStarting(true);
+    let entered = false;
     try {
+      permissionPromptActiveRef.current = true;
+      const capture = monitoringEnabledRef.current ? await prepareRecording() : null;
       // Acquire microphone permission up front — before the session, timer, and
       // proctoring start — so its permission prompt can't be mistaken for a tab
       // switch once monitoring is live. (Camera was already granted during the
@@ -236,12 +273,15 @@ const AssessmentScreen: React.FC = () => {
       setMonitoringEnabled(session.monitoringEnabled !== false);
 
       if (session.monitoringEnabled !== false) {
-        const ok = await screenRecorder.start(session.id, camStreamRef.current);
+        if (!capture) throw new Error('Screen sharing is required. Click Begin Assessment again to share this assessment tab.');
+        const ok = await startRecording(session.id, capture.stream);
         if (!ok) {
-          toast.error('Webcam recording is required. The assessment has not begun; fix camera or recording access and try again.');
+          toast.error('Screen and webcam recording are required. The assessment has not begun; enable sharing and try again.');
           return;
         }
-        recordingCameraRef.current = camStreamRef.current;
+      } else {
+        capture?.stop();
+        assessmentRecordingRef.current = null;
       }
 
       // The effective deadline is the sooner of the duration limit and the
@@ -256,13 +296,44 @@ const AssessmentScreen: React.FC = () => {
         riskScore: session.riskScore,
         riskLevel: (session.riskLevel ?? 'low') as AIMonitoringStatus['riskLevel'],
       }));
+      entered = true;
       setPhase('assessment');
     } catch (e) {
       toast.error(e instanceof Error ? e.message : 'Could not start the assessment');
     } finally {
+      if (!entered) {
+        await stopRecording();
+        assessmentRecordingRef.current?.stop();
+        assessmentRecordingRef.current = null;
+      }
+      setTimeout(() => { permissionPromptActiveRef.current = false; }, 1200);
       setStarting(false);
     }
-  }, [assessment]);
+  }, [assessment, prepareRecording, startRecording, stopRecording]);
+
+  const resumeRecording = async () => {
+    setStarting(true);
+    permissionPromptActiveRef.current = true;
+    try {
+      const capture = await prepareRecording();
+      if (!terminationHandlerRef.current || !monitoringEnabledRef.current) {
+        capture.stop();
+        throw new Error('The monitored assessment is no longer active.');
+      }
+      const ok = await startRecording(sessionIdRef.current ?? undefined, capture.stream);
+      if (!ok || !terminationHandlerRef.current || !monitoringEnabledRef.current) {
+        await stopRecording();
+        capture.stop();
+        return;
+      }
+      setRecordingConsentRequired(false);
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : 'Screen sharing could not start.');
+    } finally {
+      setTimeout(() => { permissionPromptActiveRef.current = false; }, 1200);
+      setStarting(false);
+    }
+  };
 
   useEffect(() => {
     let cancelled = false;
@@ -312,15 +383,19 @@ const AssessmentScreen: React.FC = () => {
 
     const handleToggle = (payload: { sessionId: string; enabled: boolean }) => {
       if (payload.sessionId === sessionIdRef.current) {
+        const wasEnabled = monitoringEnabledRef.current;
+        monitoringEnabledRef.current = payload.enabled;
         setMonitoringEnabled(payload.enabled);
         if (payload.enabled) {
           toast.info('🛡 AI proctoring has been enabled for your session by the recruiter.');
           if (phase === 'assessment') {
+            if (!wasEnabled) setRecordingConsentRequired(true);
             enterFullscreen();
             startAudioMonitoring();
             startFaceMonitoring();
           }
         } else {
+          setRecordingConsentRequired(false);
           toast.warning('🛡 AI proctoring has been disabled for your session by the recruiter.');
           // Stop any active monitoring
           stopFaceMonitoring();
@@ -369,42 +444,50 @@ const AssessmentScreen: React.FC = () => {
 
     // Immediately end the assessment: stop all monitoring, leave fullscreen,
     // flag the candidate, and lock them out of the session.
-    const terminate = (reason: string) => {
+    const terminate = (reason: string, eventType: 'tab_switch' | 'browser_unfocused' = 'tab_switch') => {
+      if (!terminationHandlerRef.current) return;
+      terminationHandlerRef.current = null;
       if (timerRef.current) clearInterval(timerRef.current);
+      const saved = stopRecording();
+      assessmentRecordingRef.current?.stop();
+      assessmentRecordingRef.current = null;
       stopAudioMonitoring();
       stopFaceMonitoring();
-      void screenRecorder.stop();
       if (document.fullscreenElement) document.exitFullscreen().catch(() => {});
       setAiStatus(s => ({
         ...s,
-        tabSwitches: s.tabSwitches + 1,
+        tabSwitches: s.tabSwitches + (eventType === 'tab_switch' ? 1 : 0),
         browserFocused: false,
         riskScore: 100,
         riskLevel: 'high',
       }));
       pushAlert(`⛔ Assessment terminated — ${reason}`);
-      toast.error('Assessment terminated: you switched away from the assessment tab.', { duration: 6000 });
+      toast.error(`Assessment terminated: ${reason}.`, { duration: 6000 });
       setTerminationReason(reason);
       // Record the violation and finalize the session so it is graded + flagged.
       const sid = sessionIdRef.current;
       if (sid) {
         sessionsApi
           .ingestEvent(sid, {
-            type: 'tab_switch',
+            type: eventType,
             severity: 'critical',
             occurredAt: new Date().toISOString(),
             payload: { reason },
           })
-          .catch(() => {});
-        sessionsApi.submit(sid).then(setSubmittedSession).catch(() => {});
+          .catch(error => console.error('[Recording] could not report assessment termination', error));
+        saved.then(() => sessionsApi.submit(sid)).then(setSubmittedSession).catch(error => {
+          console.error('[Recording] could not finalize terminated assessment', error);
+          toast.error('The terminated assessment could not be finalized. Please contact the recruiter.');
+        });
       }
       setPhase('terminated');
     };
+    terminationHandlerRef.current = terminate;
 
     const onVisibility = () => {
       // A camera/mic permission prompt steals focus without hiding the tab —
       // never treat that as a switch.
-      if (permissionPromptActiveRef.current) return;
+      if (permissionPromptActiveRef.current || screenPermissionPromptActiveRef.current) return;
       if (document.hidden) {
         if (monitoringEnabledRef.current) {
           terminate('Tab / application switch detected');
@@ -432,7 +515,7 @@ const AssessmentScreen: React.FC = () => {
       if (!monitoringEnabledRef.current) return;
       blurTimer = setTimeout(() => {
         // Ignore the transient blur caused by a browser permission dialog.
-        if (permissionPromptActiveRef.current) return;
+        if (permissionPromptActiveRef.current || screenPermissionPromptActiveRef.current) return;
         // Only terminate if the page is still hidden/unfocused after the grace period.
         if (!document.hasFocus()) terminate('Window focus lost (switched away)');
       }, BLUR_GRACE_MS);
@@ -446,6 +529,7 @@ const AssessmentScreen: React.FC = () => {
     window.addEventListener('blur', onBlur);
     window.addEventListener('focus', onFocus);
     return () => {
+      terminationHandlerRef.current = null;
       document.removeEventListener('visibilitychange', onVisibility);
       window.removeEventListener('blur', onBlur);
       window.removeEventListener('focus', onFocus);
@@ -663,7 +747,11 @@ const AssessmentScreen: React.FC = () => {
 
   // Safety net: release camera + mic if the component unmounts in any phase
   useEffect(() => {
+    recordingMountedRef.current = true;
     return () => {
+      recordingMountedRef.current = false;
+      assessmentRecordingRef.current?.stop();
+      assessmentRecordingRef.current = null;
       stopFaceMonitoring();
       stopAudioMonitoring();
     };
@@ -759,24 +847,38 @@ const AssessmentScreen: React.FC = () => {
     stream: cameraStream,
   });
 
-  // Follow camera replacement and recruiter monitoring changes without retry loops.
+  // Screen permission must come from a candidate gesture, never a socket event.
   useEffect(() => {
     if (phase === 'terminated' || phase === 'submitted' || !monitoringEnabled) {
       recordingCameraRef.current = null;
       void stopRecording();
-    } else if (phase === 'assessment' && cameraStream && recordingCameraRef.current !== cameraStream) {
+      assessmentRecordingRef.current?.stop();
+      assessmentRecordingRef.current = null;
+    } else if (phase === 'assessment' && cameraStream && assessmentRecordingRef.current && recordingCameraRef.current !== cameraStream) {
+      const capture = assessmentRecordingRef.current;
       recordingCameraRef.current = cameraStream;
-      void startRecording(liveSessionId ?? undefined, cameraStream);
+      void capture.setCameraStream(cameraStream).catch(error => {
+        if (assessmentRecordingRef.current !== capture || !recordingMountedRef.current || !monitoringEnabledRef.current) {
+          console.info('[Recording] webcam replacement cancelled with capture cleanup');
+          return;
+        }
+        console.error('[Recording] could not replace recording webcam', error);
+        recordingInterrupted('Webcam recording could not continue');
+      });
     }
-  }, [phase, monitoringEnabled, cameraStream, liveSessionId, startRecording, stopRecording]);
+  }, [phase, monitoringEnabled, cameraStream, recordingInterrupted, stopRecording]);
 
   // ─── Submit ────────────────────────────────────────────────────────────────
 
   const handleSubmit = async () => {
+    terminationHandlerRef.current = null;
     if (timerRef.current) clearInterval(timerRef.current);
+    const saved = stopRecording();
+    assessmentRecordingRef.current?.stop();
+    assessmentRecordingRef.current = null;
     stopAudioMonitoring();
     stopFaceMonitoring();
-    await screenRecorder.stop();
+    await saved;
     if (document.fullscreenElement) document.exitFullscreen().catch(() => {});
     const sid = sessionIdRef.current;
     if (sid) {
@@ -894,7 +996,7 @@ const AssessmentScreen: React.FC = () => {
               {[
                 { label: 'Stable internet connection', ok: true, icon: Wifi },
                 { label: 'Camera access granted', ok: true, icon: Camera },
-                { label: 'Webcam recorded from start to finish for recruiter review', ok: true, icon: Camera },
+                { label: 'Assessment screen and webcam recording required from start to finish', ok: true, icon: Monitor },
                 { label: 'Microphone access (audio monitoring)', ok: true, icon: Mic },
                 { label: 'Quiet environment — audio is monitored', ok: true, icon: Volume2 },
                 { label: 'No mobile devices', ok: true, icon: Smartphone },
@@ -943,6 +1045,7 @@ const AssessmentScreen: React.FC = () => {
 
             <div className="p-3 bg-amber-500/10 border border-amber-500/30 rounded text-xs text-amber-600 dark:text-amber-400">
               <strong>Important:</strong> The assessment runs in fullscreen mode. <strong>Switching tabs, applications, or windows will immediately end your assessment</strong> and flag it as an integrity violation. Leaving fullscreen or making sounds will also be flagged.
+              {' '}When you click Begin, share <strong>this assessment tab or its window</strong>. Your questions, answers, and webcam overlay will be recorded for recruiter review. Screen sharing is required on a supported desktop browser; stopping sharing ends the attempt.
             </div>
 
             {(() => {
@@ -1134,6 +1237,25 @@ const AssessmentScreen: React.FC = () => {
   return (
     <AppLayout>
       <div className="max-w-6xl mx-auto space-y-4 pb-24 lg:pb-4">
+        <dialog
+          ref={recordingDialogRef}
+          onCancel={event => event.preventDefault()}
+          aria-labelledby="recording-consent-title"
+          className="m-auto w-full max-w-md rounded-md border border-border bg-card p-6 text-foreground shadow-lg backdrop:bg-black/60"
+        >
+          <h2 id="recording-consent-title" className="font-semibold mb-3">Share your assessment screen</h2>
+          <p className="text-sm text-muted-foreground mb-4">
+            Monitoring was re-enabled. Share this assessment tab or its window to resume answering with screen and webcam recording. Your assessment timer continues running.
+          </p>
+          <Button onClick={resumeRecording} disabled={starting || !cameraStream} className="w-full">
+            {starting ? 'Starting recording…' : 'Share Screen and Continue'}
+          </Button>
+          {!cameraStream && (
+            <Button onClick={startFaceMonitoring} variant="secondary" className="w-full mt-2">
+              Retry Camera Access
+            </Button>
+          )}
+        </dialog>
         {/* Header */}
         <div className="sticky top-0 z-30 bg-card/95 backdrop-blur supports-[backdrop-filter]:bg-card/80 border border-border rounded-md px-3 py-2.5 sm:px-4 sm:py-3 flex flex-wrap items-center gap-2 sm:gap-3 justify-between shadow-sm">
           <div className="min-w-0">
@@ -1156,7 +1278,7 @@ const AssessmentScreen: React.FC = () => {
             {/* Fullscreen indicator (only meaningful when monitored) */}
             {monitoringEnabled && (
               <span
-                title={screenRecorder.error ?? 'Your webcam is recorded throughout this assessment for recruiter review.'}
+                title={screenRecorder.error ?? 'Your assessment screen, answers, and webcam overlay are recorded for recruiter review.'}
                 className={`flex items-center gap-1 text-xs px-2 py-1 rounded border ${screenRecorder.active && !screenRecorder.error ? 'border-green-500/30 bg-green-500/10 text-green-500' : 'border-destructive/40 bg-destructive/10 text-destructive'}`}
               >
                 <Camera className="w-3.5 h-3.5" />

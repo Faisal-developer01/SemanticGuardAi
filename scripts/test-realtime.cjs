@@ -470,12 +470,13 @@ const clip = (id, capturedAt) => ({
   id, capturedAt, createdAt: capturedAt, type: 'video', sessionId: 'session-1',
 });
 
-function recordingModal(h, state, objectUrl, toast = { error() {}, info() {} }) {
+function recordingModal(h, state, fetchBlob, toast = { error() {}, info() {} }, makeUrl = async blob => blob) {
   return h.loadModule('src/pages/recruiter/AIAlertPanel.tsx', {
     'react-router-dom': { Link: 'a' },
     '@/components/layouts/AppLayout': { AppLayout: 'main' },
     '@/components/shared/StatusBadges': { SeverityBadge: 'span' },
-    '@/lib/api': { alertsApi: {}, evidenceApi: { objectUrl } },
+    '@/lib/api': { alertsApi: {}, evidenceApi: { fetchBlob } },
+    '@/lib/recordingPlayback': { recordingObjectUrl: makeUrl },
     '@/lib/useApi': { useAsync: () => state },
     '@/lib/mappers': h.loadModule('src/lib/mappers.ts'),
     '@/components/ui/button': { Button: 'button' },
@@ -561,6 +562,42 @@ test('recording timeline sorts captures and discovers the final uploaded clip wi
   await flush();
   tree = h.renderFunction(modal, props);
   assert.equal(findElements(tree, 'video')[0].props.src, 'blob:clip-3');
+  h.cleanup();
+});
+
+test('replaying an attached recording creates a fresh playback URL without downloading it again', async () => {
+  const revoked = [];
+  const h = harness(true, { URL: Object.assign(class extends URL {}, { revokeObjectURL: url => revoked.push(url) }) });
+  const requests = [];
+  let revision = 0;
+  const state = {
+    data: [clip('clip-1', '2026-10-07T12:00:00Z'), clip('clip-2', '2026-10-07T12:00:30Z')],
+    loading: false, error: null, reload() {},
+  };
+  const modal = recordingModal(h, state, async id => {
+    requests.push(id);
+    return new Blob([id], { type: 'video/webm' });
+  }, undefined, async blob => `blob:${await blob.text()}:${++revision}`);
+  const props = { sessionId: 'session-1', candidateName: 'Candidate', onClose() {} };
+  h.renderFunction(modal, props);
+  await flush();
+  let tree = h.renderFunction(modal, props);
+  const firstUrl = findElements(tree, 'video')[0].props.src;
+  findElements(tree, 'video')[0].props.ref.current = { ended: false, play: () => Promise.resolve() };
+  h.renderFunction(modal, props);
+  await flush();
+  findElements(tree, 'video')[0].props.onEnded();
+  h.renderFunction(modal, props);
+  await flush();
+  tree = h.renderFunction(modal, props);
+  findElements(tree, 'button').find(button =>
+    Array.isArray(button.props.children) && button.props.children.join('') === 'Clip 1').props.onClick();
+  h.renderFunction(modal, props);
+  await flush();
+  tree = h.renderFunction(modal, props);
+  assert.notEqual(findElements(tree, 'video')[0].props.src, firstUrl, 'a consumed MediaSource URL must never be reused');
+  assert.deepEqual(requests, ['clip-1', 'clip-2'], 'replay must use already downloaded bytes');
+  assert.ok(revoked.includes(firstUrl), 'the replaced source must be released');
   h.cleanup();
 });
 
@@ -674,6 +711,301 @@ test('an unavailable webcam cannot silently fall back to screen sharing', async 
   assert.equal(displayRequests(), 0);
   assert.equal(messages.length, 1);
   h.cleanup();
+});
+
+function compositionHarness({ denied = false, unsupported = false, playFailure = false } = {}) {
+  const tracks = [];
+  const videos = [];
+  const draws = [];
+  const interruptions = [];
+  const requests = [];
+  const makeTrack = label => {
+    const listeners = new Set();
+    const track = {
+      label, kind: 'video', readyState: 'live',
+      stop() { this.readyState = 'ended'; },
+      addEventListener(event, callback) { if (event === 'ended') listeners.add(callback); },
+      removeEventListener(event, callback) { if (event === 'ended') listeners.delete(callback); },
+      end() { this.readyState = 'ended'; for (const callback of [...listeners]) callback(); },
+    };
+    tracks.push(track);
+    return track;
+  };
+  let h;
+  const canvas = {
+    getContext: () => ({
+      drawImage(video, ...bounds) { draws.push({ source: video.srcObject, bounds }); },
+      fillRect() {},
+    }),
+    captureStream(fps) { this.fps = fps; return new h.MediaStream([makeTrack('canvas')]); },
+  };
+  h = harness(true, {
+    navigator: { mediaDevices: unsupported ? {} : { getDisplayMedia(options) {
+      requests.push(options);
+      return denied ? Promise.reject(new Error('Screen sharing denied')) : Promise.resolve(display);
+    } } },
+    document: { createElement(tag) {
+      if (tag === 'canvas') return canvas;
+      const video = {
+        videoWidth: videos.length === 0 ? 3840 : 320,
+        videoHeight: videos.length === 0 ? 2160 : 240,
+        srcObject: null,
+        async play() { if (playFailure) throw new Error('Video playback failed'); },
+        pause() { this.paused = true; },
+      };
+      videos.push(video);
+      return video;
+    } },
+  });
+  const display = new h.MediaStream([makeTrack('screen')]);
+  const webcam = new h.MediaStream([makeTrack('publisher-webcam')]);
+  webcam.clone = () => new h.MediaStream([makeTrack('recorder-webcam')]);
+  const { createAssessmentRecording } = h.loadModule('src/lib/assessmentRecording.ts');
+  return {
+    h, tracks, videos, draws, canvas, requests, display, webcam, interruptions,
+    start: () => createAssessmentRecording(webcam, message => interruptions.push(message)),
+  };
+}
+
+test('assessment composition requests real screen sharing immediately and draws screen plus cloned webcam', async () => {
+  const env = compositionHarness();
+  const pending = env.start();
+  assert.equal(env.requests.length, 1, 'permission must be requested synchronously within the click gesture');
+  const capture = await pending;
+  assert.equal(env.canvas.width, 1920);
+  assert.equal(env.canvas.height, 1080);
+  assert.equal(env.canvas.fps, 10);
+  assert.equal(env.draws[0].source, env.display);
+  assert.deepEqual(env.draws[0].bounds, [0, 0, 1920, 1080]);
+  assert.equal(env.draws[1].source.getVideoTracks()[0].label, 'recorder-webcam');
+  assert.ok(env.draws[1].bounds[2] <= 240, 'webcam must be a small overlay, not replace the assessment screen');
+  assert.equal(capture.stream.getVideoTracks()[0].label, 'canvas');
+  env.h.tick();
+  assert.equal(env.draws.length, 4, 'subsequent frames include current screen and face');
+  capture.stop();
+  env.h.tick();
+  assert.equal(env.draws.length, 4, 'drawing stops on cleanup');
+  assert.equal(env.webcam.getVideoTracks()[0].readyState, 'live', 'do not stop the WebRTC publisher');
+  assert.ok(env.tracks.filter(track => track.label !== 'publisher-webcam').every(track => track.readyState === 'ended'));
+  assert.ok(env.videos.every(video => video.srcObject === null && video.paused));
+  assert.equal(env.interruptions.length, 0, 'intentional cleanup is not a violation');
+});
+
+test('stopped screen sharing interrupts once, releases owned media, and preserves live webcam', async () => {
+  const env = compositionHarness();
+  const capture = await env.start();
+  env.display.getVideoTracks()[0].end();
+  assert.equal(env.interruptions.length, 1);
+  assert.equal(capture.stream.getVideoTracks()[0].readyState, 'ended');
+  assert.equal(env.webcam.getVideoTracks()[0].readyState, 'live');
+  capture.stop();
+  env.display.getVideoTracks()[0].end();
+  assert.equal(env.interruptions.length, 1);
+});
+
+test('camera replacement updates only the composite overlay and keeps the screen source', async () => {
+  const env = compositionHarness();
+  const capture = await env.start();
+  const firstClone = env.videos[1].srcObject.getVideoTracks()[0];
+  const replacement = capture.setCameraStream(env.webcam);
+  env.h.tick();
+  assert.equal(firstClone.readyState, 'live', 'retain the previous overlay until the new camera produces frames');
+  await replacement;
+  env.h.tick();
+  assert.equal(firstClone.readyState, 'ended');
+  assert.notEqual(env.videos.at(-1).srcObject.getVideoTracks()[0], firstClone);
+  assert.equal(env.draws.at(-2).source, env.display);
+  assert.equal(env.webcam.getVideoTracks()[0].readyState, 'live');
+  capture.stop();
+});
+
+test('denied or unsupported screen sharing never falls back to webcam-only capture', async () => {
+  for (const options of [{ denied: true }, { unsupported: true }]) {
+    const env = compositionHarness(options);
+    await assert.rejects(env.start(), /denied|Screen sharing is required/);
+    assert.equal(env.draws.length, 0);
+    assert.equal(env.webcam.getVideoTracks()[0].readyState, 'live');
+  }
+});
+
+test('failed source playback releases screen and webcam clones before reporting failure', async () => {
+  const env = compositionHarness({ playFailure: true });
+  await assert.rejects(env.start(), /Video playback failed/);
+  assert.ok(env.tracks.filter(track => track.label !== 'publisher-webcam').every(track => track.readyState === 'ended'));
+  assert.equal(env.webcam.getVideoTracks()[0].readyState, 'live');
+});
+
+test('screen recordings retain the readable-screen bitrate through all segments and flush the final upload', async () => {
+  const uploads = [];
+  const { h, recorders, track, useScreenRecorder } = recorderHarness(async (...args) => uploads.push(args));
+  const source = new h.MediaStream([track]);
+  source.clone = () => new h.MediaStream([track]);
+  const controls = h.renderFunction(useScreenRecorder, { sessionId: 'screen-session', videoBitsPerSecond: 2_500_000 });
+  assert.equal(await controls.start('screen-session', source), true);
+  h.expire();
+  await flush();
+  await controls.stop();
+  assert.equal(recorders.length, 2);
+  assert.ok(recorders.every(recorder => recorder.videoBitsPerSecond === 2_500_000));
+  assert.equal(uploads.length, 2);
+  assert.ok(uploads.every(upload => upload[0] === 'screen-session' && upload[1].size > 0));
+  h.cleanup();
+});
+
+function elementText(element) {
+  if (Array.isArray(element)) return element.map(elementText).join('');
+  if (typeof element === 'string' || typeof element === 'number') return String(element);
+  return element?.props ? elementText(element.props.children) : '';
+}
+
+async function candidateRecordingHarness({ denied = false } = {}) {
+  const calls = [];
+  const notices = [];
+  let interrupted;
+  let saved = Promise.resolve();
+  const preview = { readyState: 4, srcObject: null, play: async () => {} };
+  const capture = { stream: { name: 'screen-with-face' }, stop() { calls.push('release-capture'); }, setCameraStream: async () => {} };
+  const camera = {
+    getVideoTracks: () => [{ readyState: 'live' }],
+    getTracks: () => [{ stop() {} }],
+  };
+  const h = harness(true, {
+    navigator: { mediaDevices: { getUserMedia: async options => {
+      if (options.video) return camera;
+      calls.push('microphone');
+      return { getTracks: () => [{ stop() {} }] };
+    } } },
+    performance: { now: () => 1 },
+    requestAnimationFrame: () => 1,
+    cancelAnimationFrame() {},
+    document: {
+      fullscreenElement: null, hidden: false,
+      addEventListener() {}, removeEventListener() {},
+      documentElement: { requestFullscreen: async () => {} },
+    },
+  });
+  const assessment = { id: 'assessment', title: 'Real assessment', duration: 30 };
+  const session = { id: 'session', riskScore: 0, riskLevel: 'low', monitoringEnabled: true };
+  const component = h.loadModule('src/pages/candidate/AssessmentScreen.tsx', {
+    'react-router-dom': { useNavigate: () => () => {}, useParams: () => ({ assessmentId: 'assessment' }), Link: 'a' },
+    '@/components/layouts/AppLayout': { AppLayout: 'main' },
+    '@/components/shared/StatusBadges': { StatusDot: 'span', RiskBadge: 'span' },
+    '@/components/candidate/QuestionRenderer': { QuestionRenderer: 'question' },
+    '@/components/ui/button': { Button: 'button' },
+    '@/components/ui/progress': { Progress: 'progress' },
+    'lucide-react': new Proxy({}, { get: (_, key) => String(key) }),
+    'sonner': { toast: new Proxy({}, { get: () => message => notices.push(message) }) },
+    '@mediapipe/tasks-vision': {
+      FilesetResolver: { forVisionTasks: async () => ({}) },
+      FaceLandmarker: { createFromOptions: async () => ({ detectForVideo: () => ({ faceLandmarks: [[]] }), close() {} }) },
+    },
+    '@/lib/mappers': { mapAssessment: value => value, mapQuestion: value => value },
+    '@/lib/utils': { assessmentAvailability: () => 'open', normalizeUtc: value => value },
+    '@/lib/realtime': { connectSocket: () => h.socket, useCandidateWebRTC() {} },
+    '@/lib/lockdown': { useBrowserLockdown: () => ({}) },
+    '@/lib/deviceFingerprint': { getDeviceIdentity: async () => { calls.push('device'); return undefined; } },
+    '@/lib/assessmentRecording': { createAssessmentRecording: (stream, onInterrupted) => {
+      assert.equal(stream, camera);
+      calls.push('share');
+      interrupted = onInterrupted;
+      return denied ? Promise.reject(new Error('Sharing permission denied')) : Promise.resolve(capture);
+    } },
+    '@/lib/screenRecorder': { useScreenRecorder: () => ({
+      active: true, error: null,
+      async start(sid, stream) { assert.equal(sid, 'session'); assert.equal(stream, capture.stream); calls.push('record'); return true; },
+      stop() { calls.push('flush'); return saved; },
+    }) },
+    '@/lib/api': {
+      assessmentsApi: { get: async () => assessment, questions: async () => [{ id: 'question', type: 'short_answer' }] },
+      sessionsApi: {
+        list: async () => ({ items: [] }),
+        start: async () => { calls.push('session'); return session; },
+        heartbeat: async () => {},
+        ingestEvent: async (_sid, event) => { calls.push(`violation:${event.payload.reason}`); },
+        submit: async () => { calls.push('submit'); return { ...session, status: 'completed', results: {} }; },
+      },
+    },
+  }).default;
+  const render = () => h.renderFunction(component);
+  render();
+  await flush();
+  let tree = render();
+  findElements(tree, 'video')[0].props.ref.current = preview;
+  await findElements(tree, 'button').find(button => elementText(button) === 'Verify My Identity').props.onClick();
+  tree = render();
+  calls.length = 0;
+  return {
+    h, calls, notices, render,
+    begin: () => findElements(tree, 'button').find(button => elementText(button).startsWith('Begin Assessment')).props.onClick(),
+    interrupt: () => interrupted('Screen sharing stopped'),
+    waitForSave: promise => { saved = promise; },
+  };
+}
+
+test('candidate requests screen permission from Begin before microphone, device lookup, session creation, and recording', async () => {
+  const env = await candidateRecordingHarness();
+  const pending = env.begin();
+  assert.deepEqual(env.calls, ['share']);
+  await pending;
+  assert.deepEqual(env.calls, ['share', 'microphone', 'device', 'session', 'record']);
+  assert.equal(findElements(env.render(), 'question').length, 1);
+  env.h.cleanup();
+});
+
+test('denied sharing keeps the candidate on preflight without creating a session or recording webcam-only', async () => {
+  const env = await candidateRecordingHarness({ denied: true });
+  await env.begin();
+  const tree = env.render();
+  assert.equal(findElements(tree, 'question').length, 0);
+  assert.ok(findElements(tree, 'button').some(button => elementText(button).startsWith('Begin Assessment')));
+  assert.ok(env.notices.includes('Sharing permission denied'));
+  assert.ok(!env.calls.includes('session') && !env.calls.includes('record') && !env.calls.includes('microphone'));
+  env.h.cleanup();
+});
+
+test('interrupted screen sharing terminates the attempt and flushes evidence before session submission', async () => {
+  const env = await candidateRecordingHarness();
+  await env.begin();
+  env.render();
+  let finishSave;
+  env.waitForSave(new Promise(resolve => { finishSave = resolve; }));
+  env.calls.length = 0;
+  env.interrupt();
+  assert.ok(env.calls.includes('flush') && env.calls.includes('release-capture'));
+  assert.ok(env.calls.includes('violation:Screen sharing stopped'));
+  assert.ok(!env.calls.includes('submit'));
+  assert.equal(findElements(env.render(), 'question').length, 0);
+  finishSave();
+  await flush();
+  assert.ok(env.calls.includes('submit'));
+  env.h.cleanup();
+});
+
+test('recruiter monitoring toggle releases capture and requires a fresh candidate gesture before recording resumes', async () => {
+  const env = await candidateRecordingHarness();
+  await env.begin();
+  const tree = env.render();
+  const dialog = {
+    open: false,
+    showModal() { this.open = true; },
+    close() { this.open = false; },
+  };
+  findElements(tree, 'dialog')[0].props.ref.current = dialog;
+  env.calls.length = 0;
+  await env.h.receive('monitoring_toggle', { sessionId: 'session', enabled: false });
+  env.render();
+  assert.ok(env.calls.includes('flush') && env.calls.includes('release-capture'));
+  env.calls.length = 0;
+  await env.h.receive('monitoring_toggle', { sessionId: 'session', enabled: true });
+  await flush();
+  const resumed = env.render();
+  assert.equal(dialog.open, true, 'answering must be blocked by the screen-sharing consent dialog');
+  assert.ok(!env.calls.includes('share') && !env.calls.includes('record'), 'a socket event cannot grant screen permission');
+  await findElements(resumed, 'button').find(button => elementText(button) === 'Share Screen and Continue').props.onClick();
+  env.render();
+  assert.equal(dialog.open, false);
+  assert.ok(env.calls.includes('share') && env.calls.includes('record'));
+  env.h.cleanup();
 });
 
 function playbackHarness(supported = true) {

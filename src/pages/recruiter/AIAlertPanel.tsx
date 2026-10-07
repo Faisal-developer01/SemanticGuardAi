@@ -3,6 +3,7 @@ import { Link } from 'react-router-dom';
 import { AppLayout } from '@/components/layouts/AppLayout';
 import { SeverityBadge } from '@/components/shared/StatusBadges';
 import { alertsApi, evidenceApi, type ApiEvidence } from '@/lib/api';
+import { recordingObjectUrl } from '@/lib/recordingPlayback';
 import { mapAlert } from '@/lib/mappers';
 import { useAsync } from '@/lib/useApi';
 import { Button } from '@/components/ui/button';
@@ -88,6 +89,8 @@ const RecordingModal: React.FC<RecordingModalProps> = ({ sessionId, candidateNam
   const [continuous, setContinuous] = useState(true);
   const videoRef = useRef<HTMLVideoElement | null>(null);
   const urlCache = useRef(new Map<string, string>());
+  const blobCache = useRef(new Map<string, Blob>());
+  const usedUrls = useRef(new Set<string>());
   const inFlight = useRef(new Map<string, Promise<void>>());
   const failedClips = useRef(new Set<string>());
   const mounted = useRef(true);
@@ -100,10 +103,14 @@ const RecordingModal: React.FC<RecordingModalProps> = ({ sessionId, candidateNam
   useEffect(() => {
     mounted.current = true;
     const cache = urlCache.current;
+    const blobs = blobCache.current;
+    const used = usedUrls.current;
     return () => {
       mounted.current = false;
       for (const url of cache.values()) URL.revokeObjectURL(url);
       cache.clear();
+      blobs.clear();
+      used.clear();
     };
   }, []);
 
@@ -114,7 +121,10 @@ const RecordingModal: React.FC<RecordingModalProps> = ({ sessionId, candidateNam
     if (retry) {
       failedClips.current.delete(id);
       const url = urlCache.current.get(id);
-      if (url) URL.revokeObjectURL(url);
+      if (url) {
+        URL.revokeObjectURL(url);
+        usedUrls.current.delete(url);
+      }
       urlCache.current.delete(id);
       setUrls(previous => {
         const next = { ...previous };
@@ -128,11 +138,15 @@ const RecordingModal: React.FC<RecordingModalProps> = ({ sessionId, candidateNam
       delete next[id];
       return next;
     });
-    const pending = evidenceApi.objectUrl(id).then(url => {
+    const cachedBlob = blobCache.current.get(id);
+    const download = cachedBlob ? Promise.resolve(cachedBlob) : evidenceApi.fetchBlob(id);
+    const pending = download.then(async blob => {
+      const url = await recordingObjectUrl(blob);
       if (!mounted.current) {
         URL.revokeObjectURL(url);
         return;
       }
+      blobCache.current.set(id, blob);
       urlCache.current.set(id, url);
       setUrls(previous => ({ ...previous, [id]: url }));
     }).catch((error: unknown) => {
@@ -155,6 +169,7 @@ const RecordingModal: React.FC<RecordingModalProps> = ({ sessionId, candidateNam
 
   useEffect(() => {
     let disposed = false;
+    if (currentUrl) usedUrls.current.add(currentUrl);
     if (currentUrl && videoRef.current) {
       void videoRef.current.play().catch((error: unknown) => {
         if (disposed) return;
@@ -185,8 +200,10 @@ const RecordingModal: React.FC<RecordingModalProps> = ({ sessionId, candidateNam
   const goTo = (idx: number) => {
     const clip = clips[idx];
     if (!clip) return;
+    const previousUrl = urlCache.current.get(clip.id);
     setClipIndex(idx);
-    void loadUrl(clip.id);
+    // MediaSource URLs can be consumed on attachment; replay uses the cached bytes.
+    void loadUrl(clip.id, idx !== clipIndex && !!previousUrl && usedUrls.current.has(previousUrl));
   };
 
   const handleEnded = () => {

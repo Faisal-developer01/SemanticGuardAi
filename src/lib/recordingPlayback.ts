@@ -14,7 +14,7 @@ export async function recordingObjectUrl(blob: Blob): Promise<string> {
   const data = await blob.arrayBuffer();
   const media = new MediaSource();
   media.addEventListener('sourceopen', () => {
-    // Reopening a previously selected clip needs a fresh buffer after detach.
+    // Seeking can reopen a completed source without needing another append.
     if (media.sourceBuffers.length) return;
     try {
       const buffer = media.addSourceBuffer(mime);
