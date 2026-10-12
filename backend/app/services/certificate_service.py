@@ -33,7 +33,7 @@ from reportlab.graphics import renderPDF
 from reportlab.graphics.barcode import qr
 from reportlab.graphics.shapes import Drawing
 from reportlab.platypus import Paragraph
-from sqlalchemy.exc import SQLAlchemyError
+from sqlalchemy.exc import IntegrityError, SQLAlchemyError
 
 ISSUER_NAME = "Semantic Services Rwanda Ltd"
 
@@ -478,31 +478,52 @@ def issue(session, credential_type: CredentialType, *, position: str | None = No
     resolved_position = position or getattr(assessment, "position", None) or getattr(profile, "position", None)
     department = getattr(profile, "department", None)
 
-    token = secrets.token_urlsafe(24)
-    number = _generate_number(credential_type)
+    for attempt in range(5):
+        token = secrets.token_urlsafe(24)
+        number = _generate_number(credential_type)
+        try:
+            with credentials_repo.session.begin_nested():
+                cred = credentials_repo.create(
+                    commit=False,
+                    type=credential_type,
+                    number=number,
+                    verification_token=token,
+                    candidate_id=session.candidate_id,
+                    assessment_id=session.assessment_id,
+                    session_id=session.id,
+                    candidate_name=candidate_name,
+                    title=assessment_title if credential_type == CredentialType.certificate else (resolved_position or assessment_title),
+                    position=resolved_position,
+                    department=department,
+                    integrity_score=getattr(session, "integrity_score", None),
+                    score=getattr(session, "score", None),
+                    percentage=getattr(session, "percentage", None),
+                    body=body,
+                    issued_at=_now(),
+                )
+        except IntegrityError:
+            existing = credentials_repo.find_issued(session.id, credential_type)
+            if existing:
+                return existing
+            if not credentials_repo.get_by_number(number) and not credentials_repo.get_by_token(token):
+                raise
+            current_app.logger.warning("Credential number collision; retrying issuance (%s/5).", attempt + 1)
+        else:
+            try:
+                credentials_repo.session.commit()
+            except SQLAlchemyError:
+                credentials_repo.session.rollback()
+                raise
+            break
+    else:
+        raise RuntimeError("Unable to allocate a unique credential number after 5 attempts")
 
-    cred = credentials_repo.create(
-        type=credential_type,
-        number=number,
-        verification_token=token,
-        candidate_id=session.candidate_id,
-        assessment_id=session.assessment_id,
-        session_id=session.id,
-        candidate_name=candidate_name,
-        title=assessment_title if credential_type == CredentialType.certificate else (resolved_position or assessment_title),
-        position=resolved_position,
-        department=department,
-        integrity_score=getattr(session, "integrity_score", None),
-        score=getattr(session, "score", None),
-        percentage=getattr(session, "percentage", None),
-        body=body,
-        issued_at=_now(),
-    )
     try:
         cred.file_path = _persist_pdf(cred)
         credentials_repo.session.commit()
     except Exception:  # noqa: BLE001 - defer generation to first download if it fails
         credentials_repo.session.rollback()
+        current_app.logger.exception("Credential issued, but PDF caching failed for %s", cred.number)
     return cred
 
 

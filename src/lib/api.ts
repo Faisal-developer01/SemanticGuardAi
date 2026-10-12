@@ -865,6 +865,9 @@ export const certificatesApi = {
   get(id: string) {
     return request<ApiCredential>(`/certificates/${id}`, { auth: true });
   },
+  email(id: string) {
+    return request<{ message: string }>(`/certificates/${id}/email`, { method: 'POST', auth: true });
+  },
   verify(token: string) {
     return request<CredentialVerification>(`/certificates/verify/${encodeURIComponent(token)}`);
   },

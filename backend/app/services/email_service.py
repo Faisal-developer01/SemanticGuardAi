@@ -220,20 +220,22 @@ _SENDERS = {
 
 
 def deliver(kind: str, *args) -> None:
-    """Queue an email for delivery. Tries the Celery worker first, then falls
-    back to sending inline on a daemon thread so requests never block on SMTP."""
+    """Dispatch via the configured worker or an application-context thread."""
     fn = _SENDERS[kind]
+    mode = current_app.config.get("EMAIL_DELIVERY_MODE", "celery")
+    if mode not in {"celery", "thread"}:
+        raise ValueError("EMAIL_DELIVERY_MODE must be 'celery' or 'thread'")
 
-    # 1) Try the Celery worker (production path).
-    try:
-        from app import tasks
+    if mode == "celery":
+        try:
+            from app import tasks
 
-        task = getattr(tasks, f"send_{kind}_email", None) or getattr(tasks, f"send_{kind}", None)
-        if task is not None:
-            task.delay(*args)
-            return
-    except Exception:  # noqa: BLE001 - broker unavailable, fall through to inline
-        current_app.logger.debug("Celery unavailable for '%s' email; sending inline.", kind)
+            task = getattr(tasks, f"send_{kind}_email", None) or getattr(tasks, f"send_{kind}", None)
+            if task is not None:
+                task.delay(*args)
+                return
+        except Exception:  # noqa: BLE001 - broker unavailable, fall through to inline
+            current_app.logger.debug("Celery unavailable for '%s' email; sending inline.", kind)
 
     # 2) Inline background thread bound to the current app context.
     app = current_app._get_current_object()

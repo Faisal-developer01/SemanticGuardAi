@@ -11,11 +11,12 @@ from flask_jwt_extended import jwt_required
 
 from app.api.helpers import created, ok, paginated, pagination_args, parse, query_param
 from app.errors import APIError, ForbiddenError
+from app.extensions import limiter
 from app.models.enums import CredentialType, UserRole
 from app.repositories import credentials as credentials_repo
 from app.repositories import sessions as sessions_repo
 from app.schemas import CredentialIssueSchema, CredentialSchema
-from app.services import audit_service, certificate_service
+from app.services import audit_service, certificate_service, email_service
 from app.services.rbac import current_user, recruiter_required
 
 bp = Blueprint("certificates", __name__)
@@ -89,6 +90,22 @@ def download_credential(credential_id):
         mimetype="application/pdf",
         headers={"Content-Disposition": f'{disposition}; filename="{filename}"'},
     )
+
+
+@bp.post("/<uuid:credential_id>/email")
+@jwt_required()
+@limiter.limit("3 per minute")
+def email_credential(credential_id):
+    cred = _get_owned_or_privileged(credential_id)
+    if cred.revoked:
+        raise APIError("Revoked documents cannot be emailed", status_code=409)
+    if not email_service.send_credential_email(str(cred.candidate_id), [str(cred.id)]):
+        raise APIError(
+            "The document could not be emailed. Please check the email configuration and try again.",
+            status_code=502,
+        )
+    audit_service.record("credential.email", user=current_user(), resource=str(cred.id))
+    return ok({"message": "Document accepted by the mail server. Check your inbox and spam folder."})
 
 
 # ─── issue / revoke (recruiter/admin) ────────────────────────────────────────

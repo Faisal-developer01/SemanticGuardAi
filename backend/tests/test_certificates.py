@@ -175,6 +175,23 @@ def test_credential_email_attaches_certificate_pdf(candidate, credential, monkey
     assert data.startswith(b"%PDF-")
 
 
+def test_thread_email_delivery_bypasses_broker(app, candidate, credential, monkeypatch):
+    from app import tasks
+    from app.services import email_service
+
+    queued = []
+    sent = []
+    monkeypatch.setitem(app.config, "EMAIL_DELIVERY_MODE", "thread")
+    monkeypatch.setattr(tasks.send_credential_email, "delay", lambda *args: queued.append(args))
+    monkeypatch.setitem(email_service._SENDERS, "credential", lambda *args: sent.append(args))
+    monkeypatch.setattr(email_service.threading, "Thread", lambda **kwargs: SimpleNamespace(start=kwargs["target"]))
+
+    email_service.deliver("credential", str(candidate.id), [str(credential.id)])
+
+    assert queued == []
+    assert sent == [(str(candidate.id), [str(credential.id)])]
+
+
 @pytest.fixture
 def review_session(candidate, recruiter, monkeypatch):
     from app.models import Assessment, AssessmentSession, Answer, Question
@@ -226,6 +243,88 @@ def test_finalized_pass_queues_certificate_email(review_session, recruiter, monk
     assert session.candidate.candidate_profile.passed_assessments == 1
 
 
+def test_issuance_retries_duplicate_number(credential, review_session, monkeypatch, tmp_path):
+    monkeypatch.setattr(service, "_storage_dir", lambda: tmp_path)
+    numbers = iter([credential.number, "SSR-CERT-2026-000043"])
+    monkeypatch.setattr(service, "_generate_number", lambda credential_type: next(numbers))
+    session, _answer, _deliveries = review_session
+
+    issued = service.issue(session, CredentialType.certificate)
+
+    assert issued.number == "SSR-CERT-2026-000043"
+    assert Credential.query.count() == 2
+    assert service.issue(session, CredentialType.certificate).id == issued.id
+    assert service.get_pdf_bytes(issued).startswith(b"%PDF-")
+
+
+def test_exhausted_number_collisions_leave_database_usable(credential, review_session, monkeypatch):
+    monkeypatch.setattr(service, "_generate_number", lambda credential_type: credential.number)
+    session, _answer, _deliveries = review_session
+
+    with pytest.raises(RuntimeError, match="unique credential number"):
+        service.issue(session, CredentialType.certificate)
+
+    assert Credential.query.count() == 1
+    assert session.grading_status == "processing"
+
+
+def test_submission_recovers_number_collision(client, auth_header, credential, review_session, monkeypatch, tmp_path):
+    from app.models.enums import SessionStatus, QuestionType
+
+    session, answer, deliveries = review_session
+    session.status = SessionStatus.in_progress
+    question = session.assessment.questions[0]
+    question.type = QuestionType.multiple_choice
+    question.correct_answer = "correct"
+    answer.response = "correct"
+    db.session.commit()
+    monkeypatch.setattr(service, "_storage_dir", lambda: tmp_path)
+    numbers = iter([credential.number, "SSR-CERT-2026-000043", "SSR-OFFER-2026-000001"])
+    monkeypatch.setattr(service, "_generate_number", lambda credential_type: next(numbers))
+
+    response = client.post(f"/api/v1/sessions/{session.id}/submit", headers=auth_header(client, "candidate@test.rw"))
+
+    assert response.status_code == 200
+    assert response.get_json()["gradingStatus"] == "graded"
+    assert response.get_json()["passed"] is True
+    assert Credential.query.count() == 3
+    assert any(delivery[0] == "credential" for delivery in deliveries)
+
+
+def test_candidate_can_email_existing_pdf(client, app, auth_header, credential, monkeypatch):
+    from app.services import email_service
+
+    messages = []
+    monkeypatch.setitem(app.config, "MAIL_SUPPRESS_SEND", False)
+    monkeypatch.setitem(app.config, "MAIL_SERVER", "smtp.example.com")
+    monkeypatch.setattr(email_service.mail, "send", lambda message: messages.append(message))
+
+    response = client.post(f"/api/v1/certificates/{credential.id}/email", headers=auth_header(client, "candidate@test.rw"))
+
+    assert response.status_code == 200
+    assert len(messages) == 1
+    assert messages[0].recipients == [credential.candidate.email]
+    assert len(messages[0].attachments) == 1
+    assert messages[0].attachments[0].data.startswith(b"%PDF-")
+    assert Credential.query.count() == 1
+
+
+def test_email_rejection_is_reported(client, auth_header, credential, monkeypatch):
+    from app.services import email_service
+
+    monkeypatch.setattr(email_service, "send_credential_email", lambda *args: False)
+    response = client.post(f"/api/v1/certificates/{credential.id}/email", headers=auth_header(client, "candidate@test.rw"))
+    assert response.status_code == 502
+    assert "could not be emailed" in response.get_json()["message"]
+
+
+def test_revoked_document_cannot_be_emailed(client, auth_header, credential):
+    credential.revoked = True
+    db.session.commit()
+    response = client.post(f"/api/v1/certificates/{credential.id}/email", headers=auth_header(client, "candidate@test.rw"))
+    assert response.status_code == 409
+
+
 def test_finalized_fail_queues_result_email(review_session, recruiter):
     from app.services.session_service import finalize_review
 
@@ -272,4 +371,6 @@ def test_another_candidate_cannot_download_a_certificate(client, auth_header, cr
     db.session.commit()
     headers = auth_header(client, "other-certificate@test.rw")
     response = client.get(f"/api/v1/certificates/{credential.id}/download", headers=headers)
+    assert response.status_code == 403
+    response = client.post(f"/api/v1/certificates/{credential.id}/email", headers=headers)
     assert response.status_code == 403

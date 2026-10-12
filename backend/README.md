@@ -94,6 +94,7 @@ MAIL_USERNAME=your-brevo-smtp-login
 MAIL_PASSWORD=your-brevo-smtp-key
 MAIL_DEFAULT_SENDER=SemanticGuard AI <your-verified-sender@example.com>
 MAIL_SUPPRESS_SEND=false
+EMAIL_DELIVERY_MODE=thread
 ```
 
 Use the **SMTP login** and **SMTP key** shown in Brevo under **SMTP & API > SMTP**.
@@ -111,13 +112,20 @@ issues the certificate and offer letter and queues an email with PDF attachments
 to the candidate's registered email address. Results awaiting processing or review
 do not issue documents until finalized.
 Existing certificates are not automatically resent just by changing SMTP settings.
+Candidates can use the mail icon on their Certificates page to email an existing
+document to their registered address. This action reports SMTP rejection instead
+of claiming success, and does not issue a replacement certificate. SMTP acceptance
+still does not guarantee inbox delivery.
 
 Run locally from `backend` with `flask --app wsgi run --debug` so Flask loads the
-local `.env`. In production, run Redis and the Celery worker for queued delivery.
-If the broker is unavailable, email dispatch falls back to a background thread;
-this fallback is not a durable queue. If the broker accepts a job but no worker is
-running, the email waits in the queue. SMTP acceptance does not guarantee inbox
-delivery; check Brevo transactional logs and the recipient's spam folder.
+local `.env`. Azure App Service defaults to `EMAIL_DELIVERY_MODE=thread` when
+`WEBSITE_HOSTNAME` is present, so emails do not wait for a nonexistent Celery
+worker. Explicitly set `EMAIL_DELIVERY_MODE=thread` for other single-process
+deployments. Background threads are not durable across restarts. Deployments
+with Redis and a running Celery worker can set `EMAIL_DELIVERY_MODE=celery`;
+broker publishing failures fall back to a background thread. In Celery mode, a
+broker can accept jobs without a worker running, leaving emails queued. Check
+Brevo transactional logs and the recipient's spam folder for delivery status.
 
 Registration OTP currently uses a separate SendGrid integration; these SMTP
 settings configure certificate emails, email MFA, password resets and ordinary

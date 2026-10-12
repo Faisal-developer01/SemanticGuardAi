@@ -76,6 +76,9 @@ class BaseConfig:
     MAIL_PASSWORD = os.getenv("MAIL_PASSWORD")
     MAIL_DEFAULT_SENDER = os.getenv("MAIL_DEFAULT_SENDER", "faisalshingiro10@gmail.com")
     MAIL_SUPPRESS_SEND = _bool("MAIL_SUPPRESS_SEND", False)
+    EMAIL_DELIVERY_MODE = os.getenv(
+        "EMAIL_DELIVERY_MODE", "thread" if os.getenv("WEBSITE_HOSTNAME") else "celery"
+    )
     EMAIL_OTP_TTL_MINUTES = _int("EMAIL_OTP_TTL_MINUTES", 10)
     # When no SMTP provider is configured, accounts can be activated without an
     # email round-trip. Enable this in environments that cannot deliver email.

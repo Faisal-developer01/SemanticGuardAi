@@ -354,6 +354,7 @@ def notify_final_result(session):
             _issue_credentials(session)
         except Exception:
             from flask import current_app
+            sessions.session.rollback()
             current_app.logger.exception("Credential issuance failed for finalized session %s", session.id)
     if not session.passed:
         email_service.deliver("notification", str(session.candidate_id), "Assessment result finalized",

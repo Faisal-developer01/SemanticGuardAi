@@ -11,6 +11,7 @@ import {
   AlertCircle,
   ShieldCheck,
   ExternalLink,
+  Mail,
 } from 'lucide-react';
 import { format } from 'date-fns';
 import { toast } from 'sonner';
@@ -23,6 +24,7 @@ function safeDate(value?: string | null): string {
 
 const CredentialCard: React.FC<{ cred: ApiCredential }> = ({ cred }) => {
   const [downloading, setDownloading] = useState(false);
+  const [emailing, setEmailing] = useState(false);
   const isCert = cred.type === 'certificate';
   const Icon = isCert ? Award : FileText;
 
@@ -35,6 +37,18 @@ const CredentialCard: React.FC<{ cred: ApiCredential }> = ({ cred }) => {
       toast.error('Could not download the document. Please try again.');
     } finally {
       setDownloading(false);
+    }
+  };
+
+  const email = async () => {
+    setEmailing(true);
+    try {
+      const response = await certificatesApi.email(cred.id);
+      toast.success(response.message);
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : 'Could not email the document. Please try again.');
+    } finally {
+      setEmailing(false);
     }
   };
 
@@ -98,6 +112,11 @@ const CredentialCard: React.FC<{ cred: ApiCredential }> = ({ cred }) => {
         <Button size="sm" onClick={download} disabled={downloading} className="flex-1">
           {downloading ? <Loader2 className="w-4 h-4 mr-1.5 animate-spin" /> : <Download className="w-4 h-4 mr-1.5" />}
           Download PDF
+        </Button>
+        <Button size="sm" variant="outline" className="h-9 w-9 shrink-0 p-0"
+          title="Email document to your registered address" aria-label="Email document to your registered address"
+          onClick={email} disabled={emailing || cred.revoked}>
+          {emailing ? <Loader2 className="w-4 h-4 animate-spin" /> : <Mail className="w-4 h-4" />}
         </Button>
         <Button size="sm" variant="outline" asChild>
           <a href={verifyUrl} target="_blank" rel="noopener noreferrer" title="Open public verification">
