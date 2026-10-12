@@ -5,6 +5,7 @@ from datetime import datetime, timezone
 from pathlib import Path
 import re
 import shutil
+from types import SimpleNamespace
 
 import pytest
 from reportlab.lib.pagesizes import A4, landscape
@@ -136,6 +137,127 @@ def test_candidate_download_contains_branding_and_keeps_verification(client, can
     assert verified["valid"] is True
     assert verified["number"] == credential.number
     assert verified["candidateName"] == candidate.full_name
+
+
+def test_certificate_issuance_queues_email(candidate, credential, monkeypatch):
+    from app.services import email_service, notification_service, session_service
+
+    deliveries = []
+    monkeypatch.setattr(service, "issue_for_passed_session", lambda session: [credential])
+    monkeypatch.setattr(email_service, "deliver", lambda *args: deliveries.append(args))
+    monkeypatch.setattr(notification_service, "create", lambda **kwargs: None)
+    session = SimpleNamespace(candidate_id=candidate.id)
+
+    session_service._issue_credentials(session)
+
+    assert deliveries == [("credential", str(candidate.id), [str(credential.id)])]
+
+
+def test_credential_email_attaches_certificate_pdf(candidate, credential, monkeypatch):
+    from app.services import email_service
+
+    messages = []
+
+    def capture_email(to, subject, html_body, text_body, attachments):
+        messages.append((to, attachments))
+        return True
+
+    monkeypatch.setattr(email_service, "send_email", capture_email)
+
+    assert email_service.send_credential_email(str(candidate.id), [str(credential.id)]) is True
+    assert len(messages) == 1
+    recipient, attachments = messages[0]
+    assert recipient == candidate.email
+    assert len(attachments) == 1
+    filename, mimetype, data = attachments[0]
+    assert filename == service.download_filename(credential)
+    assert mimetype == "application/pdf"
+    assert data.startswith(b"%PDF-")
+
+
+@pytest.fixture
+def review_session(candidate, recruiter, monkeypatch):
+    from app.models import Assessment, AssessmentSession, Answer, Question
+    from app.models.enums import SessionStatus, QuestionType
+    from app.services import email_service
+
+    deliveries = []
+    monkeypatch.setattr(email_service, "deliver", lambda *args: deliveries.append(args))
+    assessment = Assessment(title="Manual grading", recruiter_id=recruiter.id, pass_mark=50)
+    db.session.add(assessment)
+    db.session.flush()
+    question = Question(assessment_id=assessment.id, text="Explain your answer", type=QuestionType.short_answer, marks=10)
+    session = AssessmentSession(assessment_id=assessment.id, candidate_id=candidate.id,
+                                status=SessionStatus.completed, grading_status="processing", max_score=10, passed=False)
+    db.session.add_all([question, session])
+    db.session.flush()
+    answer = Answer(session_id=session.id, question_id=question.id, response="Candidate response")
+    db.session.add(answer)
+    candidate.candidate_profile.total_assessments = 1
+    db.session.commit()
+    return session, answer, deliveries
+
+
+def test_review_requires_all_manual_marks(review_session, recruiter):
+    from app.errors import ConflictError
+    from app.services.session_service import finalize_review
+
+    session, _answer, deliveries = review_session
+    with pytest.raises(ConflictError):
+        finalize_review(recruiter, str(session.id), {"decision": "accept", "marks": {}})
+    assert session.grading_status == "processing"
+    assert deliveries == []
+
+
+def test_finalized_pass_queues_certificate_email(review_session, recruiter, monkeypatch, tmp_path):
+    from app.services.session_service import finalize_review
+
+    monkeypatch.setattr(service, "_storage_dir", lambda: tmp_path)
+    session, answer, deliveries = review_session
+    finalize_review(recruiter, str(session.id), {"decision": "accept", "marks": {str(answer.id): 8}})
+    assert session.grading_status == "graded"
+    assert session.passed
+    assert session.percentage == 80
+    credentials = Credential.query.all()
+    assert len(credentials) == 2
+    credential_delivery = next(delivery for delivery in deliveries if delivery[0] == "credential")
+    assert credential_delivery[1] == str(session.candidate_id)
+    assert set(credential_delivery[2]) == {str(credential.id) for credential in credentials}
+    assert session.candidate.candidate_profile.passed_assessments == 1
+
+
+def test_finalized_fail_queues_result_email(review_session, recruiter):
+    from app.services.session_service import finalize_review
+
+    session, answer, deliveries = review_session
+    finalize_review(recruiter, str(session.id), {"decision": "accept", "marks": {str(answer.id): 2}})
+    assert not session.passed
+    assert Credential.query.count() == 0
+    assert len(deliveries) == 1
+    kind, recipient, subject, message = deliveries[0]
+    assert kind == "notification"
+    assert recipient == str(session.candidate_id)
+    assert subject == "Assessment result finalized"
+    assert "did not pass" in message
+
+
+def test_candidate_cannot_finalize_own_result(review_session, candidate):
+    from app.errors import ForbiddenError
+    from app.services.session_service import finalize_review
+
+    session, _answer, deliveries = review_session
+    with pytest.raises(ForbiddenError):
+        finalize_review(candidate, str(session.id), {"decision": "reject"})
+    assert deliveries == []
+
+
+def test_processing_result_does_not_send_email(review_session):
+    from app.services.session_service import notify_final_result
+
+    session, _answer, deliveries = review_session
+    notify_final_result(session)
+    assert deliveries == []
+    assert Credential.query.count() == 0
 
 
 def test_another_candidate_cannot_download_a_certificate(client, auth_header, credential):

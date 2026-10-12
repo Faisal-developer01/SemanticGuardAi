@@ -32,7 +32,7 @@ const SystemSettings: React.FC = () => {
   const [mfaRequired, setMfaRequired] = useState(false);
   const [maxLoginAttempts, setMaxLoginAttempts] = useState(5);
   const [notif, setNotif] = useState({
-    emailAlerts: true, criticalOnly: false, slackIntegration: false, smsAlerts: false,
+    emailAlerts: true, criticalOnly: false, slackIntegration: false,
   });
 
   const toggle = (key: string) => setDetection(d => ({ ...d, [key]: !d[key] }));
@@ -186,7 +186,6 @@ const SystemSettings: React.FC = () => {
                 { key: 'emailAlerts', label: 'Email Alerts', desc: 'Send email notifications for new AI alerts' },
                 { key: 'criticalOnly', label: 'Critical Alerts Only', desc: 'Only notify for critical severity alerts' },
                 { key: 'slackIntegration', label: 'Slack Integration', desc: 'Post alerts to Slack channel (requires webhook)' },
-                { key: 'smsAlerts', label: 'SMS Alerts', desc: 'Send SMS for critical violations' },
               ].map(opt => (
                 <div key={opt.key} className="flex items-center justify-between p-3 bg-muted/50 rounded border border-border">
                   <div>

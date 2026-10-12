@@ -19,12 +19,6 @@
     },
     "mailPassword": {
       "value": "${MAIL_PASSWORD=}"
-    },
-    "atApiKey": {
-      "value": "${AT_API_KEY=}"
-    },
-    "proctoringSmsRecipient": {
-      "value": "${PROCTORING_SMS_RECIPIENT=}"
     }
   }
 }

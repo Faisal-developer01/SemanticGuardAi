@@ -6,6 +6,13 @@ def test_health(client):
     assert client.get("/health").status_code == 200
 
 
+def test_no_whatsapp_routes_or_tasks(app):
+    from app import tasks
+
+    assert not any("whatsapp" in rule.rule for rule in app.url_map.iter_rules())
+    assert not any(name.startswith("whatsapp.") for name in tasks.celery.tasks)
+
+
 def test_register_and_login_flow(client):
     resp = client.post(
         "/api/v1/auth/register",
@@ -20,6 +27,8 @@ def test_register_and_login_flow(client):
     data = resp.get_json()
     assert data["user"]["email"] == "new@test.rw"
     assert data["user"]["emailVerified"] is False
+    assert not any("whatsapp" in key.lower() for key in data)
+    assert not any("whatsapp" in key.lower() for key in data["user"])
 
     # Cannot log in until verified.
     login = client.post("/api/v1/auth/login", json={"email": "new@test.rw", "password": "Password123"})

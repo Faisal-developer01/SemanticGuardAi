@@ -1,7 +1,7 @@
 """User, profile, and auth-related schemas."""
 from __future__ import annotations
 
-from marshmallow import EXCLUDE, Schema, ValidationError, fields, validate, validates_schema
+from marshmallow import EXCLUDE, Schema, ValidationError, fields, validate
 
 from app.models.enums import UserRole, UserStatus
 from app.schemas.common import CamelCaseSchema

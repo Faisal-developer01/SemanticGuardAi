@@ -14,9 +14,6 @@ param jwtSecretKey string
 param sendgridApiKey string
 @secure()
 param mailPassword string
-@secure()
-param atApiKey string
-param proctoringSmsRecipient string
 
 var databaseName = 'semanticguard'
 var webAppName = 'azweb${resourceToken}'
@@ -122,11 +119,6 @@ resource secretMail 'Microsoft.KeyVault/vaults/secrets@2023-07-01' = {
   parent: keyVault
   name: 'MAIL-PASSWORD'
   properties: { value: empty(mailPassword) ? 'unset' : mailPassword }
-}
-resource secretAtKey 'Microsoft.KeyVault/vaults/secrets@2023-07-01' = {
-  parent: keyVault
-  name: 'AT-API-KEY'
-  properties: { value: empty(atApiKey) ? 'unset' : atApiKey }
 }
 
 // ─── Storage account (Blob) — managed-identity access, no shared keys ─────────
@@ -245,7 +237,6 @@ var appSecrets = [
   { name: 'jwt-secret', value: jwtSecretKey }
   { name: 'sendgrid-key', value: empty(sendgridApiKey) ? 'unset' : sendgridApiKey }
   { name: 'mail-password', value: empty(mailPassword) ? 'unset' : mailPassword }
-  { name: 'at-api-key', value: empty(atApiKey) ? 'unset' : atApiKey }
 ]
 
 var appEnv = [
@@ -269,10 +260,6 @@ var appEnv = [
   { name: 'JWT_SECRET_KEY', secretRef: 'jwt-secret' }
   { name: 'SENDGRID_API_KEY', secretRef: 'sendgrid-key' }
   { name: 'MAIL_PASSWORD', secretRef: 'mail-password' }
-  { name: 'AT_API_KEY', secretRef: 'at-api-key' }
-  { name: 'MFA_SMS_ENABLED', value: 'true' }
-  { name: 'PROCTORING_SMS_ALERT_ENABLED', value: 'true' }
-  { name: 'PROCTORING_SMS_RECIPIENT', value: proctoringSmsRecipient }
   { name: 'FRONTEND_ORIGIN', value: 'https://${webAppName}.${containerEnv.properties.defaultDomain}' }
 ]
 

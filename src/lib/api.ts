@@ -635,6 +635,9 @@ export const questionsApi = {
 /* ─── Assessment sessions ───────────────────────────────────────────────────── */
 
 export const sessionsApi = {
+  reviewAnswers: (id: string) => request<{ id: string; question: string; response: string; maximum: number; awarded: number }[]>(`/sessions/${id}/review-answers`),
+  finalizeResult: (id: string, decision: 'accept' | 'reject', marks: Record<string, number>) =>
+    request<ApiSession>(`/sessions/${id}/finalize-result`, { method: 'POST', body: { decision, marks } }),
   list(params?: PageQuery & { assessmentId?: string }) {
     return request<Paginated<ApiSession>>(`/sessions${qs(params)}`, { auth: true });
   },

@@ -29,7 +29,7 @@ from app.security import (
     verify_mfa_code,
     verify_password,
 )
-from app.services import audit_service, email_service, sendgrid_service, sms_service
+from app.services import audit_service, email_service, sendgrid_service
 
 
 def _now() -> datetime:
@@ -321,10 +321,7 @@ def _set_email_otp(user: User) -> str:
 
 def _send_email_otp(user: User) -> None:
     code = _set_email_otp(user)
-    # Deliver the same one-time code over both channels so the user receives it
-    # by email and by SMS (Africa's Talking). Either channel is sufficient.
     email_service.deliver("mfa_code", str(user.id), code)
-    sms_service.deliver_mfa_code(str(user.id), code)
 
 
 def _verify_email_otp(user: User, code: str) -> bool:

@@ -152,7 +152,7 @@ const RegisterPage: React.FC = () => {
     if (faceStatus !== 'captured' && !import.meta.env.DEV) { toast.error('Please capture your face to complete registration'); return; }
     if (!form.agreeTerms) { toast.error('Please agree to the terms'); return; }
     try {
-      await authApi.register({
+      const result = await authApi.register({
         fullName: form.name,
         email: form.email,
         password: form.password,
@@ -161,7 +161,7 @@ const RegisterPage: React.FC = () => {
         position: form.role === 'recruiter' ? 'Recruiter' : 'Candidate',
         facePhoto: capturedPhoto ?? undefined,
       });
-      toast.success('Registration successful! You can now log in.');
+      toast.success(result.message);
       navigate('/login');
     } catch (err: any) {
       toast.error(err.message || 'Registration failed. Please try again.');

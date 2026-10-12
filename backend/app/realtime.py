@@ -396,14 +396,11 @@ def handle_disconnect():  # pragma: no cover - cleanup is automatic
                 {"userId": str(user_id), "status": "offline"},
                 room=MONITOR_ROOM,
             )
-            # Send SMS warning recruiter that candidate closed browser / went offline
             from app.repositories import sessions as session_repo
             active_session = session_repo.base_query().filter_by(
                 candidate_id=user_id, status=SessionStatus.in_progress
             ).first()
             if active_session:
-                from app.services.sms_service import deliver_offline_alert
-                deliver_offline_alert(active_session)
                 # Also push an in-app notification to the recruiter (online now).
                 try:
                     from app.services import notification_service

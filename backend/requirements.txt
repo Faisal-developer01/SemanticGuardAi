@@ -40,10 +40,9 @@ eventlet==0.41.2
 celery==5.4.0
 redis==5.0.7
 
-# Email & SMS
+# Email
 Flask-Mail==0.10.0
 sendgrid==6.11.0
-africastalking==1.2.6
 
 # Storage (Azure Blob + S3/MinIO compatible)
 azure-storage-blob==12.20.0
@@ -62,6 +61,7 @@ opencensus-ext-azure==1.1.13
 
 # Config & utilities
 python-dotenv==1.0.1
+requests==2.32.5
 gunicorn==22.0.0
 structlog==24.2.0
 

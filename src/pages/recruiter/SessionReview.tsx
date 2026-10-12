@@ -223,7 +223,24 @@ const SessionReview: React.FC = () => {
     [sessionId],
   );
   const { data: alertData, reload: reloadAlerts } = useAsync(() => sessionsApi.alerts(sessionId), [sessionId]);
-  const { data: session } = useAsync(() => sessionsApi.get(sessionId), [sessionId]);
+  const { data: session, reload: reloadSession } = useAsync(() => sessionsApi.get(sessionId), [sessionId]);
+  const { data: manualAnswers } = useAsync(() => sessionsApi.reviewAnswers(sessionId), [sessionId]);
+  const [marks, setMarks] = useState<Record<string, number>>({});
+  const [finalizing, setFinalizing] = useState(false);
+
+  const finalizeResult = async (decision: 'accept' | 'reject') => {
+    setFinalizing(true);
+    try {
+      await sessionsApi.finalizeResult(sessionId, decision, marks);
+      reloadSession();
+      reload();
+      toast.success('Result finalized. Candidate notifications queued.');
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : 'Could not finalize this result');
+    } finally {
+      setFinalizing(false);
+    }
+  };
   const { data: evidence } = useAsync(() => evidenceApi.list(sessionId), [sessionId]);
   const { data: codeIntegrity } = useAsync(() => sessionsApi.codeIntegrity(sessionId), [sessionId]);
 
@@ -301,6 +318,26 @@ const SessionReview: React.FC = () => {
             </Button>
           </div>
         </div>
+
+        {session && ['processing', 'under_review'].includes(session.gradingStatus ?? '') && <section className="border-y border-border py-4 space-y-3">
+          <h2 className="text-sm font-semibold">Finalize assessment result</h2>
+          {manualAnswers?.map(answer => <div key={answer.id} className="space-y-2">
+            <p className="text-sm font-medium">{answer.question}</p>
+            <p className="text-sm text-muted-foreground whitespace-pre-wrap">{answer.response}</p>
+            <label className="flex items-center gap-2 text-sm">Marks / {answer.maximum}
+              <Input type="number" min={0} max={answer.maximum} step="0.5" className="w-24"
+                value={marks[answer.id] ?? ''} onChange={event => setMarks(previous => ({ ...previous, [answer.id]: Number(event.target.value) }))} />
+            </label>
+          </div>)}
+          <div className="flex flex-wrap gap-2">
+            <Button size="sm" disabled={finalizing || !manualAnswers || manualAnswers.some(answer => marks[answer.id] == null)} onClick={() => finalizeResult('accept')}>
+              <CheckCircle2 className="w-4 h-4 mr-2" />Approve final result
+            </Button>
+            <Button size="sm" variant="destructive" disabled={finalizing} onClick={() => finalizeResult('reject')}>
+              <XCircle className="w-4 h-4 mr-2" />Invalidate result
+            </Button>
+          </div>
+        </section>}
 
         {/* AI Explainability Dashboard */}
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">

@@ -333,9 +333,9 @@ def _finalize_session(session, candidate):
     # Passing candidates are automatically issued a completion certificate and an
     # offer letter, then emailed both as PDF attachments. Never let credential
     # issuance break submission.
-    if session.passed:
+    if session.grading_status == "graded":
         try:
-            _issue_credentials(session)
+            notify_final_result(session)
         except Exception:  # noqa: BLE001
             from flask import current_app
 
@@ -344,14 +344,93 @@ def _finalize_session(session, candidate):
     return session
 
 
-def _issue_credentials(session) -> None:
+def notify_final_result(session):
+    from app.services import email_service
+
+    if session.grading_status != "graded":
+        return
+    if session.passed:
+        try:
+            _issue_credentials(session)
+        except Exception:
+            from flask import current_app
+            current_app.logger.exception("Credential issuance failed for finalized session %s", session.id)
+    if not session.passed:
+        email_service.deliver("notification", str(session.candidate_id), "Assessment result finalized",
+                              f"Your result for {session.assessment.title} is finalized. You did not pass this assessment.")
+
+
+def finalize_review(user, session_id, data):
+    import math
+
+    session = sessions.get_or_404(session_id)
+    if user.role_name.value not in {"admin", "recruiter"}:
+        raise ForbiddenError("Only recruiters or administrators can finalize results")
+    if user.role_name.value == "recruiter" and str(session.assessment.recruiter_id) != str(user.id):
+        raise ForbiddenError("Not your assessment")
+    if session.grading_status not in {"processing", "under_review"} or session.status == SessionStatus.in_progress:
+        raise ConflictError("This result is not awaiting review")
+    decision = data.get("decision")
+    if decision not in {"accept", "reject"}:
+        raise ConflictError("Decision must be accept or reject")
+    manual_marks = data.get("marks", {})
+    if not isinstance(manual_marks, dict):
+        raise ConflictError("Marks must be an answer-ID to awarded-marks mapping")
+    recorded_answers = answers.for_session(session.id)
+    question_map = {str(question.id): question for question in session.assessment.questions}
+    updates = []
+    for answer in recorded_answers:
+        question = question_map.get(str(answer.question_id))
+        if not question:
+            continue
+        if question.type != QuestionType.short_answer or not answer.response:
+            continue
+        awarded = manual_marks.get(str(answer.id))
+        if decision == "reject":
+            awarded = 0
+        if isinstance(awarded, bool) or not isinstance(awarded, (int, float)) or not math.isfinite(awarded) or not 0 <= awarded <= question.marks:
+            raise ConflictError("Each short answer requires valid marks between zero and its maximum")
+        updates.append((answer, awarded, question.marks))
+    for answer, awarded, maximum in updates:
+        answer.awarded_marks = awarded
+        answer.is_correct = awarded == maximum
+    previously_passed = session.passed
+    session.score = round(sum(answer.awarded_marks or 0 for answer in recorded_answers), 2) if decision == "accept" else 0
+    session.percentage = round(session.score / session.max_score * 100, 2) if session.max_score else 0
+    session.passed = decision == "accept" and session.percentage >= session.assessment.pass_mark
+    session.grading_status = "graded"
+    session.status = SessionStatus.completed
+    profile = session.candidate.candidate_profile
+    if profile:
+        profile.passed_assessments += int(bool(session.passed)) - int(bool(previously_passed))
+    sessions.session.commit()
+    audit_service.record("session.result_finalized", user=user, resource=str(session.id), details=f"decision={decision}")
+    notify_final_result(session)
+    return session
+
+
+def review_answers(user, session_id):
+    session = sessions.get_or_404(session_id)
+    if user.role_name.value not in {"admin", "recruiter"}:
+        raise ForbiddenError("Only recruiters or administrators can review answers")
+    if user.role_name.value == "recruiter" and str(session.assessment.recruiter_id) != str(user.id):
+        raise ForbiddenError("Not your assessment")
+    questions = {str(question.id): question for question in session.assessment.questions}
+    return [{"id": str(answer.id), "question": questions[str(answer.question_id)].text,
+             "response": answer.response, "maximum": questions[str(answer.question_id)].marks,
+             "awarded": answer.awarded_marks}
+            for answer in answers.for_session(session.id)
+            if str(answer.question_id) in questions and questions[str(answer.question_id)].type == QuestionType.short_answer and answer.response]
+
+
+def _issue_credentials(session) -> list:
     from app.models.enums import NotificationType
     from app.services import certificate_service, email_service, notification_service
 
     creds = certificate_service.issue_for_passed_session(session)
     cred_ids = [str(c.id) for c in creds if c]
     if not cred_ids:
-        return
+        return []
     email_service.deliver("credential", str(session.candidate_id), cred_ids)
     try:
         notification_service.create(
@@ -363,6 +442,7 @@ def _issue_credentials(session) -> None:
         )
     except Exception:  # noqa: BLE001 - notification is best-effort
         pass
+    return creds
 
 
 def _auto_close_if_expired(session):
@@ -403,10 +483,6 @@ def ingest_event(user, session_id, event_type: str, confidence: float = 0.0,
     if alert is not None:
         from app.services import notification_service
         notification_service.notify_alert(session, alert)
-        
-        # Trigger proctoring alert SMS
-        from app.services.sms_service import deliver_proctoring_alert
-        deliver_proctoring_alert(session, alert)
 
     # Real-time flagging check if risk score exceeds assessment's risk threshold
     assessment = session.assessment
@@ -415,13 +491,10 @@ def ingest_event(user, session_id, event_type: str, confidence: float = 0.0,
         session.flagged_reason = f"Risk score ({session.risk_score}) exceeded threshold ({assessment.risk_threshold})"
         session.flagged_at = _now()
         sessions.session.commit()
-        # Notify the recruiter of the high-risk crossing (push + SMS), once.
         try:
             from app.services import notification_service
-            from app.services.sms_service import deliver_high_risk_alert
 
             notification_service.notify_high_risk(session)
-            deliver_high_risk_alert(session)
         except Exception:  # noqa: BLE001 - notification is best-effort
             pass
 

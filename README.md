@@ -13,7 +13,8 @@ SemanticGuard AI is a web-based assessment integrity platform built for **Semant
 - **Eye-gaze tracking & head-pose estimation** — detects sustained off-screen attention.
 - **Browser activity monitoring** — logs tab switching and loss of assessment-window focus.
 - **Composite risk-scoring engine** — fuses all signals into one explainable integrity score with a visible breakdown.
-- **Multi-channel alerts** — escalates high-risk events across dashboard, email, and SMS (Africa's Talking gateway).
+- **Multi-channel alerts** — dashboard and email notifications.
+- **Email assessment results** — finalized pass/fail notifications and certificate and offer-letter PDF delivery through SMTP, including Brevo.
 - **Evidence & audit logging** — produces timestamped, tamper-evident records for hiring-integrity reviews.
 
 ## User Roles

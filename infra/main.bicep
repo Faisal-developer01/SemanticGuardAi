@@ -28,15 +28,11 @@ param appSecretKey string = newGuid()
 @description('Flask JWT secret (auto-generated if not supplied).')
 param jwtSecretKey string = newGuid()
 
-// Optional application secrets (email / SMS). Leave blank to configure later.
+// Optional application secrets (email). Leave blank to configure later.
 @secure()
 param sendgridApiKey string = ''
 @secure()
 param mailPassword string = ''
-@secure()
-param atApiKey string = ''
-@description('Proctoring alert SMS recipient (E.164).')
-param proctoringSmsRecipient string = ''
 
 var tags = { 'azd-env-name': environmentName }
 var resourceToken = uniqueString(subscription().id, location, environmentName)
@@ -60,8 +56,6 @@ module resources 'resources.bicep' = {
     jwtSecretKey: jwtSecretKey
     sendgridApiKey: sendgridApiKey
     mailPassword: mailPassword
-    atApiKey: atApiKey
-    proctoringSmsRecipient: proctoringSmsRecipient
   }
 }
 

@@ -205,7 +205,6 @@ def _load_keyvault_secrets(app: Flask) -> None:
             "JWT_SECRET_KEY": "jwt-secret-key",
             "SQLALCHEMY_DATABASE_URI": "database-url",
             "MAIL_PASSWORD": "mail-password",
-            "AT_API_KEY": "africastalking-api-key",
             "AZURE_STORAGE_CONNECTION_STRING": "storage-connection-string",
         }
         for config_key, secret_name in mapping.items():

@@ -26,7 +26,6 @@ const NotificationsPage: React.FC = () => {
   const [filter, setFilter] = useState<FilterKey>('all');
   const [overrides, setOverrides] = useState<Record<string, { read?: boolean; removed?: boolean }>>({});
   const [live, setLive] = useState<ApiNotification[]>([]);
-
   // Prepend notifications that arrive over the socket while this page is open.
   useUserNotifications((n) => {
     setLive((prev) => [n, ...prev.filter((x) => x.id !== n.id)]);

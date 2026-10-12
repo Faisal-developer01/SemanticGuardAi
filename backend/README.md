@@ -79,3 +79,54 @@ celery -A celery_app.celery worker --loglevel=info
 
 > Steps 2–7 (CRUD APIs, auth flows, frontend integration, AI modules,
 > notifications, deployment) are delivered incrementally.
+
+## Brevo SMTP (email delivery)
+
+For local development, enter these values in `backend/.env` (not the frontend
+`.env.local`). Copy `backend/.env.example` only if `backend/.env` does not already
+exist; do not overwrite an existing configuration.
+
+```dotenv
+MAIL_SERVER=smtp-relay.brevo.com
+MAIL_PORT=587
+MAIL_USE_TLS=true
+MAIL_USERNAME=your-brevo-smtp-login
+MAIL_PASSWORD=your-brevo-smtp-key
+MAIL_DEFAULT_SENDER=SemanticGuard AI <your-verified-sender@example.com>
+MAIL_SUPPRESS_SEND=false
+```
+
+Use the **SMTP login** and **SMTP key** shown in Brevo under **SMTP & API > SMTP**.
+The SMTP key belongs in `MAIL_PASSWORD`; it is not a Brevo API key or your account
+password. The address in `MAIL_DEFAULT_SENDER` must be verified in Brevo. Never
+commit the real key or put it in a `VITE_*` variable.
+
+For the deployed site, open Azure Portal > App Services > `semanticguardai-rw` >
+Settings > Environment variables (Application settings), add the same settings,
+save/apply, and restart the app. A local `.env` does not configure Azure. Any
+separate Celery worker needs the same SMTP settings and a restart as well.
+
+When a passing result is finalized (`grading_status=graded`), the app automatically
+issues the certificate and offer letter and queues an email with PDF attachments
+to the candidate's registered email address. Results awaiting processing or review
+do not issue documents until finalized.
+Existing certificates are not automatically resent just by changing SMTP settings.
+
+Run locally from `backend` with `flask --app wsgi run --debug` so Flask loads the
+local `.env`. In production, run Redis and the Celery worker for queued delivery.
+If the broker is unavailable, email dispatch falls back to a background thread;
+this fallback is not a durable queue. If the broker accepts a job but no worker is
+running, the email waits in the queue. SMTP acceptance does not guarantee inbox
+delivery; check Brevo transactional logs and the recipient's spam folder.
+
+Registration OTP currently uses a separate SendGrid integration; these SMTP
+settings configure certificate emails, email MFA, password resets and ordinary
+email notifications, not the SendGrid registration OTP template.
+
+### Retired messaging integration
+
+Automated WhatsApp messaging, account verification, and delivery tracking have
+been removed. Delete obsolete `WHATSAPP_*` settings and revoke unused provider
+credentials in Azure/Meta separately; repository edits do not remove deployed
+secrets. The historical database migration is retained for upgrade compatibility;
+its legacy contact columns and delivery table are unused by the application.

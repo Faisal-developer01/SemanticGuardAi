@@ -110,6 +110,21 @@ def ingest_event(session_id):
     })
 
 
+@bp.post("/<uuid:session_id>/finalize-result")
+@jwt_required()
+@recruiter_required
+def finalize_result(session_id):
+    session = session_service.finalize_review(current_user(), str(session_id), body())
+    return ok(_session_schema.dump(session))
+
+
+@bp.get("/<uuid:session_id>/review-answers")
+@jwt_required()
+@recruiter_required
+def review_answers(session_id):
+    return ok(session_service.review_answers(current_user(), str(session_id)))
+
+
 @bp.get("/<uuid:session_id>/alerts")
 @jwt_required()
 @recruiter_required

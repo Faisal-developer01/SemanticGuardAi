@@ -256,7 +256,7 @@ const LoginPage: React.FC = () => {
                   <h2 className="text-2xl font-bold text-balance" style={{ color: 'hsl(214,68%,19%)' }}>Two-Factor Auth</h2>
                   <p className="text-sm mt-1 text-muted-foreground text-center text-balance">
                     {mfaMethod === 'email'
-                      ? <>Enter the code we sent to <span className="font-medium text-foreground">{email}</span> and your phone by SMS</>
+                      ? <>Enter the code we sent to <span className="font-medium text-foreground">{email}</span></>
                       : 'Enter the 6-digit code from your authenticator app'}
                   </p>
                 </div>
