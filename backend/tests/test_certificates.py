@@ -158,7 +158,7 @@ def test_credential_email_attaches_certificate_pdf(candidate, credential, monkey
 
     messages = []
 
-    def capture_email(to, subject, html_body, text_body, attachments):
+    def capture_email(to, subject, html_body, text_body, attachments, **kwargs):
         messages.append((to, attachments))
         return True
 
@@ -312,10 +312,65 @@ def test_candidate_can_email_existing_pdf(client, app, auth_header, credential, 
 def test_email_rejection_is_reported(client, auth_header, credential, monkeypatch):
     from app.services import email_service
 
-    monkeypatch.setattr(email_service, "send_credential_email", lambda *args: False)
+    monkeypatch.setattr(email_service, "send_credential_email", lambda *args, **kwargs: False)
     response = client.post(f"/api/v1/certificates/{credential.id}/email", headers=auth_header(client, "candidate@test.rw"))
     assert response.status_code == 502
     assert "could not be emailed" in response.get_json()["message"]
+
+
+@pytest.mark.parametrize("failure, expected_code", [
+    ("authentication", "email_authentication_failed"),
+    ("sender", "email_sender_rejected"),
+    ("recipient", "email_recipient_rejected"),
+    ("data", "email_message_rejected"),
+    ("tls", "email_tls_failed"),
+    ("timeout", "email_connection_timeout"),
+    ("connection", "email_connection_failed"),
+    ("unknown", "email_delivery_failed"),
+])
+def test_email_failure_is_categorized_without_leaking_provider_details(client, app, auth_header, credential, monkeypatch, failure, expected_code):
+    import smtplib
+    import ssl
+    from app.services import email_service
+
+    private_detail = "private-provider-detail"
+    failures = {
+        "authentication": smtplib.SMTPAuthenticationError(535, private_detail.encode()),
+        "sender": smtplib.SMTPSenderRefused(550, private_detail.encode(), "sender@example.com"),
+        "recipient": smtplib.SMTPRecipientsRefused({"recipient@example.com": (550, private_detail.encode())}),
+        "data": smtplib.SMTPDataError(554, private_detail.encode()),
+        "tls": ssl.SSLError(private_detail),
+        "timeout": TimeoutError(private_detail),
+        "connection": ConnectionRefusedError(private_detail),
+        "unknown": RuntimeError(private_detail),
+    }
+
+    def reject(message):
+        raise failures[failure]
+
+    monkeypatch.setitem(app.config, "MAIL_SUPPRESS_SEND", False)
+    monkeypatch.setitem(app.config, "MAIL_SERVER", "smtp.example.com")
+    monkeypatch.setattr(email_service.mail, "send", reject)
+    response = client.post(f"/api/v1/certificates/{credential.id}/email", headers=auth_header(client, "candidate@test.rw"))
+
+    assert response.status_code == 502
+    assert response.get_json()["error"] == expected_code
+    assert private_detail not in response.get_data(as_text=True)
+    assert email_service.send_credential_email(str(credential.candidate_id), [str(credential.id)]) is False
+
+
+@pytest.mark.parametrize("suppressed, expected_code", [(True, "email_disabled"), (False, "email_not_configured")])
+def test_email_configuration_failure_is_reported(client, app, auth_header, credential, monkeypatch, suppressed, expected_code):
+    from app.services import email_service
+
+    monkeypatch.setitem(app.config, "MAIL_SUPPRESS_SEND", suppressed)
+    monkeypatch.setitem(app.config, "MAIL_SERVER", "localhost")
+    monkeypatch.setitem(app.config, "MAIL_USERNAME", None)
+    monkeypatch.setattr(email_service.mail, "send", lambda message: pytest.fail("SMTP must not be called"))
+    response = client.post(f"/api/v1/certificates/{credential.id}/email", headers=auth_header(client, "candidate@test.rw"))
+
+    assert response.status_code == 502
+    assert response.get_json()["error"] == expected_code
 
 
 def test_revoked_document_cannot_be_emailed(client, auth_header, credential):

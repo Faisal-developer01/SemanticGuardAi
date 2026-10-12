@@ -99,7 +99,11 @@ def email_credential(credential_id):
     cred = _get_owned_or_privileged(credential_id)
     if cred.revoked:
         raise APIError("Revoked documents cannot be emailed", status_code=409)
-    if not email_service.send_credential_email(str(cred.candidate_id), [str(cred.id)]):
+    try:
+        sent = email_service.send_credential_email(str(cred.candidate_id), [str(cred.id)], raise_on_error=True)
+    except email_service.EmailDeliveryError as exc:
+        raise APIError(str(exc), status_code=502, error_code=exc.code) from exc
+    if not sent:
         raise APIError(
             "The document could not be emailed. Please check the email configuration and try again.",
             status_code=502,

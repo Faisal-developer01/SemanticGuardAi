@@ -36,7 +36,7 @@ python -m flask --app wsgi seed-roles || echo "[startup] WARN: 'seed-roles' fail
 
 # One worker keeps Socket.IO's in-memory state shared; threads serve concurrent
 # long-poll + POST requests (Flask-SocketIO threading mode).
-echo "[startup] Launching Gunicorn with configured SMTP email delivery (gthread, 1 worker, 25 threads) on :8000..."
+echo "[startup] Launching Gunicorn with categorized SMTP delivery diagnostics (gthread, 1 worker, 25 threads) on :8000..."
 exec python -m gunicorn \
     --worker-class gthread \
     --workers 1 \

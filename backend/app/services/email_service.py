@@ -9,6 +9,8 @@ still works in local development without Redis/Celery running.
 from __future__ import annotations
 
 import threading
+import smtplib
+import ssl
 
 from flask import current_app, render_template_string
 from flask_mail import Message
@@ -57,12 +59,26 @@ def _frontend(path: str) -> str:
 
 # ─── Low-level send ─────────────────────────────────────────────────────────────
 
+class EmailDeliveryError(Exception):
+    def __init__(self, code: str, message: str):
+        super().__init__(message)
+        self.code = code
+
+
+def _delivery_failure(code: str, message: str, raise_on_error: bool) -> bool:
+    if raise_on_error:
+        raise EmailDeliveryError(code, message)
+    return False
+
+
 def send_email(
     to: str,
     subject: str,
     html_body: str,
     text_body: str | None = None,
     attachments: list[tuple[str, str, bytes]] | None = None,
+    *,
+    raise_on_error: bool = False,
 ) -> bool:
     """Send a single email. Returns ``True`` when handed to the mail server.
 
@@ -70,23 +86,39 @@ def send_email(
     """
     if current_app.config.get("MAIL_SUPPRESS_SEND"):
         current_app.logger.info("MAIL_SUPPRESS_SEND active; skipped email to %s (%s)", to, subject)
-        return False
+        return _delivery_failure("email_disabled", "Email delivery is disabled on the server. Contact the administrator.", raise_on_error)
     if not current_app.config.get("MAIL_USERNAME") and current_app.config.get("MAIL_SERVER") in (None, "localhost"):
         current_app.logger.warning(
             "SMTP not configured (MAIL_USERNAME/MAIL_SERVER); email to %s not sent: %s", to, subject
         )
-        return False
+        return _delivery_failure("email_not_configured", "The server has no email provider configured. Contact the administrator.", raise_on_error)
 
-    msg = Message(subject=subject, recipients=[to], html=html_body, body=text_body or "")
-    for filename, mimetype, data in attachments or []:
-        msg.attach(filename=filename, content_type=mimetype, data=data)
     try:
+        msg = Message(subject=subject, recipients=[to], html=html_body, body=text_body or "")
+        for filename, mimetype, data in attachments or []:
+            msg.attach(filename=filename, content_type=mimetype, data=data)
         mail.send(msg)
         current_app.logger.info("Email sent to %s: %s", to, subject)
         return True
-    except Exception:  # noqa: BLE001 - never break the request because mail failed
+    except Exception as exc:  # noqa: BLE001 - never break the request because mail failed
         current_app.logger.exception("Failed to send email to %s: %s", to, subject)
-        return False
+        if isinstance(exc, smtplib.SMTPAuthenticationError):
+            code, message = "email_authentication_failed", "The email provider rejected the server's SMTP login or key. Contact the administrator."
+        elif isinstance(exc, smtplib.SMTPSenderRefused):
+            code, message = "email_sender_rejected", "The email provider rejected the sender address. Contact the administrator to check the verified sender."
+        elif isinstance(exc, smtplib.SMTPRecipientsRefused):
+            code, message = "email_recipient_rejected", "The email provider rejected the registered recipient address. Contact the administrator."
+        elif isinstance(exc, smtplib.SMTPDataError):
+            code, message = "email_message_rejected", "The email provider rejected the document email. Contact the administrator to check sending limits and account status."
+        elif isinstance(exc, ssl.SSLError):
+            code, message = "email_tls_failed", "The server could not establish a secure connection to the email provider. Contact the administrator."
+        elif isinstance(exc, TimeoutError):
+            code, message = "email_connection_timeout", "The connection to the email provider timed out. Please try again later."
+        elif isinstance(exc, (OSError, smtplib.SMTPServerDisconnected, smtplib.SMTPConnectError)):
+            code, message = "email_connection_failed", "The server could not connect to the email provider. Contact the administrator to check SMTP connectivity."
+        else:
+            code, message = "email_delivery_failed", "The document could not be emailed. Contact the administrator."
+        return _delivery_failure(code, message, raise_on_error)
 
 
 # ─── Content builders + senders (called by Celery tasks or inline) ──────────────
@@ -163,7 +195,7 @@ def send_notification_email(user_id: str, subject: str, message: str) -> bool:
     return send_email(user.email, subject, html, message)
 
 
-def send_credential_email(user_id: str, credential_ids: list[str]) -> bool:
+def send_credential_email(user_id: str, credential_ids: list[str], *, raise_on_error: bool = False) -> bool:
     """Email the candidate their certificate and/or offer letter as PDF attachments."""
     from app.repositories import credentials as credentials_repo
     from app.repositories import users
@@ -171,7 +203,7 @@ def send_credential_email(user_id: str, credential_ids: list[str]) -> bool:
 
     user = users.get(user_id)
     if not user:
-        return False
+        return _delivery_failure("email_recipient_missing", "The document recipient could not be found. Contact the administrator.", raise_on_error)
 
     attachments: list[tuple[str, str, bytes]] = []
     labels: list[str] = []
@@ -188,7 +220,7 @@ def send_credential_email(user_id: str, credential_ids: list[str]) -> bool:
         labels.append("Completion Certificate" if cred.type.value == "certificate" else "Offer Letter")
 
     if not attachments:
-        return False
+        return _delivery_failure("email_document_unavailable", "The document PDF could not be prepared for email. Please try downloading it or contact the administrator.", raise_on_error)
 
     items = "".join(f"<li>{label}</li>" for label in labels)
     body = (
@@ -204,6 +236,7 @@ def send_credential_email(user_id: str, credential_ids: list[str]) -> bool:
         html,
         "Congratulations on passing your assessment. Your documents are attached.",
         attachments=attachments,
+        raise_on_error=raise_on_error,
     )
 
 

@@ -116,6 +116,10 @@ Candidates can use the mail icon on their Certificates page to email an existing
 document to their registered address. This action reports SMTP rejection instead
 of claiming success, and does not issue a replacement certificate. SMTP acceptance
 still does not guarantee inbox delivery.
+Manual retries return safe failure categories for disabled/unconfigured delivery,
+SMTP authentication, sender or recipient rejection, message rejection, TLS and
+connection errors, or an unavailable PDF. Provider responses and credentials are
+not included in the API error. Automatic delivery keeps its boolean success result.
 
 Run locally from `backend` with `flask --app wsgi run --debug` so Flask loads the
 local `.env`. Azure App Service defaults to `EMAIL_DELIVERY_MODE=thread` when
