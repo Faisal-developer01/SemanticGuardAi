@@ -126,6 +126,26 @@ def test_offer_letter_cached_download_remains_unchanged(credential, tmp_path):
     assert service._pdf_filename(credential) == f"{credential.number}.pdf"
 
 
+@pytest.mark.parametrize("credential_type,kind", [
+    (CredentialType.certificate, "CERT"),
+    (CredentialType.offer_letter, "OFFER"),
+])
+def test_download_filename_uses_assessment_and_candidate(credential, credential_type, kind):
+    credential.type = credential_type
+    credential.title = "Web Development"
+    credential.candidate_name = "Huston Faizzo"
+    assert service.download_filename(credential) == f"Web Development_{kind}_Huston Faizzo.pdf"
+
+
+def test_download_filename_removes_unsafe_characters_and_falls_back_to_id(credential):
+    credential.title = '  Web / Development: <Basics>?  '
+    credential.candidate_name = '  Huston / Faizzo:*?  '
+    assert service.download_filename(credential) == "Web Development Basics_CERT_Huston Faizzo.pdf"
+    credential.title = "///"
+    credential.candidate_name = "???"
+    assert service.download_filename(credential) == f"Assessment_CERT_{credential.candidate_id}.pdf"
+
+
 def test_candidate_download_contains_branding_and_keeps_verification(client, candidate, auth_header, credential):
     headers = auth_header(client, "candidate@test.rw")
     response = client.get(f"/api/v1/certificates/{credential.id}/download", headers=headers)
@@ -133,6 +153,7 @@ def test_candidate_download_contains_branding_and_keeps_verification(client, can
     assert response.mimetype == "application/pdf"
     assert response.data.count(b"/Subtype /Image") == 4
     assert "attachment;" in response.headers["Content-Disposition"]
+    assert service.download_filename(credential) in response.headers["Content-Disposition"]
     verified = client.get(f"/api/v1/certificates/verify/{credential.verification_token}").get_json()
     assert verified["valid"] is True
     assert verified["number"] == credential.number

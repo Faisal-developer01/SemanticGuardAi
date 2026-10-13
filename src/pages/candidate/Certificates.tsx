@@ -31,8 +31,11 @@ const CredentialCard: React.FC<{ cred: ApiCredential }> = ({ cred }) => {
   const download = async () => {
     setDownloading(true);
     try {
-      const kind = isCert ? 'Certificate' : 'Offer-Letter';
-      await certificatesApi.download(cred.id, `${kind}-${cred.number}.pdf`);
+      const kind = isCert ? 'CERT' : 'OFFER';
+      const safePart = (value: string) => value.replace(/[^\p{L}\p{N} _-]/gu, '').replace(/\s+/g, ' ').trim().slice(0, 80).trim();
+      const title = safePart(cred.title || '') || 'Assessment';
+      const candidate = safePart(cred.candidateName || '') || cred.candidateId;
+      await certificatesApi.download(cred.id, `${title}_${kind}_${candidate}.pdf`);
     } catch {
       toast.error('Could not download the document. Please try again.');
     } finally {

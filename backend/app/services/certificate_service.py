@@ -455,9 +455,10 @@ def get_pdf_bytes(cred) -> bytes:
 
 
 def download_filename(cred) -> str:
-    kind = "Certificate" if cred.type == CredentialType.certificate else "Offer-Letter"
-    safe_name = "".join(ch for ch in cred.candidate_name if ch.isalnum() or ch in " -_").strip().replace(" ", "-")
-    return f"{kind}-{safe_name}-{cred.number}.pdf"
+    kind = "CERT" if cred.type == CredentialType.certificate else "OFFER"
+    safe_title = " ".join("".join(ch for ch in (cred.title or "") if ch.isalnum() or ch in " -_").split())[:80].strip(" .") or "Assessment"
+    safe_name = " ".join("".join(ch for ch in (cred.candidate_name or "") if ch.isalnum() or ch in " -_").split())[:80].strip(" .") or str(cred.candidate_id)
+    return f"{safe_title}_{kind}_{safe_name}.pdf"
 
 
 def issue(session, credential_type: CredentialType, *, position: str | None = None, body: str | None = None):
