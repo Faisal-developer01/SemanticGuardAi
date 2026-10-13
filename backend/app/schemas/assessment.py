@@ -153,6 +153,10 @@ class SessionSchema(CamelCaseSchema):
         dump_only=True,
     )
     candidate_id = fields.Str(dump_only=True)
+    candidate_code = fields.Function(
+        lambda o: getattr(getattr(getattr(o, "candidate", None), "candidate_profile", None), "candidate_code", None),
+        dump_only=True,
+    )
     candidate_name = fields.Function(
         lambda o: getattr(o.candidate, "full_name", None) if getattr(o, "candidate", None) else None,
         dump_only=True,

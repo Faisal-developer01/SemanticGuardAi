@@ -35,6 +35,44 @@ def test_register_and_login_flow(client):
     assert login.status_code == 403
 
 
+def test_registration_preserves_entered_candidate_id(client, app, monkeypatch):
+    monkeypatch.setitem(app.config, "AUTH_AUTO_VERIFY_EMAIL", True)
+    response = client.post("/api/v1/auth/register", json={
+        "fullName": "New Candidate",
+        "email": "registered-id@test.rw",
+        "password": "Password123",
+        "candidateId": " CAND2024001 ",
+    })
+    assert response.status_code == 201
+    user = response.get_json()["user"]
+    assert user["candidateProfile"]["candidateCode"] == "CAND2024001"
+    assert user["id"] != "CAND2024001"
+
+
+def test_registration_rejects_duplicate_candidate_id(client, candidate, app, monkeypatch):
+    monkeypatch.setitem(app.config, "AUTH_AUTO_VERIFY_EMAIL", True)
+    response = client.post("/api/v1/auth/register", json={
+        "fullName": "Another Candidate",
+        "email": "duplicate-id@test.rw",
+        "password": "Password123",
+        "candidateId": "CND-TEST-1",
+    })
+    assert response.status_code == 409
+    from app.repositories import users
+    assert users.get_by_email("duplicate-id@test.rw") is None
+
+
+def test_registration_without_candidate_id_keeps_generated_code(client, app, monkeypatch):
+    monkeypatch.setitem(app.config, "AUTH_AUTO_VERIFY_EMAIL", True)
+    response = client.post("/api/v1/auth/register", json={
+        "fullName": "Legacy Candidate",
+        "email": "legacy-id@test.rw",
+        "password": "Password123",
+    })
+    assert response.status_code == 201
+    assert response.get_json()["user"]["candidateProfile"]["candidateCode"].startswith("CND-")
+
+
 def test_login_success(client, candidate):
     resp = client.post(
         "/api/v1/auth/login", json={"email": "candidate@test.rw", "password": "Password123"}

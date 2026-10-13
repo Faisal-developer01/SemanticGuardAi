@@ -62,6 +62,9 @@ def register(data: dict) -> tuple[User, str]:
     role_value = data.get("role", "candidate")
     role_enum = UserRole(role_value)
     role_row = roles.get_by_name(role_value)
+    candidate_code = (data.get("candidate_code") or "").strip()
+    if role_enum == UserRole.candidate and candidate_code and candidate_profiles.find_one(candidate_code=candidate_code):
+        raise ConflictError("This Candidate ID is already registered")
 
     # Accounts must verify their email via OTP unless an environment explicitly
     # opts out (e.g. offline demos that cannot deliver email).
@@ -85,7 +88,7 @@ def register(data: dict) -> tuple[User, str]:
     if role_enum == UserRole.candidate:
         candidate_profiles.create(
             user_id=user.id,
-            candidate_code=_generate_code("CND"),
+            candidate_code=candidate_code or _generate_code("CND"),
             department=data.get("department"),
             position=data.get("position"),
             reference_photo_url=data.get("face_photo"),

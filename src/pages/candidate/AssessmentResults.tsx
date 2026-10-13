@@ -65,7 +65,7 @@ const AssessmentResults: React.FC = () => {
         : `SemanticGuard AI recorded ${session.alerts.length} integrity ${session.alerts.length === 1 ? 'event' : 'events'} during this assessment. Your final integrity score is ${Math.round(session.integrityScore)} with an aggregate risk score of ${Math.round(session.riskScore)} (${session.riskLevel.toUpperCase()} risk).`;
       const data: CandidateResultReportData = {
         candidateName: session.candidateName || user?.name || 'Candidate',
-        candidateId: session.candidateId,
+        candidateId: apiSession?.candidateCode?.trim() || 'Not available',
         assessmentTitle: title,
         assessmentDate: safeDate(session.startTime, 'MMMM d, yyyy, HH:mm'),
         durationLabel,

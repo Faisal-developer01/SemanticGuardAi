@@ -156,6 +156,7 @@ const RegisterPage: React.FC = () => {
         fullName: form.name,
         email: form.email,
         password: form.password,
+        candidateId: form.role === 'candidate' ? form.candidateId.trim() : undefined,
         role: form.role as any,
         department: form.department,
         position: form.role === 'recruiter' ? 'Recruiter' : 'Candidate',
@@ -258,7 +259,7 @@ const RegisterPage: React.FC = () => {
                   <div className="grid grid-cols-2 gap-3">
                     <div className="space-y-1.5">
                       <Label htmlFor="candidateId" className="text-sm font-normal">Candidate ID</Label>
-                      <Input id="candidateId" value={form.candidateId} onChange={e => handleChange('candidateId', e.target.value)} placeholder="CAND2024001" />
+                      <Input id="candidateId" value={form.candidateId} onChange={e => handleChange('candidateId', e.target.value)} placeholder="CAND2024001" maxLength={40} />
                       {errors.candidateId && <p className="text-destructive text-xs">{errors.candidateId}</p>}
                     </div>
                     <div className="space-y-1.5">

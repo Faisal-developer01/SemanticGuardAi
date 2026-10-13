@@ -204,6 +204,7 @@ export const authApi = {
     fullName: string;
     email: string;
     password: string;
+    candidateId?: string;
     role?: UserRole;
     phone?: string;
     department?: string;
@@ -392,6 +393,7 @@ export interface ApiSession {
   assessmentId: string;
   assessmentTitle?: string | null;
   candidateId: string;
+  candidateCode?: string | null;
   candidateName?: string | null;
   candidateEmail?: string | null;
   startedAt?: string | null;

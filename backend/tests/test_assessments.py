@@ -85,6 +85,12 @@ def test_starting_session_emits_candidate_started_to_monitor(
     )
     assert started.status_code == 201
     session = started.get_json()
+    assert session["candidateId"] == str(candidate.id)
+    assert session["candidateCode"] == candidate.candidate_profile.candidate_code
+    retrieved = client.get(f"/api/v1/sessions/{session['id']}", headers=candidate_headers)
+    assert retrieved.get_json()["candidateCode"] == candidate.candidate_profile.candidate_code
+    listed = client.get("/api/v1/sessions", headers=recruiter_headers).get_json()
+    assert listed["items"][0]["candidateCode"] == candidate.candidate_profile.candidate_code
 
     events = monitor.get_received()
     payload = next(

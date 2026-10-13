@@ -188,7 +188,7 @@ const RecruiterReports: React.FC = () => {
       const name = s.candidateName?.trim() || s.candidateEmail || `Candidate ${s.candidateId.slice(0, 8)}`;
       return {
         sessionId: s.id,
-        candidateId: s.candidateId,
+        candidateId: s.candidateCode?.trim() || 'Not available',
         name,
         email: s.candidateEmail ?? '',
         assessmentId: s.assessmentId,
@@ -432,7 +432,7 @@ const RecruiterReports: React.FC = () => {
                     </td>
                     <td className="px-4 py-3 text-sm font-medium text-foreground whitespace-nowrap">{r.name}</td>
                     <td className="px-4 py-3 text-xs text-muted-foreground whitespace-nowrap">
-                      {r.email || `${r.candidateId.slice(0, 12)}…`}
+                      {r.email || r.candidateId}
                     </td>
                     <td className="px-4 py-3 text-xs text-muted-foreground whitespace-nowrap max-w-[200px] truncate">
                       {r.assessmentTitle || '—'}
