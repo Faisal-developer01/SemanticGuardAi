@@ -52,7 +52,7 @@ const SystemSettings: React.FC = () => {
         </div>
 
         <Tabs defaultValue="ai">
-          <TabsList className="bg-muted">
+          <TabsList className="grid h-auto w-full grid-cols-2 gap-1 bg-muted sm:grid-cols-4">
             <TabsTrigger value="ai" className="flex items-center gap-1.5">
               <Shield className="w-3.5 h-3.5" /> AI Detection
             </TabsTrigger>

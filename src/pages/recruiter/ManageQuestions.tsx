@@ -1,7 +1,7 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import { useSearchParams } from 'react-router-dom';
 import { AppLayout } from '@/components/layouts/AppLayout';
-import { assessmentsApi, questionsApi } from '@/lib/api';
+import { assessmentsApi, questionsApi, type QuestionInput } from '@/lib/api';
 import { ApiError } from '@/lib/api';
 import { mapAssessment, mapQuestion } from '@/lib/mappers';
 import { useAsync } from '@/lib/useApi';
@@ -43,6 +43,7 @@ interface NewQuestionForm {
   entryPoint: string;
   language: CodingLanguage;
   starterCode: string;
+  starterCodes: Record<string, string>;
   testCases: TestCaseForm[];
 }
 
@@ -62,6 +63,7 @@ const DEFAULT_NEW_Q: NewQuestionForm = {
   entryPoint: 'sumEven',
   language: 'javascript',
   starterCode: 'function sumEven(nums) {\n  // your code\n}',
+  starterCodes: {},
   testCases: [
     { args: '[[1,2,3,4,5,6]]', expectedOutput: '12', display: 'sumEven([1,2,3,4,5,6]) -> 12', hidden: false },
     { args: '[[2,4,6,8]]', expectedOutput: '20', display: 'sumEven([2,4,6,8]) -> 20', hidden: false },
@@ -74,7 +76,9 @@ const ManageQuestions: React.FC = () => {
   const [assessmentId, setAssessmentId] = useState(searchParams.get('assessment') ?? '');
   const [search, setSearch] = useState('');
   const [editing, setEditing] = useState<string | null>(null);
-  const [editText, setEditText] = useState('');
+  const editorRef = useRef<HTMLDivElement>(null);
+  const [deleteTarget, setDeleteTarget] = useState<Question | null>(null);
+  const [deletingQuestion, setDeletingQuestion] = useState(false);
   const [showAdd, setShowAdd] = useState(false);
   const [saving, setSaving] = useState(false);
   const [newQ, setNewQ] = useState<NewQuestionForm>(DEFAULT_NEW_Q);
@@ -112,6 +116,47 @@ const ManageQuestions: React.FC = () => {
   const questions = allQuestions.filter(q => q.text.toLowerCase().includes(search.toLowerCase()));
   const totalMarks = allQuestions.reduce((a, q) => a + q.marks, 0);
 
+  useEffect(() => {
+    setShowAdd(false);
+    setEditing(null);
+    setDeleteTarget(null);
+  }, [assessmentId]);
+
+  useEffect(() => {
+    if (showAdd) editorRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+  }, [showAdd, editing]);
+
+  const closeEditor = () => {
+    setShowAdd(false);
+    setEditing(null);
+  };
+
+  const openQuestionEdit = (question: Question) => {
+    const raw = questionsData?.find(item => item.id === question.id);
+    if (!raw) return;
+    const language = (raw.languages?.[0] ?? raw.language ?? 'javascript') as CodingLanguage;
+    setNewQ({
+      text: raw.text, type: raw.type, marks: raw.marks,
+      difficulty: (raw.difficulty ?? 'medium') as QuestionDifficulty,
+      required: raw.required ?? true,
+      options: raw.options?.map(option => ({
+        text: option.text, isCorrect: option.isCorrect ?? false,
+        explanation: option.explanation ?? '',
+      })) ?? newOptions(),
+      correctAnswer: raw.correctAnswer ?? (raw.type === 'true_false' ? 'True' : ''),
+      entryPoint: raw.entryPoint ?? '', language,
+      starterCode: raw.starterCodes?.[language] ?? raw.starterCode ?? '',
+      starterCodes: raw.starterCodes ?? {},
+      testCases: raw.testCases?.map(testCase => ({
+        args: JSON.stringify(testCase.args ?? []),
+        expectedOutput: testCase.expectedOutput ?? '',
+        display: testCase.display ?? '', hidden: testCase.hidden ?? false,
+      })) ?? [],
+    });
+    setEditing(question.id);
+    setShowAdd(true);
+  };
+
   const handleTypeChange = (type: string) => {
     setNewQ(n => ({
       ...n,
@@ -121,7 +166,7 @@ const ManageQuestions: React.FC = () => {
     }));
   };
 
-  const buildPayload = () => {
+  const buildPayload = (): QuestionInput => {
     const base = {
       text: newQ.text.trim(), type: newQ.type, marks: newQ.marks,
       difficulty: newQ.difficulty, required: newQ.required,
@@ -138,19 +183,23 @@ const ManageQuestions: React.FC = () => {
       return { ...base, correctAnswer: newQ.correctAnswer || 'True' };
     }
     if (newQ.type === 'short_answer') {
-      return { ...base, correctAnswer: newQ.correctAnswer || undefined };
+      return { ...base, correctAnswer: newQ.correctAnswer };
     }
     if (newQ.type === 'coding') {
       return {
         ...base,
         entryPoint: newQ.entryPoint.trim() || 'solution',
-        languages: [newQ.language],
-        starterCodes: { [newQ.language]: newQ.starterCode },
+        language: null,
+        starterCode: null,
+        languages: Array.from(new Set([
+          ...(editing ? questionsData?.find(question => question.id === editing)?.languages ?? [] : []),
+          newQ.language,
+        ])),
+        starterCodes: { ...newQ.starterCodes, [newQ.language]: newQ.starterCode },
         testCases: newQ.testCases
           .filter(tc => tc.expectedOutput.trim())
           .map((tc, i) => {
-            let args: unknown[] = [];
-            try { args = JSON.parse(tc.args || '[]'); } catch { /* keep empty */ }
+            const args: unknown[] = JSON.parse(tc.args || '[]');
             return {
               order: i + 1,
               args,
@@ -175,9 +224,27 @@ const ManageQuestions: React.FC = () => {
       toast.error('Question text is required');
       return;
     }
+    if (!Number.isFinite(newQ.marks) || newQ.marks <= 0) {
+      toast.error('Marks must be greater than zero');
+      return;
+    }
     if (newQ.type === 'coding' && !newQ.entryPoint.trim()) {
       toast.error('Entry function name is required for coding questions');
       return;
+    }
+    if (newQ.type === 'coding') {
+      for (const [index, testCase] of newQ.testCases.entries()) {
+        try {
+          if (!Array.isArray(JSON.parse(testCase.args || '[]'))) throw new Error();
+        } catch {
+          toast.error(`Test case ${index + 1}: arguments must be a valid JSON array`);
+          return;
+        }
+        if (!testCase.expectedOutput.trim()) {
+          toast.error(`Test case ${index + 1}: expected output is required`);
+          return;
+        }
+      }
     }
     if (newQ.type === 'multiple_choice') {
       const filled = newQ.options.filter(o => o.text.trim());
@@ -192,13 +259,17 @@ const ManageQuestions: React.FC = () => {
     }
     setSaving(true);
     try {
-      await assessmentsApi.addQuestion(assessmentId, buildPayload());
-      toast.success('Question added');
-      setShowAdd(false);
+      if (editing) {
+        await questionsApi.update(editing, buildPayload());
+      } else {
+        await assessmentsApi.addQuestion(assessmentId, buildPayload());
+      }
+      toast.success(editing ? 'Question updated' : 'Question added');
+      closeEditor();
       setNewQ(DEFAULT_NEW_Q);
       reloadQuestions();
     } catch (err) {
-      const msg = err instanceof ApiError ? err.message : 'Could not add question';
+      const msg = err instanceof ApiError ? err.message : 'Could not save question';
       toast.error(msg);
     } finally {
       setSaving(false);
@@ -256,24 +327,18 @@ const ManageQuestions: React.FC = () => {
     }
   };
 
-  const saveEdit = async (q: Question) => {
-    try {
-      await questionsApi.update(q.id, { text: editText });
-      toast.success('Question updated');
-      setEditing(null);
-      reloadQuestions();
-    } catch {
-      toast.error('Could not update question');
-    }
-  };
-
   const deleteQuestion = async (q: Question) => {
+    setDeletingQuestion(true);
     try {
       await questionsApi.remove(q.id);
       toast.success('Question deleted');
+      setDeleteTarget(null);
+      if (editing === q.id) closeEditor();
       reloadQuestions();
-    } catch {
-      toast.error('Could not delete question');
+    } catch (error) {
+      toast.error(error instanceof ApiError ? error.message : 'Could not delete question');
+    } finally {
+      setDeletingQuestion(false);
     }
   };
 
@@ -282,7 +347,7 @@ const ManageQuestions: React.FC = () => {
       <div className="max-w-4xl space-y-6">
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
           <h1 className="text-xl font-bold text-balance">Manage Questions</h1>
-          <Button size="sm" onClick={() => setShowAdd(s => !s)}>
+          <Button size="sm" disabled={saving} onClick={() => { setEditing(null); setNewQ(DEFAULT_NEW_Q); setShowAdd(true); }}>
             <PlusCircle className="w-4 h-4 mr-2" /> Add Question
           </Button>
         </div>
@@ -299,6 +364,7 @@ const ManageQuestions: React.FC = () => {
             <div className="flex gap-2">
               <select
                 value={assessmentId}
+                disabled={saving || deletingQuestion}
                 onChange={e => { setAssessmentId(e.target.value); setShowEditAssessment(false); setConfirmDelete(false); }}
                 className="flex-1 h-10 px-3 rounded-md border border-input bg-background text-foreground text-sm focus:outline-none focus:ring-2 focus:ring-ring"
               >
@@ -407,13 +473,15 @@ const ManageQuestions: React.FC = () => {
         </div>
 
         {showAdd && (
-          <div className="bg-card border border-primary/30 rounded-md p-4 space-y-4">
+          <div ref={editorRef} className="bg-card border border-primary/30 rounded-md p-4 space-y-4 scroll-mt-20" role="region" aria-label="Question editor">
             <div className="flex items-center justify-between">
-              <h3 className="text-sm font-semibold">New Question</h3>
-              <button onClick={() => setShowAdd(false)} className="text-muted-foreground hover:text-foreground"><X className="w-4 h-4" /></button>
+              <h3 className="text-sm font-semibold">{editing ? 'Edit Question' : 'New Question'}</h3>
+              <button title="Cancel question editing" disabled={saving} onClick={closeEditor} className="text-muted-foreground hover:text-foreground"><X className="w-4 h-4" /></button>
             </div>
 
+            <fieldset disabled={saving} className="space-y-4 min-w-0">
             <textarea
+              aria-label="Question text"
               value={newQ.text}
               onChange={e => setNewQ(n => ({ ...n, text: e.target.value }))}
               placeholder="Enter question text…"
@@ -424,6 +492,7 @@ const ManageQuestions: React.FC = () => {
               <div className="space-y-1">
                 <Label className="text-xs text-muted-foreground">Type</Label>
                 <select
+                  aria-label="Question type"
                   value={newQ.type}
                   onChange={e => handleTypeChange(e.target.value)}
                   className="text-sm px-3 py-2 rounded border border-input bg-background text-foreground h-10"
@@ -435,7 +504,7 @@ const ManageQuestions: React.FC = () => {
                 </select>
               </div>
               <div className="flex items-center gap-2">
-                <Input type="number" value={newQ.marks} onChange={e => setNewQ(n => ({ ...n, marks: Number(e.target.value) }))} min={1} max={20} className="w-20 h-10" />
+                <Input aria-label="Marks" type="number" value={newQ.marks} onChange={e => setNewQ(n => ({ ...n, marks: Number(e.target.value) }))} min={1} className="w-20 h-10" />
                 <span className="text-sm text-muted-foreground">marks</span>
               </div>
               <div className="space-y-1">
@@ -456,8 +525,9 @@ const ManageQuestions: React.FC = () => {
                 Required
               </label>
               <Button size="sm" onClick={saveNewQuestion} disabled={!newQ.text.trim() || saving} className="h-10">
-                {saving ? <Loader2 className="w-4 h-4 mr-1 animate-spin" /> : <Check className="w-4 h-4 mr-1" />} Save Question
+                {saving ? <Loader2 className="w-4 h-4 mr-1 animate-spin" /> : <Check className="w-4 h-4 mr-1" />} {editing ? 'Save Changes' : 'Save Question'}
               </Button>
+              <Button size="sm" variant="outline" onClick={closeEditor}>Cancel</Button>
             </div>
 
             {newQ.type === 'multiple_choice' && (
@@ -486,12 +556,14 @@ const ManageQuestions: React.FC = () => {
                     />
                     <div className="flex-1 space-y-1">
                       <Input
+                        aria-label={`Option ${String.fromCharCode(65 + i)}`}
                         value={opt.text}
                         onChange={e => setNewQ(n => ({ ...n, options: n.options.map((o, j) => j === i ? { ...o, text: e.target.value } : o) }))}
                         placeholder={`Option ${String.fromCharCode(65 + i)}`}
                         className="h-9 text-sm"
                       />
                       <Input
+                        aria-label={`Option ${String.fromCharCode(65 + i)} explanation`}
                         value={opt.explanation}
                         onChange={e => setNewQ(n => ({ ...n, options: n.options.map((o, j) => j === i ? { ...o, explanation: e.target.value } : o) }))}
                         placeholder="Explanation (optional)"
@@ -518,6 +590,7 @@ const ManageQuestions: React.FC = () => {
               <div className="space-y-1 pt-2 border-t border-border/60">
                 <Label className="text-xs text-muted-foreground">Correct Answer</Label>
                 <select
+                  aria-label="Correct answer"
                   value={newQ.correctAnswer}
                   onChange={e => setNewQ(n => ({ ...n, correctAnswer: e.target.value }))}
                   className="text-sm px-3 py-2 rounded border border-input bg-background text-foreground"
@@ -532,6 +605,7 @@ const ManageQuestions: React.FC = () => {
               <div className="space-y-1 pt-2 border-t border-border/60">
                 <Label className="text-xs text-muted-foreground">Model Answer (optional — for manual grading reference)</Label>
                 <textarea
+                  aria-label="Model answer"
                   value={newQ.correctAnswer}
                   onChange={e => setNewQ(n => ({ ...n, correctAnswer: e.target.value }))}
                   placeholder="Expected answer or grading rubric…"
@@ -546,6 +620,7 @@ const ManageQuestions: React.FC = () => {
                   <div className="space-y-1 flex-1 min-w-[140px]">
                     <Label className="text-xs text-muted-foreground">Entry Function</Label>
                     <Input
+                      aria-label="Entry function"
                       value={newQ.entryPoint}
                       onChange={e => setNewQ(n => ({ ...n, entryPoint: e.target.value }))}
                       placeholder="e.g. sumEven"
@@ -555,8 +630,14 @@ const ManageQuestions: React.FC = () => {
                   <div className="space-y-1">
                     <Label className="text-xs text-muted-foreground">Language</Label>
                     <select
+                      aria-label="Coding language"
                       value={newQ.language}
-                      onChange={e => setNewQ(n => ({ ...n, language: e.target.value as CodingLanguage }))}
+                      onChange={e => setNewQ(n => ({
+                        ...n,
+                        starterCodes: { ...n.starterCodes, [n.language]: n.starterCode },
+                        language: e.target.value as CodingLanguage,
+                        starterCode: n.starterCodes[e.target.value] ?? '',
+                      }))}
                       className="text-sm px-3 py-2 rounded border border-input bg-background text-foreground h-9"
                     >
                       <option value="javascript">JavaScript</option>
@@ -567,6 +648,7 @@ const ManageQuestions: React.FC = () => {
                 <div className="space-y-1">
                   <Label className="text-xs text-muted-foreground">Starter Code</Label>
                   <textarea
+                    aria-label="Starter code"
                     value={newQ.starterCode}
                     onChange={e => setNewQ(n => ({ ...n, starterCode: e.target.value }))}
                     spellCheck={false}
@@ -590,6 +672,7 @@ const ManageQuestions: React.FC = () => {
                       <div className="space-y-1 sm:col-span-2">
                         <Label className="text-[10px] text-muted-foreground">Display Label</Label>
                         <Input
+                          aria-label={`Test case ${i + 1} display label`}
                           value={tc.display}
                           onChange={e => setNewQ(n => ({ ...n, testCases: n.testCases.map((t, j) => j === i ? { ...t, display: e.target.value } : t) }))}
                           placeholder="sumEven([1,2,3]) -> 6"
@@ -599,6 +682,7 @@ const ManageQuestions: React.FC = () => {
                       <div className="space-y-1">
                         <Label className="text-[10px] text-muted-foreground">Args (JSON array)</Label>
                         <Input
+                          aria-label={`Test case ${i + 1} arguments`}
                           value={tc.args}
                           onChange={e => setNewQ(n => ({ ...n, testCases: n.testCases.map((t, j) => j === i ? { ...t, args: e.target.value } : t) }))}
                           placeholder="[[1,2,3,4]]"
@@ -608,6 +692,7 @@ const ManageQuestions: React.FC = () => {
                       <div className="space-y-1">
                         <Label className="text-[10px] text-muted-foreground">Expected Output</Label>
                         <Input
+                          aria-label={`Test case ${i + 1} expected output`}
                           value={tc.expectedOutput}
                           onChange={e => setNewQ(n => ({ ...n, testCases: n.testCases.map((t, j) => j === i ? { ...t, expectedOutput: e.target.value } : t) }))}
                           placeholder="12"
@@ -623,7 +708,7 @@ const ManageQuestions: React.FC = () => {
                         />
                         <Lock className="w-3 h-3" /> Hidden test case (graded after submission)
                       </label>
-                      {newQ.testCases.length > 1 && (
+                      {newQ.testCases.length > 0 && (
                         <button
                           type="button"
                           onClick={() => setNewQ(n => ({ ...n, testCases: n.testCases.filter((_, j) => j !== i) }))}
@@ -637,6 +722,19 @@ const ManageQuestions: React.FC = () => {
                 </div>
               </div>
             )}
+            </fieldset>
+          </div>
+        )}
+
+        {deleteTarget && (
+          <div role="alert" className="border border-destructive/40 rounded-md p-4 space-y-3">
+            <p className="text-sm break-words">Delete this question? {deleteTarget.text}</p>
+            <div className="flex gap-2">
+              <Button variant="destructive" size="sm" disabled={deletingQuestion || saving} onClick={() => deleteQuestion(deleteTarget)}>
+                <Trash2 className="w-4 h-4 mr-1" /> {deletingQuestion ? 'Deleting...' : 'Delete Question'}
+              </Button>
+              <Button variant="outline" size="sm" disabled={deletingQuestion} onClick={() => setDeleteTarget(null)}>Cancel</Button>
+            </div>
           </div>
         )}
 
@@ -655,16 +753,7 @@ const ManageQuestions: React.FC = () => {
                 <div className="flex items-start gap-3">
                   <span className="w-7 h-7 rounded bg-primary/10 flex items-center justify-center text-xs font-bold text-primary shrink-0">{i + 1}</span>
                   <div className="flex-1 min-w-0">
-                    {editing === q.id ? (
-                      <textarea
-                        value={editText}
-                        onChange={e => setEditText(e.target.value)}
-                        className="w-full p-2 text-sm rounded border border-input bg-background text-foreground focus:outline-none focus:ring-2 focus:ring-ring resize-none min-h-[60px]"
-                        autoFocus
-                      />
-                    ) : (
-                      <p className="text-sm text-foreground leading-relaxed text-pretty">{q.text}</p>
-                    )}
+                    <p className="text-sm text-foreground leading-relaxed text-pretty">{q.text}</p>
                     {q.options && q.options.length > 0 && (
                       <div className="mt-2 grid grid-cols-1 sm:grid-cols-2 gap-1.5">
                         {q.options.map((opt, oi) => (
@@ -719,17 +808,8 @@ const ManageQuestions: React.FC = () => {
                     </div>
                   </div>
                   <div className="flex items-center gap-1 shrink-0">
-                    {editing === q.id ? (
-                      <>
-                        <button onClick={() => saveEdit(q)} className="p-1.5 rounded hover:bg-green-500/10 text-green-500 transition-colors"><Check className="w-4 h-4" /></button>
-                        <button onClick={() => setEditing(null)} className="p-1.5 rounded hover:bg-muted text-muted-foreground transition-colors"><X className="w-4 h-4" /></button>
-                      </>
-                    ) : (
-                      <>
-                        <button onClick={() => { setEditing(q.id); setEditText(q.text); }} className="p-1.5 rounded hover:bg-muted text-muted-foreground hover:text-foreground transition-colors"><Edit2 className="w-4 h-4" /></button>
-                        <button onClick={() => deleteQuestion(q)} className="p-1.5 rounded hover:bg-destructive/10 text-muted-foreground hover:text-destructive transition-colors"><Trash2 className="w-4 h-4" /></button>
-                      </>
-                    )}
+                    <button title="Edit question" aria-label={`Edit question ${i + 1}`} disabled={saving || deletingQuestion} onClick={() => openQuestionEdit(q)} className="p-1.5 rounded hover:bg-muted text-muted-foreground hover:text-foreground transition-colors"><Edit2 className="w-4 h-4" /></button>
+                    <button title="Delete question" aria-label={`Delete question ${i + 1}`} disabled={saving || deletingQuestion} onClick={() => setDeleteTarget(q)} className="p-1.5 rounded hover:bg-destructive/10 text-muted-foreground hover:text-destructive transition-colors"><Trash2 className="w-4 h-4" /></button>
                   </div>
                 </div>
               </div>

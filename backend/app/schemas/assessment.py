@@ -71,8 +71,7 @@ class QuestionSchema(CamelCaseSchema):
     # Normalized options: emitted from the question_options table (falling back
     # to legacy JSON options) and accepted as a list of objects on write.
     options = fields.Method("dump_options", deserialize="load_options", allow_none=True)
-    # correct_answer is load-only so it is never leaked to candidates
-    correct_answer = fields.Str(allow_none=True, load_only=True)
+    correct_answer = fields.Str(allow_none=True)
     language = EnumValueField(allow_none=True, validate=validate.OneOf([c.value for c in CodingLanguage]))
     languages = fields.List(fields.Str(), allow_none=True)
     entry_point = fields.Str(allow_none=True)

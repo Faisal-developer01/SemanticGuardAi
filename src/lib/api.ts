@@ -372,6 +372,7 @@ export interface ApiQuestion {
   difficulty?: string | null;
   required?: boolean | null;
   options?: ApiQuestionOption[] | null;
+  correctAnswer?: string | null;
   language?: string | null;
   languages?: string[] | null;
   entryPoint?: string | null;
@@ -625,7 +626,7 @@ export const assessmentsApi = {
 };
 
 export const questionsApi = {
-  update(id: string, payload: Partial<ApiQuestion>) {
+  update(id: string, payload: Partial<QuestionInput>) {
     return request<ApiQuestion>(`/questions/${id}`, { method: 'PUT', auth: true, body: payload });
   },
   remove(id: string) {

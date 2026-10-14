@@ -143,11 +143,33 @@ def update_question(user, question_id, data: dict):
     question = questions.get_or_404(question_id)
     assessment = assessments.get_or_404(question.assessment_id)
     _ensure_owner(user, assessment)
-    data.pop("test_cases", None)
+    cases = data.pop("test_cases", None)
     options = data.pop("options", None)
+    previous_type = question.type
     questions.update(question, commit=False, **data)
+    if question.type != previous_type:
+        if question.type != QuestionType.multiple_choice:
+            question.option_rows = []
+            question.options = None
+        if question.type != QuestionType.coding:
+            question.test_cases = []
+            question.language = None
+            question.languages = None
+            question.entry_point = None
+            question.starter_code = None
+            question.starter_codes = None
+        if question.type in (QuestionType.multiple_choice, QuestionType.coding):
+            question.correct_answer = None
     if options is not None:
         _sync_options(question, options)
+    if cases is not None:
+        question.test_cases = []
+        for index, case in enumerate(cases):
+            question.test_cases.append(test_cases.create(
+                question_id=question.id, order=case.get("order", index), commit=False,
+                args=case.get("args"), expected_output=case.get("expected_output"),
+                display=case.get("display"), hidden=case.get("hidden", False),
+            ))
     questions.session.commit()
     audit_service.record("question.update", user=user, resource=str(question.id))
     return question

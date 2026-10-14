@@ -492,6 +492,33 @@ function recordingModal(...args) {
   return alertPanelModule(...args).RecordingModal;
 }
 
+test('authenticated layouts fill available page width for every role without widening nested dialogs', () => {
+  for (const role of ['candidate', 'admin', 'recruiter']) {
+    const h = harness();
+    const { AppLayout } = h.loadModule('src/components/layouts/AppLayout.tsx', {
+      './Sidebar': { Sidebar: 'aside' },
+      './TopNav': { TopNav: 'header' },
+      '@/contexts/AuthContext': { useAuth: () => ({ user: { role } }) },
+    });
+    const children = {
+      type: 'section', props: {
+        className: 'max-w-5xl',
+        children: { type: 'dialog', props: { className: 'max-w-md' } },
+      },
+    };
+    const tree = h.renderFunction(AppLayout, { children });
+    const main = findElements(tree, 'main')[0];
+    const classes = main.props.className.split(/\s+/);
+    assert.ok(classes.includes('[&>*]:w-full'));
+    assert.ok(classes.includes('[&>*]:max-w-none'));
+    assert.ok(classes.includes('[&>*]:min-w-0'));
+    assert.ok(classes.includes('overflow-y-auto'));
+    assert.equal(main.props.children, children);
+    assert.equal(findElements(tree, 'dialog')[0].props.className, 'max-w-md');
+    h.cleanup();
+  }
+});
+
 test('recording viewer bounds its viewport, contains video, and keeps accessible clip controls', async () => {
   const h = harness();
   const state = { data: [clip('clip-1', '2026-10-07T12:00:00Z')], loading: false, error: null, reload() {} };
