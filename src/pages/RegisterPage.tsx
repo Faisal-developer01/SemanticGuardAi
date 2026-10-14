@@ -35,7 +35,7 @@ const RegisterPage: React.FC = () => {
   const [step, setStep]           = useState<1 | 2>(1);
   const [faceStatus, setFaceStatus] = useState<'idle' | 'capturing' | 'captured'>('idle');
   const [form, setForm] = useState({
-    name: '', email: '', candidateId: '', department: '',
+    name: '', email: '', department: '',
     password: '', confirmPassword: '', agreeTerms: false, role: 'candidate',
   });
   const [showPass, setShowPass] = useState(false);
@@ -56,7 +56,6 @@ const RegisterPage: React.FC = () => {
     const e: Record<string, string> = {};
     if (!form.name.trim())               e.name            = 'Full name is required';
     if (!form.email.includes('@'))        e.email           = 'Valid email is required';
-    if (form.role === 'candidate' && !form.candidateId.trim()) e.candidateId = 'Candidate ID is required';
     if (!form.department.trim())         e.department      = 'Department is required';
     if (form.password.length < 8)        e.password        = 'Password must be at least 8 characters';
     if (form.password !== form.confirmPassword) e.confirmPassword = 'Passwords do not match';
@@ -156,7 +155,6 @@ const RegisterPage: React.FC = () => {
         fullName: form.name,
         email: form.email,
         password: form.password,
-        candidateId: form.role === 'candidate' ? form.candidateId.trim() : undefined,
         role: form.role as any,
         department: form.department,
         position: form.role === 'recruiter' ? 'Recruiter' : 'Candidate',
@@ -255,30 +253,6 @@ const RegisterPage: React.FC = () => {
                   {errors.name && <p className="text-destructive text-xs">{errors.name}</p>}
                 </div>
 
-                {form.role === 'candidate' ? (
-                  <div className="grid grid-cols-2 gap-3">
-                    <div className="space-y-1.5">
-                      <Label htmlFor="candidateId" className="text-sm font-normal">Candidate ID</Label>
-                      <Input id="candidateId" value={form.candidateId} onChange={e => handleChange('candidateId', e.target.value)} placeholder="CAND2024001" maxLength={40} />
-                      {errors.candidateId && <p className="text-destructive text-xs">{errors.candidateId}</p>}
-                    </div>
-                    <div className="space-y-1.5">
-                      <Label htmlFor="department" className="text-sm font-normal">Department</Label>
-                      <select
-                        id="department"
-                        value={form.department}
-                        onChange={e => handleChange('department', e.target.value)}
-                        className="flex h-9 w-full rounded-md border border-input bg-background px-3 py-1 text-sm text-foreground shadow-sm transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring disabled:cursor-not-allowed disabled:opacity-50"
-                      >
-                        <option value="" disabled>Select department</option>
-                        {DEPARTMENTS.map(d => (
-                          <option key={d} value={d}>{d}</option>
-                        ))}
-                      </select>
-                      {errors.department && <p className="text-destructive text-xs">{errors.department}</p>}
-                    </div>
-                  </div>
-                ) : (
                   <div className="space-y-1.5">
                     <Label htmlFor="department" className="text-sm font-normal">Department</Label>
                     <select
@@ -294,7 +268,6 @@ const RegisterPage: React.FC = () => {
                     </select>
                     {errors.department && <p className="text-destructive text-xs">{errors.department}</p>}
                   </div>
-                )}
 
                 <div className="space-y-1.5">
                   <Label htmlFor="reg-email" className="text-sm font-normal">Email</Label>

@@ -92,7 +92,6 @@ class LoginSchema(Schema):
 
 class RegisterSchema(UserCreateSchema):
     face_photo = fields.Str(load_default=None, data_key="facePhoto")
-    candidate_code = fields.Str(load_default=None, data_key="candidateId", validate=validate.Length(min=1, max=40))
 
 
 class RefreshSchema(Schema):

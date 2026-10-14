@@ -146,7 +146,7 @@ const CandidateProfile: React.FC = () => {
                 <h2 className="text-xl font-bold text-balance">{candidate.name}</h2>
                 <p className="text-muted-foreground text-sm">{candidate.email}</p>
                 <div className="flex flex-wrap items-center gap-2 mt-3">
-                  <span className="text-xs font-medium bg-primary/10 text-primary px-2.5 py-1 rounded-full border border-primary/20">{candidate.candidateId}</span>
+                  <span className="text-xs font-medium bg-primary/10 text-primary px-2.5 py-1 rounded-full border border-primary/20 max-w-full break-all">{candidate.candidateId}</span>
                   <span className="text-xs bg-muted text-muted-foreground px-2.5 py-1 rounded-full border border-border">{candidate.department}</span>
                   <span className="text-xs bg-muted text-muted-foreground px-2.5 py-1 rounded-full border border-border">{candidate.experienceYears} yrs experience</span>
                 </div>
@@ -181,7 +181,7 @@ const CandidateProfile: React.FC = () => {
                     <Label className="text-sm font-normal">Full Name</Label>
                     <Input value={form.name} onChange={e => setForm(f => ({ ...f, name: e.target.value }))} disabled={!editing} />
                   </div>
-                  <div className="space-y-1.5">
+                  <div className="space-y-1.5 sm:col-span-2">
                     <Label className="text-sm font-normal">Candidate ID</Label>
                     <Input value={candidate.candidateId} disabled />
                   </div>

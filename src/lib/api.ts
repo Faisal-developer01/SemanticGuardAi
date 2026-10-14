@@ -204,7 +204,6 @@ export const authApi = {
     fullName: string;
     email: string;
     password: string;
-    candidateId?: string;
     role?: UserRole;
     phone?: string;
     department?: string;

@@ -55,6 +55,22 @@ flask --app wsgi seed-roles
 flask --app wsgi create-admin --email admin@semanticservices.rw --password "ChangeMe!23" --name "Administrator"
 ```
 
+## Candidate registration IDs
+
+`POST /api/v1/auth/register` assigns candidate IDs on the server. Clients do not
+send `candidateId`; legacy values sent by older clients are ignored. Successful
+registration returns the persisted ID as `user.candidateProfile.candidateCode`,
+also available from `GET /api/v1/auth/me` and shown on the candidate dashboard
+and read-only profile.
+
+New IDs use `CND-` followed by 32 uppercase hexadecimal characters. The existing
+unique index on `candidate_profiles.candidate_code` prevents duplicates in
+PostgreSQL, including concurrent registrations. ID collisions retry within a
+savepoint; exhausted retries roll back the new account. Registration commits
+the user and profile together before returning success. Existing candidate
+codes, user UUIDs, and assessment/credential relationships are unchanged. No
+data migration or backfill is required when the existing migrations are applied.
+
 ## Run (development)
 
 ```powershell

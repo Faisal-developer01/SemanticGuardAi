@@ -66,6 +66,11 @@ const CandidateDashboard: React.FC = () => {
               <h1 className="text-xl font-bold text-foreground text-balance">
                 {candidate.name} ✦
               </h1>
+              {profile?.candidateCode && (
+                <p className="text-xs text-muted-foreground mt-1 break-all">
+                  Candidate ID: <span className="font-medium text-foreground">{profile.candidateCode}</span>
+                </p>
+              )}
               <p className="text-sm text-muted-foreground mt-1 text-pretty max-w-lg">
                 Monitor your assessment integrity, access upcoming assessments, and track your performance.
               </p>
